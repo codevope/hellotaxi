@@ -1,14 +1,24 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useMapsLibrary } from '@vis.gl/react-google-maps';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { MapPin, Navigation, Loader2, X } from 'lucide-react';
+import { MapPin, X, Loader2, Navigation } from 'lucide-react';
+import { Card, CardContent } from './ui/card';
 import { useMap } from '@/contexts/map-context';
-import { PlaceAutocomplete } from './maps';
-import { useSmartSearch, type SmartSearchResult } from '@/hooks/use-smart-search';
-import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
+
+interface PlacePrediction {
+  description: string;
+  place_id: string;
+}
+
+interface Location {
+  lat: number;
+  lng: number;
+  address?: string;
+  placeId?: string;
+}
 
 interface AutocompleteInputProps {
   onPlaceSelect: (address: string, coordinates?: { lat: number; lng: number }) => void;
@@ -16,7 +26,6 @@ interface AutocompleteInputProps {
   value?: string;
   onChange?: (value: string) => void;
   showCurrentLocationButton?: boolean;
-  showSmartSearch?: boolean;
   disabled?: boolean;
   error?: string;
 }
@@ -27,199 +36,166 @@ export default function AutocompleteInput({
   value = '',
   onChange,
   showCurrentLocationButton = true,
-  showSmartSearch = true,
   disabled = false,
   error,
 }: AutocompleteInputProps) {
+  const [inputValue, setInputValue] = useState(value);
+  const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  
+  const places = useMapsLibrary('places');
+  const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
+  const geocoder = useRef<google.maps.Geocoder | null>(null);
+
   const { userLocation } = useMap();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const {
-    searchSuggestions,
-    addToRecent
-  } = useSmartSearch(
-    userLocation?.coordinates ? {
-      lat: userLocation.coordinates.lat,
-      lng: userLocation.coordinates.lng
-    } : undefined
-  );
+  useEffect(() => {
+    if (places) {
+      autocompleteService.current = new places.AutocompleteService();
+      geocoder.current = new places.Geocoder();
+    }
+  }, [places]);
 
-  // Manejar clicks fuera del componente
+  useEffect(() => {
+    if (value !== inputValue) {
+        setInputValue(value);
+    }
+  }, [value]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false);
         setIsFocused(false);
+        setPredictions([]);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Handle current location button
-  const handleCurrentLocation = useCallback(() => {
-    if (!userLocation) return;
-    
+  const fetchPredictions = useCallback((input: string) => {
+    if (!autocompleteService.current || input.length < 3) {
+      setPredictions([]);
+      return;
+    }
     setIsLoading(true);
-    try {
-      const address = 'Mi ubicación actual';
-      const coordinates = userLocation.coordinates;
-      
-      onPlaceSelect(address, coordinates);
-      
-      // Update input value if onChange is provided
-      if (onChange) {
-        onChange(address);
+    autocompleteService.current.getPlacePredictions(
+      {
+        input,
+        componentRestrictions: { country: 'pe' }, // Restrict to Peru
+      },
+      (results, status) => {
+        setIsLoading(false);
+        if (status === 'OK' && results) {
+          setPredictions(results);
+        } else {
+          setPredictions([]);
+        }
       }
-    } catch (err) {
-      console.error('Error setting current location:', err);
-    } finally {
+    );
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setInputValue(newValue);
+    if(onChange) onChange(newValue);
+    fetchPredictions(newValue);
+  };
+
+  const handleSelectPrediction = (prediction: PlacePrediction) => {
+    if (!geocoder.current) return;
+    setIsLoading(true);
+    geocoder.current.geocode({ placeId: prediction.place_id }, (results, status) => {
       setIsLoading(false);
-    }
-  }, [userLocation]);
+      if (status === 'OK' && results && results[0].geometry) {
+        const location = results[0].geometry.location;
+        const address = results[0].formatted_address;
+        setInputValue(address);
+        setPredictions([]);
+        onPlaceSelect(address, { lat: location.lat(), lng: location.lng() });
+      } else {
+        // Fallback for safety
+        setInputValue(prediction.description);
+        onPlaceSelect(prediction.description, undefined);
+      }
+    });
+  };
 
-  // Handle place selection from Google Places API
-  const handlePlaceSelect = useCallback((location: { lat: number; lng: number; address?: string; placeId?: string }) => {
-    const coordinates = {
-      lat: location.lat,
-      lng: location.lng
-    };
-    
-    const address = location.address || 'Ubicación seleccionada';
-    onPlaceSelect(address, coordinates);
-    
-    // Update input value if onChange is provided
-    if (onChange) {
-      onChange(address);
-    }
-    
-    setShowSuggestions(false);
-  }, []);
-
-  // Handle place selection from smart search
-  const handleSmartSearchSelect = useCallback((place: SmartSearchResult) => {
-    const address = place.title;
-    const coordinates = place.coordinates;
-    
-    addToRecent(place);
-    onPlaceSelect(address, coordinates);
-    
-    if (onChange) {
-      onChange(address);
-    }
-    
-    setShowSuggestions(false);
-    setIsFocused(false);
-  }, []);
-
-  // Handle input focus
-  const handleInputFocus = () => {
-    setIsFocused(true);
-    if (showSmartSearch && (!value || value.trim() === '')) {
-      setShowSuggestions(true);
+  const handleCurrentLocationSelect = () => {
+    if (userLocation) {
+        const address = 'Mi ubicación actual';
+        setInputValue(address);
+        setPredictions([]);
+        onPlaceSelect(address, userLocation.coordinates);
     }
   };
 
-  // Handle input change
-  const handleInputChange = (newValue: string) => {
-    if (onChange) {
-      onChange(newValue);
-    }
-    
-    // Ocultar sugerencias cuando hay texto
-    if (newValue.trim() !== '') {
-      setShowSuggestions(false);
-    } else if (showSmartSearch && isFocused) {
-      setShowSuggestions(true);
-    }
+  const handleClear = () => {
+    setInputValue('');
+    if(onChange) onChange('');
+    setPredictions([]);
   };
 
   return (
-    <div className="space-y-2" ref={containerRef}>
-      <div className="relative flex gap-2">
-        <div className="relative flex-1">
-          <PlaceAutocomplete
-            onPlaceSelect={handlePlaceSelect}
-            placeholder={placeholder || 'Ingresa una dirección'}
-            value={value}
-            onChange={handleInputChange}
-            onFocus={handleInputFocus}
-            disabled={disabled || isLoading}
-            restrictions={{
-              country: ['PE'] // Restricción a Perú
-            }}
-            className="pl-10"
-          />
-          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none z-10" />
+    <div className="relative" ref={containerRef}>
+      <div className="relative">
+        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+        <Input
+          value={inputValue}
+          onChange={handleInputChange}
+          onFocus={() => setIsFocused(true)}
+          placeholder={placeholder}
+          disabled={disabled}
+          className="pl-10 pr-10"
+        />
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+          {inputValue && !isLoading && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={handleClear}
+              className="h-7 w-7 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
-
-        {showCurrentLocationButton && userLocation && (
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={handleCurrentLocation}
-            disabled={isLoading || disabled}
-            title="Usar mi ubicación actual"
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Navigation className="h-4 w-4" />
-            )}
-          </Button>
-        )}
       </div>
-      
-      {/* Smart Search Suggestions */}
-      {showSuggestions && showSmartSearch && searchSuggestions.length > 0 && (
+
+      {isFocused && (predictions.length > 0 || (showCurrentLocationButton && userLocation)) && (
         <Card className="absolute z-50 w-full mt-1 shadow-lg">
-          <CardContent className="p-0">
-            <ScrollArea className="max-h-[300px]">
-              <div className="p-2">
-                <div className="text-xs text-gray-500 px-2 py-1 border-b mb-2">
-                  Sugerencias para ti
+          <CardContent className="p-2">
+            {showCurrentLocationButton && userLocation && (
+                <div
+                    className="flex items-center gap-3 p-3 hover:bg-accent rounded-md cursor-pointer"
+                    onClick={handleCurrentLocationSelect}
+                >
+                    <Navigation className="h-5 w-5 text-primary" />
+                    <div>
+                        <p className="font-semibold">Usar mi ubicación actual</p>
+                        <p className="text-sm text-muted-foreground">Cerca de tu ubicación</p>
+                    </div>
                 </div>
-                {searchSuggestions.slice(0, 6).map(place => (
-                  <div
-                    key={place.id}
-                    className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer transition-colors"
-                    onClick={() => handleSmartSearchSelect(place)}
-                  >
-                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm">
-                      {place.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-gray-900 truncate">{place.title}</p>
-                      <p className="text-xs text-gray-500 truncate">{place.subtitle}</p>
-                      {(place.distance || place.category) && (
-                        <div className="flex items-center space-x-1 mt-1">
-                          {place.category && (
-                            <Badge variant="secondary" className="text-xs px-1 py-0">
-                              {place.category}
-                            </Badge>
-                          )}
-                          {place.distance && (
-                            <span className="text-xs text-gray-400">{place.distance}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+            )}
+            {predictions.map((p) => (
+              <div
+                key={p.place_id}
+                className="flex items-center gap-3 p-3 hover:bg-accent rounded-md cursor-pointer"
+                onClick={() => handleSelectPrediction(p)}
+              >
+                <MapPin className="h-5 w-5 text-muted-foreground" />
+                <p className="text-sm">{p.description}</p>
               </div>
-            </ScrollArea>
+            ))}
           </CardContent>
         </Card>
       )}
-      
-      {error && (
-        <p className="text-sm text-red-500">{error}</p>
-      )}
+
+      {error && <p className="text-sm text-destructive mt-1">{error}</p>}
     </div>
   );
 }
