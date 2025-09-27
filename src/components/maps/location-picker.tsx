@@ -4,12 +4,12 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MapPin, Navigation, Target } from 'lucide-react';
-import { 
-  GoogleMapsProvider, 
-  InteractiveMap, 
-  MapMarker, 
+import {
+  GoogleMapsProvider,
+  InteractiveMap,
+  MapMarker,
   PlaceAutocomplete,
-  type Location 
+  type Location,
 } from './';
 import { useMap } from '@/contexts/map-context';
 import { cn } from '@/lib/utils';
@@ -18,7 +18,7 @@ interface LocationPickerProps {
   onLocationSelect: (location: Location) => void;
   onCancel?: () => void;
   title?: string;
-  initialLocation?: { lat: number, lng: number };
+  initialLocation?: { lat: number; lng: number };
   className?: string;
   isPickup?: boolean;
 }
@@ -26,16 +26,22 @@ interface LocationPickerProps {
 const LocationPicker: React.FC<LocationPickerProps> = ({
   onLocationSelect,
   onCancel,
-  title = "Seleccionar ubicación",
+  title = 'Seleccionar ubicación',
   initialLocation,
   className = '',
   isPickup = false,
 }) => {
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(initialLocation ? {...initialLocation, address: 'Ubicación seleccionada'} : null);
+  const [selectedLocation, setSelectedLocation] =
+    useState<Location | null>(
+      initialLocation
+        ? { ...initialLocation, address: 'Ubicación seleccionada' }
+        : null
+    );
   const { userLocation, geocodeAddress } = useMap();
 
   const [mapCenter, setMapCenter] = useState<Location>(
-    initialLocation || userLocation?.coordinates || { lat: -12.0464, lng: -77.0428 }
+    initialLocation ||
+      userLocation?.coordinates || { lat: -12.0464, lng: -77.0428 }
   );
 
   const handlePlaceSelect = (location: Location) => {
@@ -45,8 +51,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
 
   const handleMapClick = async (location: Location) => {
     const geocodedLocation = await geocodeAddress(location);
-    if(geocodedLocation) {
-        setSelectedLocation(geocodedLocation);
+    if (geocodedLocation) {
+      setSelectedLocation(geocodedLocation);
     }
   };
 
@@ -61,7 +67,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
       const location: Location = {
         lat: userLocation.coordinates.lat,
         lng: userLocation.coordinates.lng,
-        address: 'Mi ubicación actual'
+        address: 'Mi ubicación actual',
       };
       setSelectedLocation(location);
       setMapCenter(location);
@@ -69,16 +75,9 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   };
 
   return (
-    <GoogleMapsProvider>
-      <Card className={cn("w-full mx-auto", className)}>
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-primary" />
-            {title}
-          </CardTitle>
-        </CardHeader>
-        
-        <CardContent className="space-y-4">
+    <GoogleMapsProvider libraries={['places', 'geocoding']}>
+      <Card className={cn('w-full mx-auto', className)}>
+        <CardContent className="space-y-4 pt-6">
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">
               Buscar por dirección
@@ -89,7 +88,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
               isPickup={isPickup}
             />
           </div>
-          
+
           <InteractiveMap
             center={mapCenter}
             height="300px"
@@ -131,13 +130,9 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             >
               Confirmar ubicación
             </Button>
-            
+
             {onCancel && (
-              <Button
-                variant="outline"
-                onClick={onCancel}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={onCancel} className="flex-1">
                 Cancelar
               </Button>
             )}
