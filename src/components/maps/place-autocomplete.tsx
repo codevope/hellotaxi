@@ -4,15 +4,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { Input } from '@/components/ui/input';
-import { MapPin, Loader2, X } from 'lucide-react';
+import { MapPin, Loader2, X, Navigation } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Location } from '.';
-import { useMap } from '@/contexts/map-context';
 import { Button } from '../ui/button';
 
 
 interface PlaceAutocompleteProps {
   onPlaceSelect: (place: Location) => void;
+  onUseCurrentLocation: () => void;
   placeholder?: string;
   className?: string;
   defaultValue?: string;
@@ -21,6 +21,7 @@ interface PlaceAutocompleteProps {
 
 const PlaceAutocomplete = ({
   onPlaceSelect,
+  onUseCurrentLocation,
   placeholder = 'Buscar una dirección...',
   className,
   defaultValue = '',
@@ -36,16 +37,18 @@ const PlaceAutocomplete = ({
   const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
   const geocoder = useRef<google.maps.Geocoder | null>(null);
 
-  const { userLocation } = useMap();
 
   useEffect(() => {
-    if (places) {
+    if (!places || !geocoding) return;
+
+    if (!autocompleteService.current) {
       autocompleteService.current = new places.AutocompleteService();
     }
-    if(geocoding) {
+    if (!geocoder.current) {
       geocoder.current = new geocoding.Geocoder();
     }
   }, [places, geocoding]);
+
 
   const fetchSuggestions = useCallback((input: string) => {
     if (!autocompleteService.current || input.length < 3) {
@@ -96,18 +99,6 @@ const PlaceAutocomplete = ({
       }
     });
   };
-
-  const handleUseCurrentLocation = () => {
-    if(userLocation?.coordinates) {
-        setShowSuggestions(false);
-        onPlaceSelect({
-            lat: userLocation.coordinates.lat,
-            lng: userLocation.coordinates.lng,
-            address: "Mi ubicación actual",
-        });
-        setInputValue("Mi ubicación actual");
-    }
-  }
   
   const clearInput = () => {
     setInputValue('');
@@ -125,7 +116,7 @@ const PlaceAutocomplete = ({
             onFocus={() => { if(inputValue) setShowSuggestions(true); }}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
             placeholder={placeholder}
-            className="pl-10"
+            className="pl-10 pr-10"
         />
         {inputValue && (
           <Button variant="ghost" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7" onClick={clearInput}>
@@ -141,12 +132,12 @@ const PlaceAutocomplete = ({
                     </div>
                 ) : (
                     <ul className="py-1">
-                        {isPickup && userLocation && (
+                        {isPickup && (
                              <li
-                                className="px-4 py-2 text-sm hover:bg-accent cursor-pointer flex items-center gap-2"
-                                onMouseDown={handleUseCurrentLocation}
+                                className="px-4 py-2 text-sm hover:bg-accent cursor-pointer flex items-center gap-2 text-primary"
+                                onMouseDown={onUseCurrentLocation}
                             >
-                                <MapPin className="h-4 w-4 text-primary" />
+                                <Navigation className="h-4 w-4" />
                                 <span>Usar mi ubicación actual</span>
                             </li>
                         )}

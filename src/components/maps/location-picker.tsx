@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MapPin, Navigation, Target } from 'lucide-react';
+import { MapPin, Target } from 'lucide-react';
 import {
   GoogleMapsProvider,
   InteractiveMap,
@@ -17,7 +17,6 @@ import { cn } from '@/lib/utils';
 interface LocationPickerProps {
   onLocationSelect: (location: Location) => void;
   onCancel?: () => void;
-  title?: string;
   initialLocation?: { lat: number; lng: number };
   className?: string;
   isPickup?: boolean;
@@ -26,7 +25,6 @@ interface LocationPickerProps {
 const LocationPicker: React.FC<LocationPickerProps> = ({
   onLocationSelect,
   onCancel,
-  title = 'Seleccionar ubicación',
   initialLocation,
   className = '',
   isPickup = false,
@@ -37,7 +35,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
         ? { ...initialLocation, address: 'Ubicación seleccionada' }
         : null
     );
-  const { userLocation, geocodeAddress } = useMap();
+  const { userLocation } = useMap();
 
   const [mapCenter, setMapCenter] = useState<Location>(
     initialLocation ||
@@ -47,13 +45,6 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   const handlePlaceSelect = (location: Location) => {
     setSelectedLocation(location);
     setMapCenter(location);
-  };
-
-  const handleMapClick = async (location: Location) => {
-    const geocodedLocation = await geocodeAddress(location);
-    if (geocodedLocation) {
-      setSelectedLocation(geocodedLocation);
-    }
   };
 
   const handleConfirm = () => {
@@ -69,23 +60,20 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
         lng: userLocation.coordinates.lng,
         address: 'Mi ubicación actual',
       };
-      setSelectedLocation(location);
-      setMapCenter(location);
+      handlePlaceSelect(location);
     }
   };
 
   return (
-    <GoogleMapsProvider libraries={['places', 'geocoding']}>
-      <Card className={cn('w-full mx-auto', className)}>
+    <GoogleMapsProvider>
+      <Card className={cn('w-full mx-auto shadow-none border-0', className)}>
         <CardContent className="space-y-4 pt-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              Buscar por dirección
-            </label>
             <PlaceAutocomplete
               onPlaceSelect={handlePlaceSelect}
               placeholder="Escribe una dirección o lugar..."
               isPickup={isPickup}
+              onUseCurrentLocation={handleCurrentLocation}
             />
           </div>
 
@@ -93,7 +81,6 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             center={mapCenter}
             height="300px"
             zoom={15}
-            onMapClick={handleMapClick}
             className="rounded-lg border"
             mapId="LOCATION_PICKER_MAP"
           >
@@ -107,14 +94,14 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
           </InteractiveMap>
 
           {selectedLocation && (
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="p-3 bg-muted rounded-lg border">
               <div className="flex items-start gap-2">
-                <Target className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <Target className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-blue-900">
+                  <p className="text-sm font-medium text-foreground">
                     Ubicación seleccionada
                   </p>
-                  <p className="text-sm text-blue-700 break-words">
+                  <p className="text-sm text-muted-foreground break-words">
                     {selectedLocation.address}
                   </p>
                 </div>

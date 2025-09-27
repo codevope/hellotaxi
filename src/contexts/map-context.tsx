@@ -34,7 +34,7 @@ export interface MapContextType {
   setDropoffLocation: (location: MapLocation | null, centerMap?: boolean) => void;
   setMapCenter: (center: { lat: number; lng: number }) => void;
   setMapZoom: (zoom: number) => void;
-  geocodeAddress: (location: { lat: number; lng: number }) => Promise<MapLocation | null>;
+  geocodeAddress: (addressOrCoords: string | { lat: number; lng: number }) => Promise<MapLocation | null>;
   clearRideLocations: () => void;
   calculateDistance: () => number | null;
   
@@ -92,9 +92,15 @@ export function MapProvider({ children }: MapProviderProps) {
     }
   }, [userLocation, pickupLocation, dropoffLocation, mapCenter.lat, mapCenter.lng]);
 
-  const geocodeAddress = useCallback(async (location: { lat: number; lng: number }): Promise<MapLocation | null> => {
+  const geocodeAddress = useCallback(async (addressOrCoords: string | { lat: number; lng: number }): Promise<MapLocation | null> => {
     try {
-      const result = await GeocodingService.reverseGeocode(location.lat, location.lng);
+      let result: GeocodingResult;
+      if (typeof addressOrCoords === 'string') {
+        result = await GeocodingService.geocodeAddress(addressOrCoords);
+      } else {
+        result = await GeocodingService.reverseGeocode(addressOrCoords.lat, addressOrCoords.lng);
+      }
+      
       return {
         coordinates: {
           lat: result.lat,
