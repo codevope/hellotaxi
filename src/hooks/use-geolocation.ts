@@ -21,18 +21,18 @@ export interface UseGeolocationReturn {
 
 const HIGH_ACCURACY_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
-  timeout: 15000, // Más tiempo para GPS de alta precisión
-  maximumAge: 30000, // Cache más corto para ubicación más actual
+  timeout: 30000, // 30 segundos para GPS preciso
+  maximumAge: 0, // SIEMPRE solicitar ubicación fresca
 };
 
 const FAST_OPTIONS: PositionOptions = {
-  enableHighAccuracy: false,
-  timeout: 5000,
-  maximumAge: 300000, // Cache más largo para ubicación rápida
+  enableHighAccuracy: true, // También usar GPS en modo rápido
+  timeout: 10000, // 10 segundos timeout
+  maximumAge: 0, // Sin cache
 };
 
 export function useGeolocation(
-  options: PositionOptions = FAST_OPTIONS
+  options: PositionOptions = HIGH_ACCURACY_OPTIONS
 ): UseGeolocationReturn {
   const [location, setLocation] = useState<LocationData | null>(null);
   const [error, setError] = useState<GeolocationPositionError | null>(null);
@@ -71,15 +71,18 @@ export function useGeolocation(
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude, accuracy } = position.coords;
-        setLocation({ 
+        const locationData = { 
           latitude, 
           longitude, 
           accuracy, 
           timestamp: position.timestamp 
-        });
+        };
+        console.log('📍 Ubicación obtenida:', locationData);
+        setLocation(locationData);
         setLoading(false);
       },
       (error) => {
+        console.error('❌ Error de geolocalización:', error);
         setError(error);
         setLoading(false);
       },

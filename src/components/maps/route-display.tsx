@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { useMap as useGoogleMap, useMapsLibrary } from '@vis.gl/react-google-maps';
-import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
 
 interface Location {
   lat: number;
@@ -12,7 +11,7 @@ interface Location {
 interface RouteDisplayProps {
   origin: Location | null;
   destination: Location | null;
-  onRouteCalculated?: (route: google.maps.DirectionsResult, routeInfo?: RouteInfo) => void;
+  onRouteCalculated?: (route: google.maps.DirectionsResult) => void;
   onError?: (error: string) => void;
 }
 
@@ -26,7 +25,6 @@ const RouteDisplay: React.FC<RouteDisplayProps> = ({
   const routesLibrary = useMapsLibrary('routes');
   const [directionsService, setDirectionsService] = useState<google.maps.DirectionsService | null>(null);
   const [directionsRenderer, setDirectionsRenderer] = useState<google.maps.DirectionsRenderer | null>(null);
-  const { calculateRoute } = useETACalculator();
 
   // Initialize services
   useEffect(() => {
@@ -75,7 +73,7 @@ const RouteDisplay: React.FC<RouteDisplayProps> = ({
       region: 'PE'
     };
 
-    directionsService.route(request, async (result, status) => {
+    directionsService.route(request, (result, status) => {
       if (status === 'OK' && result) {
         directionsRenderer.setDirections(result);
         
@@ -96,19 +94,8 @@ const RouteDisplay: React.FC<RouteDisplayProps> = ({
           map.fitBounds(bounds, 50); // Padding simple
         }
         
-        // Calcular información detallada de ETA con tráfico
-        let routeInfo: RouteInfo | null = null;
-        try {
-          routeInfo = await calculateRoute(origin, destination, {
-            departureTime: new Date(),
-            travelMode: google.maps.TravelMode.DRIVING
-          });
-        } catch (error) {
-          console.error('Error calculating ETA:', error);
-        }
-        
         if (onRouteCalculated) {
-          onRouteCalculated(result, routeInfo || undefined);
+          onRouteCalculated(result);
         }
       } else {
         console.error('Error calculating route:', status);

@@ -153,7 +153,7 @@ export default function RideRequestForm({
         duration: 3000,
       });
     }
-  }, [userLocation, hasAutoFilledPickup, contextPickupLocation, form, setPickupLocation, toast]);
+  }, [userLocation, hasAutoFilledPickup, contextPickupLocation]);
 
   // Sincronizar formulario con cambios del contexto (clicks en el mapa)
   useEffect(() => {

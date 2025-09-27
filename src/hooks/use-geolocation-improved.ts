@@ -35,7 +35,7 @@ const FAST_OPTIONS: PositionOptions = {
 const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
   try {
     // Usar el geocoder de Google Maps si está disponible
-    if (window.google && window.google.maps) {
+    if (window.google && window.google.maps && window.google.maps.Geocoder) {
       const geocoder = new window.google.maps.Geocoder();
       const response = await new Promise<google.maps.GeocoderResponse>((resolve, reject) => {
         geocoder.geocode({ location: { lat, lng } }, (results, status) => {

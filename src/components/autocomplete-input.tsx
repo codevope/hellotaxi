@@ -80,7 +80,7 @@ export default function AutocompleteInput({
     } finally {
       setIsLoading(false);
     }
-  }, [userLocation, onPlaceSelect, onChange]);
+  }, [userLocation]);
 
   // Handle place selection from Google Places API
   const handlePlaceSelect = useCallback((location: { lat: number; lng: number; address?: string; placeId?: string }) => {
@@ -98,7 +98,7 @@ export default function AutocompleteInput({
     }
     
     setShowSuggestions(false);
-  }, [onPlaceSelect, onChange]);
+  }, []);
 
   // Handle place selection from smart search
   const handleSmartSearchSelect = useCallback((place: SmartSearchResult) => {
@@ -114,7 +114,7 @@ export default function AutocompleteInput({
     
     setShowSuggestions(false);
     setIsFocused(false);
-  }, [addToRecent, onPlaceSelect, onChange]);
+  }, []);
 
   // Handle input focus
   const handleInputFocus = () => {

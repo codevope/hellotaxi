@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { GeocodingService, type GeocodingResult } from '@/services/geocoding-service';
-import { useGeolocation } from '@/hooks/use-geolocation';
+import { useGoogleGeolocation } from '@/hooks/use-google-geolocation';
 
 export interface MapLocation {
   coordinates: {
@@ -17,6 +17,8 @@ export interface MapContextType {
   // User location
   userLocation: MapLocation | null;
   isLocationLoading: boolean;
+  locationAccuracy: number | null;
+  locationSource: string | null;
   
   // Ride locations
   pickupLocation: MapLocation | null;
@@ -34,6 +36,11 @@ export interface MapContextType {
   geocodeAddress: (address: string) => Promise<MapLocation | null>;
   clearRideLocations: () => void;
   calculateDistance: () => number | null;
+  
+  // Location actions
+  requestPreciseLocation: () => void;
+  startLocationTracking: () => void;
+  stopLocationTracking: () => void;
 }
 
 const MapContext = createContext<MapContextType | undefined>(undefined);
@@ -46,7 +53,15 @@ interface MapProviderProps {
 }
 
 export function MapProvider({ children }: MapProviderProps) {
-  const { location: geoLocation, loading: geoLoading } = useGeolocation();
+  const { 
+    location: geoLocation, 
+    loading: geoLoading,
+    accuracy,
+    source,
+    requestPreciseLocation,
+    startLocationTracking,
+    stopLocationTracking
+  } = useGoogleGeolocation();
   
   const [pickupLocation, setPickupLocationState] = useState<MapLocation | null>(null);
   const [dropoffLocation, setDropoffLocationState] = useState<MapLocation | null>(null);
@@ -133,6 +148,8 @@ export function MapProvider({ children }: MapProviderProps) {
   const contextValue: MapContextType = {
     userLocation,
     isLocationLoading: geoLoading,
+    locationAccuracy: accuracy,
+    locationSource: source,
     pickupLocation,
     dropoffLocation,
     mapCenter,
@@ -144,6 +161,9 @@ export function MapProvider({ children }: MapProviderProps) {
     geocodeAddress,
     clearRideLocations,
     calculateDistance,
+    requestPreciseLocation,
+    startLocationTracking,
+    stopLocationTracking,
   };
 
   return (

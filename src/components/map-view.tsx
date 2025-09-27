@@ -40,7 +40,12 @@ const MapView: React.FC<MapViewProps> = ({
     mapCenter,
     setPickupLocation,
     setDropoffLocation,
-    setMapCenter
+    setMapCenter,
+    requestPreciseLocation,
+    startLocationTracking,
+    stopLocationTracking,
+    locationAccuracy,
+    locationSource
   } = useMap();
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
 
@@ -62,7 +67,7 @@ const MapView: React.FC<MapViewProps> = ({
     if (!userLocation && !locationError) {
       requestLocation();
     }
-  }, [userLocation, locationError, requestLocation]);
+  }, [userLocation, locationError]);
 
   // Actualizar centro del mapa cuando el usuario obtenga su ubicación
   React.useEffect(() => {
@@ -170,15 +175,20 @@ const MapView: React.FC<MapViewProps> = ({
           )}
         </InteractiveMap>
 
-        {/* Botón para encontrar ubicación */}
+        {/* Botones para encontrar ubicación */}
         <div className="absolute top-2 right-2 space-y-2">
+          {/* Botón ubicación precisa */}
           <Button
             type="button"
             size="sm"
             variant="secondary"
-            onClick={requestLocation}
+            onClick={() => {
+              console.log('🎯 Solicitando ubicación ULTRA PRECISA como Google Maps...');
+              requestPreciseLocation();
+            }}
             disabled={loading}
             className="shadow-lg bg-white hover:bg-gray-50 text-gray-700 border"
+            title="📍 Ubicación precisa (múltiples fuentes)"
           >
             {loading ? (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
@@ -186,10 +196,32 @@ const MapView: React.FC<MapViewProps> = ({
               <Navigation className="h-4 w-4" />
             )}
           </Button>
+          
+          {/* Botón tracking continuo */}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              console.log('🔄 Iniciando tracking continuo...');
+              startLocationTracking();
+            }}
+            className="shadow-lg bg-white hover:bg-gray-50 text-gray-700 border"
+            title="🔄 Tracking continuo"
+          >
+            📡
+          </Button>
         </div>
 
         {/* Información de estado */}
         <div className="absolute bottom-2 left-2 space-y-1">
+          {/* Info de precisión y fuente */}
+          {locationAccuracy && locationSource && (
+            <div className="bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded border border-blue-200 max-w-xs">
+              📍 Fuente: {locationSource} | Precisión: {locationAccuracy < 1000 ? `${Math.round(locationAccuracy)}m` : `${(locationAccuracy/1000).toFixed(1)}km`}
+            </div>
+          )}
+          
           {locationError && (
             <div className="bg-red-50 text-red-600 text-xs px-2 py-1 rounded border border-red-200">
               <MapPin className="h-3 w-3 inline mr-1" />
