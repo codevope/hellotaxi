@@ -23,7 +23,7 @@ interface InteractiveMapProps {
 const InteractiveMap: React.FC<InteractiveMapProps> = ({
   center = { lat: -12.0464, lng: -77.0428 },
   zoom = 13,
-  height = '100%', // <<< CAMBIO CLAVE
+  height = '100%',
   onMapClick,
   children,
   className = '',
@@ -68,7 +68,7 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
         height,
         width: '100%',
         minWidth: '100%',
-        flex: 1 // <<< PARA FLEXBOX
+        flex: 1
       }}
     >
       {isLoading && (
@@ -94,7 +94,7 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
         style={{
           width: '100%',
           height: '100%',
-          flex: 1 // <<< clave
+          flex: 1
         }}
       >
         {children}

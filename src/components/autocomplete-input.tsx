@@ -78,7 +78,7 @@ export default function AutocompleteInput({
     autocompleteService.current.getPlacePredictions(
       {
         input,
-        componentRestrictions: { country: 'pe' }, // Restrict to Peru
+        componentRestrictions: { country: 'pe' }, 
       },
       (results, status) => {
         setIsLoading(false);
@@ -108,11 +108,10 @@ export default function AutocompleteInput({
         const address = results[0].formatted_address;
         setInputValue(address);
         setPredictions([]);
-        setIsFocused(false); // Close dropdown
-        if (onChange) onChange(address); // Sync form state
+        setIsFocused(false); 
+        if (onChange) onChange(address); 
         onPlaceSelect(address, { lat: location.lat(), lng: location.lng() });
       } else {
-        // Fallback for safety
         setInputValue(prediction.description);
         setIsFocused(false);
         onPlaceSelect(prediction.description, undefined);

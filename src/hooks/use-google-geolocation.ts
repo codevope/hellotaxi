@@ -26,17 +26,16 @@ export interface UseGoogleGeolocationReturn {
   isTracking: boolean;
 }
 
-// Configuraciones optimizadas como Google Maps
 const GOOGLE_MAPS_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
-  timeout: 60000, // 60 segundos para GPS preciso
-  maximumAge: 0, // Siempre ubicación fresca
+  timeout: 60000, 
+  maximumAge: 0,
 };
 
 const CONTINUOUS_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
-  timeout: 30000, // 30 segundos timeout
-  maximumAge: 5000, // Cache corto para tracking
+  timeout: 30000, 
+  maximumAge: 5000,
 };
 
 export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
@@ -48,14 +47,10 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
   const watchIdRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
 
-  // Estrategia 1: Ubicación desde perfil de Google (si está autenticado)
   const getUserProfileLocation = useCallback(async () => {
     if (!user) return null;
     
     try {
-      // Si el usuario tiene ubicación guardada en su perfil
-      // Nota: Esto requeriría configuración adicional en Firebase
-      // Por ahora, simulamos que no hay ubicación guardada
       return null;
     } catch (error) {
       console.log('No se pudo obtener ubicación del perfil');
@@ -63,7 +58,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
     }
   }, [user]);
 
-  // Estrategia 2: Google Geolocation API (más preciso que navigator.geolocation)
   const getGoogleAPILocation = useCallback(async (): Promise<PreciseLocationData | null> => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!apiKey) return null;
@@ -76,8 +70,8 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
         },
         body: JSON.stringify({
           considerIp: true,
-          wifiAccessPoints: [], // Se puede mejorar detectando WiFi
-          cellTowers: [], // Se puede mejorar detectando torres celulares
+          wifiAccessPoints: [],
+          cellTowers: [],
         }),
       });
 
@@ -100,7 +94,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
     return null;
   }, []);
 
-  // Estrategia 3: Navigator Geolocation mejorado
   const getNavigatorLocation = useCallback(async (options: PositionOptions): Promise<PreciseLocationData | null> => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
@@ -132,7 +125,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
     });
   }, []);
 
-  // Estrategia 4: IP Geolocation como último recurso
   const getIPLocation = useCallback(async (): Promise<PreciseLocationData | null> => {
     try {
       const response = await fetch('https://ipapi.co/json/');
@@ -142,7 +134,7 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
         return {
           latitude: parseFloat(data.latitude),
           longitude: parseFloat(data.longitude),
-          accuracy: 10000, // IP location es muy imprecisa
+          accuracy: 10000,
           timestamp: Date.now(),
           source: 'ip',
           confidence: 'low',
@@ -156,7 +148,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
     return null;
   }, []);
 
-  // Función principal que intenta múltiples estrategias
   const requestPreciseLocation = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -165,7 +156,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
     console.log('🔄 Iniciando búsqueda de ubicación precisa...');
 
     try {
-      // Estrategia 1: Perfil de usuario
       console.log('📋 Intentando ubicación del perfil...');
       let result: PreciseLocationData | null = await getUserProfileLocation();
       if (result) {
@@ -175,7 +165,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
         return;
       }
 
-      // Estrategia 2: Google Geolocation API
       console.log('🌐 Intentando Google Geolocation API...');
       result = await getGoogleAPILocation();
       if (result && result.confidence === 'high') {
@@ -185,7 +174,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
         return;
       }
 
-      // Estrategia 3: Navigator con alta precisión
       console.log('📡 Intentando GPS de alta precisión...');
       result = await getNavigatorLocation(GOOGLE_MAPS_OPTIONS);
       if (result && result.accuracy < 100) {
@@ -195,7 +183,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
         return;
       }
 
-      // Estrategia 4: Navigator modo rápido
       console.log('⚡ Intentando ubicación rápida...');
       result = await getNavigatorLocation(CONTINUOUS_OPTIONS);
       if (result) {
@@ -205,7 +192,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
         return;
       }
 
-      // Estrategia 5: Usar Google API aunque no sea tan precisa
       const googleResult = await getGoogleAPILocation();
       if (googleResult) {
         console.log('⚠️ Usando Google API como respaldo');
@@ -214,7 +200,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
         return;
       }
 
-      // Estrategia 6: IP como último recurso
       console.log('🌍 Usando ubicación por IP como último recurso...');
       result = await getIPLocation();
       if (result) {
@@ -224,7 +209,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
         return;
       }
 
-      // Si todo falla
       setError('No se pudo obtener la ubicación con ningún método');
       console.error('❌ Todas las estrategias de ubicación fallaron');
       
@@ -236,7 +220,6 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
     }
   }, [getUserProfileLocation, getGoogleAPILocation, getNavigatorLocation, getIPLocation]);
 
-  // Tracking continuo como Google Maps
   const startLocationTracking = useCallback(() => {
     if (!navigator.geolocation || isTracking) return;
 
@@ -266,7 +249,7 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
       },
       {
         ...CONTINUOUS_OPTIONS,
-        maximumAge: 30000, // Cache de 30 segundos para tracking
+        maximumAge: 30000,
       }
     );
   }, [isTracking]);
@@ -280,12 +263,10 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
     }
   }, []);
 
-  // Auto-iniciar ubicación al montar
   useEffect(() => {
     requestPreciseLocation();
   }, [requestPreciseLocation]);
 
-  // Cleanup al desmontar
   useEffect(() => {
     return () => {
       stopLocationTracking();

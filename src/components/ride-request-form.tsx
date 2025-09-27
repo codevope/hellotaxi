@@ -95,7 +95,6 @@ export default function RideRequestForm({
     defaultValues: { pickup: '', dropoff: '', serviceType: 'economy', paymentMethod: 'cash' },
   });
   
-  // This function is the single point of truth for updating locations
   const handleLocationSelect = (
     address: string,
     coordinates: { lat: number; lng: number } | undefined,
@@ -115,7 +114,6 @@ export default function RideRequestForm({
     getSettings().then(settings => setAppSettings(settings));
   }, []);
 
-  // Auto-fill pickup with user's current location (like Uber)
   useEffect(() => {
     if (userGeolocation?.address && !hasAutoFilledPickup && !pickupLocation) {
       const locationData = {
@@ -132,21 +130,23 @@ export default function RideRequestForm({
     }
   }, [userGeolocation, hasAutoFilledPickup, pickupLocation, setPickupLocation, toast]);
 
-  // Sync form fields when context locations change
   useEffect(() => {
     if (pickupLocation) {
       form.setValue('pickup', pickupLocation.address, { shouldValidate: true });
+    } else {
+      form.setValue('pickup', '', { shouldValidate: true });
     }
   }, [pickupLocation, form]);
 
   useEffect(() => {
     if (dropoffLocation) {
       form.setValue('dropoff', dropoffLocation.address, { shouldValidate: true });
+    } else {
+       form.setValue('dropoff', '', { shouldValidate: true });
     }
   }, [dropoffLocation, form]);
 
 
-  // Calculate ETA when both locations change
   useEffect(() => {
     const calculateETA = async () => {
       if (pickupLocation && dropoffLocation) {
@@ -172,7 +172,7 @@ export default function RideRequestForm({
     const driversRef = collection(db, "drivers");
     const q = query(driversRef, where("status", "==", "available"), where("serviceType", "==", serviceType), limit(1));
     
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 2000)); 
     
     const querySnapshot = await getDocs(q);
     
@@ -296,13 +296,11 @@ export default function RideRequestForm({
             cancellationReason: reason,
             cancelledBy: 'passenger' as const,
         };
-        // @ts-ignore
-        setActiveRide(cancelledRide);
+        setActiveRide(cancelledRide as unknown as Ride);
         
-        // Apply rating penalty
         const userRef = doc(db, 'users', user.uid);
         await updateDoc(userRef, {
-            rating: increment(-0.1) // Decrease rating by 0.1
+            rating: increment(-0.1)
         });
     }
     toast({
@@ -513,8 +511,8 @@ export default function RideRequestForm({
       <FareNegotiation
         rideDetails={{
           ...form.getValues(),
-          distanceKm: routeInfo ? routeInfo.distance.value / 1000 : 10, // Fallback
-          durationMinutes: routeInfo ? routeInfo.duration.value / 60 : 20, // Fallback
+          distanceKm: routeInfo ? routeInfo.distance.value / 1000 : 10,
+          durationMinutes: routeInfo ? routeInfo.duration.value / 60 : 20,
         }}
         onNegotiationComplete={handleNegotiationComplete}
         onCancel={() => setStatus('idle')}
@@ -611,7 +609,6 @@ export default function RideRequestForm({
           )}
         />
 
-        {/* ETA Display */}
         {(pickupLocation && dropoffLocation) && (
           <div className="my-4">
             <ETADisplay 

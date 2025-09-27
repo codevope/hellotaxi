@@ -48,14 +48,12 @@ const MapView: React.FC<MapViewProps> = ({
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Solicitar ubicación automáticamente al montar el componente
   React.useEffect(() => {
     if (!userLocation && !locationError) {
       requestLocation();
     }
   }, [userLocation, locationError, requestLocation]);
 
-  // Convertir ubicación del usuario al formato Location
   const userPos: Location | undefined = userLocation ? {
     lat: userLocation.latitude,
     lng: userLocation.longitude,
@@ -78,7 +76,6 @@ const MapView: React.FC<MapViewProps> = ({
         } else if (!dropoffLocation) {
             setDropoffLocation(mapLocation);
         } else {
-             // Si ambos están seleccionados, el siguiente clic resetea y elige el pickup.
              setDropoffLocation(null);
              setPickupLocation(mapLocation);
         }
@@ -91,7 +88,6 @@ const MapView: React.FC<MapViewProps> = ({
             description: "No se pudo obtener la dirección para el punto seleccionado.",
         });
         
-        // Fallback a coordenadas si la geocodificación falla
         const fallbackLocation = {
           coordinates: { lat: location.lat, lng: location.lng },
           address: `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`
@@ -121,7 +117,6 @@ const MapView: React.FC<MapViewProps> = ({
           zoom={14}
           onMapClick={interactive ? handleMapClick : undefined}
         >
-          {/* Ubicación del usuario */}
           {userPos && (
             <MapMarker
               position={userPos}
@@ -132,7 +127,6 @@ const MapView: React.FC<MapViewProps> = ({
             />
           )}
 
-          {/* Punto de recogida */}
           {pickupLocationForMarker && (
             <MapMarker
               position={pickupLocationForMarker}
@@ -143,7 +137,6 @@ const MapView: React.FC<MapViewProps> = ({
             />
           )}
 
-          {/* Punto de destino */}
           {dropoffLocationForMarker && (
             <MapMarker
               position={dropoffLocationForMarker}
@@ -154,13 +147,12 @@ const MapView: React.FC<MapViewProps> = ({
             />
           )}
 
-          {/* Ruta entre pickup y dropoff */}
           {pickupLocationForMarker && dropoffLocationForMarker && (
             <RouteDisplay
               origin={pickupLocationForMarker}
               destination={dropoffLocationForMarker}
               onRouteCalculated={(route) => {
-                // Aquí se puede agregar lógica adicional como mostrar ETA
+                
               }}
               onError={(error) => {
                 console.error('Route error:', error);
@@ -169,9 +161,7 @@ const MapView: React.FC<MapViewProps> = ({
           )}
         </InteractiveMap>
 
-        {/* Botones para encontrar ubicación */}
         <div className="absolute top-2 right-2 space-y-2">
-          {/* Botón ubicación precisa */}
           <Button
             type="button"
             size="sm"
@@ -191,7 +181,6 @@ const MapView: React.FC<MapViewProps> = ({
             )}
           </Button>
           
-          {/* Botón tracking continuo */}
           <Button
             type="button"
             size="sm"
@@ -207,9 +196,7 @@ const MapView: React.FC<MapViewProps> = ({
           </Button>
         </div>
 
-        {/* Información de estado */}
         <div className="absolute bottom-2 left-2 space-y-1">
-          {/* Info de precisión y fuente */}
           {locationAccuracy && locationSource && (
             <div className="bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded border border-blue-200 max-w-xs">
               📍 Fuente: {locationSource} | Precisión: {locationAccuracy < 1000 ? `${Math.round(locationAccuracy)}m` : `${(locationAccuracy/1000).toFixed(1)}km`}
