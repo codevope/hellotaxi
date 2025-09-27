@@ -29,14 +29,14 @@ export interface UseGoogleGeolocationReturn {
 // Configuraciones optimizadas como Google Maps
 const GOOGLE_MAPS_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
-  timeout: 30000, // 30 segundos para GPS preciso
+  timeout: 60000, // 60 segundos para GPS preciso
   maximumAge: 0, // Siempre ubicación fresca
 };
 
 const CONTINUOUS_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
-  timeout: 15000,
-  maximumAge: 5000, // Cache corto para tracking continuo
+  timeout: 30000, // 30 segundos timeout
+  maximumAge: 5000, // Cache corto para tracking
 };
 
 export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
