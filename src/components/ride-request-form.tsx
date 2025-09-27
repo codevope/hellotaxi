@@ -153,7 +153,7 @@ export default function RideRequestForm({
         duration: 3000,
       });
     }
-  }, [userLocation, hasAutoFilledPickup, contextPickupLocation]);
+  }, [userLocation, hasAutoFilledPickup, contextPickupLocation, form, setPickupLocation, toast]);
 
   // Sincronizar formulario con cambios del contexto (clicks en el mapa)
   useEffect(() => {
@@ -164,7 +164,7 @@ export default function RideRequestForm({
         setPickupCoordinates(contextPickupLocation.coordinates);
       }
     }
-  }, [contextPickupLocation]);
+  }, [contextPickupLocation, form]);
 
   useEffect(() => {
     if (contextDropoffLocation && contextDropoffLocation.address) {
@@ -174,7 +174,7 @@ export default function RideRequestForm({
         setDropoffCoordinates(contextDropoffLocation.coordinates);
       }
     }
-  }, [contextDropoffLocation]);
+  }, [contextDropoffLocation, form]);
 
   // Calcular ETA cuando cambien ambas ubicaciones
   useEffect(() => {
@@ -197,7 +197,7 @@ export default function RideRequestForm({
     };
 
     calculateETA();
-  }, [pickupCoordinates, dropoffCoordinates]);
+  }, [pickupCoordinates, dropoffCoordinates, calculateRoute]);
 
   async function findDriver(serviceType: ServiceType): Promise<Driver | null> {
     const driversRef = collection(db, "drivers");
@@ -540,7 +540,11 @@ export default function RideRequestForm({
   if (status === 'negotiating') {
     return (
       <FareNegotiation
-        rideDetails={form.getValues()}
+        rideDetails={{
+          ...form.getValues(),
+          distanceKm: routeInfo ? routeInfo.distance.value / 1000 : 10, // Fallback
+          durationMinutes: routeInfo ? routeInfo.duration.value / 60 : 20, // Fallback
+        }}
         onNegotiationComplete={handleNegotiationComplete}
         onCancel={() => setStatus('idle')}
       />
@@ -741,7 +745,7 @@ export default function RideRequestForm({
             <Button
                 type="submit"
                 className="w-full"
-                disabled={form.formState.isSubmitting || status === 'scheduling'}
+                disabled={form.formState.isSubmitting || status === 'scheduling' || !routeInfo}
             >
                 Pedir Ahora y Negociar
             </Button>

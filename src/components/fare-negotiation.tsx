@@ -19,6 +19,8 @@ type FareNegotiationProps = {
     pickup: string;
     dropoff: string;
     serviceType: 'economy' | 'comfort' | 'exclusive';
+    distanceKm: number;
+    durationMinutes: number;
   };
   onNegotiationComplete: (finalFare: number, breakdown: FareBreakdown) => void;
   onCancel: () => void;
@@ -43,16 +45,13 @@ export default function FareNegotiation({
 
   useEffect(() => {
     async function getInitialEstimate() {
-      // These are simplified values for the MVP
-      const distanceKm = Math.floor(Math.random() * 20) + 5; // 5-25 km
-      const durationMinutes = Math.floor(Math.random() * 30) + 10; // 10-40 min
       const rideDate = new Date();
       const peakTime = rideDate.getHours() > 16; // Peak time after 4 PM
       type EstimateRideFareInput = Parameters<typeof estimateRideFareDeterministic>[0];
 
       const fareInput: EstimateRideFareInput = {
-        distanceKm,
-        durationMinutes,
+        distanceKm: rideDetails.distanceKm,
+        durationMinutes: rideDetails.durationMinutes,
         peakTime,
         serviceType: rideDetails.serviceType,
         rideDate: rideDate.toISOString(),
