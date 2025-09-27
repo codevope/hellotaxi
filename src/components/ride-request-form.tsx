@@ -132,12 +132,12 @@ export default function RideRequestForm({
   const [assignedDriver, setAssignedDriver] = useState<Driver | null>(null);
   const [finalFare, setFinalFare] = useState<number | null>(null);
   const [currentRide, setCurrentRide] = useState<
-    Omit<Ride, 'id' | 'driver' | 'passenger'> & {
+    (Omit<Ride, 'id' | 'driver' | 'passenger'> & {
       driver: Driver;
       passenger: User;
       fareBreakdown?: FareBreakdown;
-    }
-  > | null>(null);
+    }) | null
+  >(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [appSettings, setAppSettings] = useState<Settings | null>(null);
   const [isCancelReasonDialogOpen, setIsCancelReasonDialogOpen] =
@@ -315,18 +315,18 @@ export default function RideRequestForm({
         paymentMethod: form.getValues('paymentMethod'),
         assignmentTimestamp: new Date().toISOString(),
         fareBreakdown: breakdown,
+        status: 'in-progress' as const,
       };
 
       const newRideForState: Ride = {
         ...newRideData,
         id: `ride-${Date.now()}`,
-        status: 'in-progress' as const,
         driver: doc(db, 'drivers', availableDriver.id),
         passenger: userRef,
       };
 
       setActiveRide(newRideForState);
-      setCurrentRide({ ...newRideData, status: 'in-progress' });
+      setCurrentRide(newRideData);
 
       setChatMessages([
         {
@@ -364,13 +364,16 @@ export default function RideRequestForm({
 
   async function handleCancelRide(reason: CancellationReason) {
     if (currentRide && user) {
-      const cancelledRide = {
+      const cancelledRide: Ride = {
         ...currentRide,
         status: 'cancelled' as const,
         cancellationReason: reason,
         cancelledBy: 'passenger' as const,
+        id: `ride-${Date.now()}`,
+        driver: doc(db, 'drivers', currentRide.driver.id),
+        passenger: doc(db, 'users', currentRide.passenger.id),
       };
-      setActiveRide(cancelledRide as unknown as Ride);
+      setActiveRide(cancelledRide);
 
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
@@ -465,7 +468,7 @@ export default function RideRequestForm({
     );
   }
 
-  if (status === 'assigned' && assignedDriver) {
+  if (status === 'assigned' && assignedDriver && currentRide) {
     return (
       <div className="space-y-4 h-full flex flex-col">
         <Card className="flex-1">
@@ -690,6 +693,7 @@ export default function RideRequestForm({
           <div className="space-y-2">
             <Label>Punto de Recojo</Label>
             <Button
+              type="button"
               variant="outline"
               className="w-full justify-start text-left font-normal"
               onClick={() => setLocationPickerFor('pickup')}
@@ -705,6 +709,7 @@ export default function RideRequestForm({
           <div className="space-y-2">
             <Label>Punto de Destino</Label>
             <Button
+              type="button"
               variant="outline"
               className="w-full justify-start text-left font-normal"
               onClick={() => setLocationPickerFor('dropoff')}
@@ -772,6 +777,7 @@ export default function RideRequestForm({
                   <PopoverTrigger asChild>
                     <FormControl>
                       <Button
+                        type="button"
                         variant={'outline'}
                         className={cn(
                           'w-full pl-3 text-left font-normal',
