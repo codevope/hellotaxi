@@ -1,0 +1,162 @@
+'use client';
+
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { GeocodingService, type GeocodingResult } from '@/services/geocoding-service';
+import { useGeolocation } from '@/hooks/use-geolocation';
+
+export interface MapLocation {
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
+  address: string;
+  placeId?: string;
+}
+
+export interface MapContextType {
+  // User location
+  userLocation: MapLocation | null;
+  isLocationLoading: boolean;
+  
+  // Ride locations
+  pickupLocation: MapLocation | null;
+  dropoffLocation: MapLocation | null;
+  
+  // Map state
+  mapCenter: { lat: number; lng: number };
+  mapZoom: number;
+  
+  // Actions
+  setPickupLocation: (location: MapLocation | null) => void;
+  setDropoffLocation: (location: MapLocation | null) => void;
+  setMapCenter: (center: { lat: number; lng: number }) => void;
+  setMapZoom: (zoom: number) => void;
+  geocodeAddress: (address: string) => Promise<MapLocation | null>;
+  clearRideLocations: () => void;
+  calculateDistance: () => number | null;
+}
+
+const MapContext = createContext<MapContextType | undefined>(undefined);
+
+// Default center (Chiclayo, Perú)
+const DEFAULT_CENTER = { lat: -6.7713, lng: -79.8442 };
+
+interface MapProviderProps {
+  children: React.ReactNode;
+}
+
+export function MapProvider({ children }: MapProviderProps) {
+  const { location: geoLocation, loading: geoLoading } = useGeolocation();
+  
+  const [pickupLocation, setPickupLocationState] = useState<MapLocation | null>(null);
+  const [dropoffLocation, setDropoffLocationState] = useState<MapLocation | null>(null);
+  const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
+  const [mapZoom, setMapZoom] = useState(13);
+
+  // Create user location from geolocation
+  const userLocation: MapLocation | null = geoLocation 
+    ? {
+        coordinates: {
+          lat: geoLocation.latitude,
+          lng: geoLocation.longitude,
+        },
+        address: 'Mi ubicación actual',
+      }
+    : null;
+
+  // Auto-center map on user location when first available
+  React.useEffect(() => {
+    if (userLocation && !pickupLocation && !dropoffLocation) {
+      // Solo centrar si no hay otras ubicaciones establecidas
+      const isDefaultCenter = mapCenter.lat === DEFAULT_CENTER.lat && mapCenter.lng === DEFAULT_CENTER.lng;
+      if (isDefaultCenter) {
+        setMapCenter(userLocation.coordinates);
+        setMapZoom(15); // Zoom más cercano para la ubicación del usuario
+      }
+    }
+  }, [userLocation, pickupLocation, dropoffLocation, mapCenter]);
+
+  const geocodeAddress = useCallback(async (address: string): Promise<MapLocation | null> => {
+    try {
+      const result = await GeocodingService.geocodeAddress(address);
+      return {
+        coordinates: {
+          lat: result.lat,
+          lng: result.lng,
+        },
+        address: result.formattedAddress,
+        placeId: result.placeId,
+      };
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      return null;
+    }
+  }, []);
+
+  const setPickupLocation = useCallback((location: MapLocation | null) => {
+    setPickupLocationState(location);
+    // Solo centrar el mapa en la primera ubicación
+    if (location && !pickupLocation) {
+      setMapCenter(location.coordinates);
+      setMapZoom(16);
+    }
+  }, [pickupLocation]);
+
+  const setDropoffLocation = useCallback((location: MapLocation | null) => {
+    setDropoffLocationState(location);
+    // No manipular el mapa automáticamente para evitar bucles
+  }, []);
+
+  const clearRideLocations = useCallback(() => {
+    setPickupLocationState(null);
+    setDropoffLocationState(null);
+    if (userLocation) {
+      setMapCenter(userLocation.coordinates);
+      setMapZoom(16);
+    } else {
+      setMapCenter(DEFAULT_CENTER);
+      setMapZoom(13);
+    }
+  }, [userLocation]);
+
+  const calculateDistance = useCallback((): number | null => {
+    if (!pickupLocation || !dropoffLocation) return null;
+    
+    return GeocodingService.calculateDistance(
+      pickupLocation.coordinates.lat,
+      pickupLocation.coordinates.lng,
+      dropoffLocation.coordinates.lat,
+      dropoffLocation.coordinates.lng
+    );
+  }, [pickupLocation, dropoffLocation]);
+
+  const contextValue: MapContextType = {
+    userLocation,
+    isLocationLoading: geoLoading,
+    pickupLocation,
+    dropoffLocation,
+    mapCenter,
+    mapZoom,
+    setPickupLocation,
+    setDropoffLocation,
+    setMapCenter,
+    setMapZoom,
+    geocodeAddress,
+    clearRideLocations,
+    calculateDistance,
+  };
+
+  return (
+    <MapContext.Provider value={contextValue}>
+      {children}
+    </MapContext.Provider>
+  );
+}
+
+export function useMap() {
+  const context = useContext(MapContext);
+  if (context === undefined) {
+    throw new Error('useMap must be used within a MapProvider');
+  }
+  return context;
+}

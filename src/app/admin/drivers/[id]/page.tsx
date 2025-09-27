@@ -1,0 +1,511 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  ArrowLeft,
+  CheckCircle,
+  FileText,
+  ShieldCheck,
+  ShieldX,
+  Star,
+  XCircle,
+  ShieldAlert,
+  CreditCard,
+  Loader2,
+  Save,
+  MoreVertical,
+} from 'lucide-react';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import type { Driver, MembershipStatus, PaymentModel, Ride, User, DocumentName, DocumentStatus } from '@/lib/types';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { getDocumentStatus } from '@/lib/document-status';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { format } from 'date-fns';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+const statusConfig: Record<Driver['status'], { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  available: { label: 'Disponible', variant: 'default' },
+  unavailable: { label: 'No Disponible', variant: 'secondary' },
+  'on-ride': { label: 'En Viaje', variant: 'outline' },
+};
+
+const documentStatusConfig: Record<Driver['documentsStatus'], {
+  label: string;
+  color: string;
+  icon: JSX.Element;
+}> = {
+  approved: {
+    label: 'Aprobado',
+    color: 'text-green-600',
+    icon: <ShieldCheck className="h-5 w-5" />,
+  },
+  pending: {
+    label: 'Pendiente',
+    color: 'text-yellow-600',
+    icon: <ShieldAlert className="h-5 w-5" />,
+  },
+  rejected: {
+    label: 'Rechazado',
+    color: 'text-red-600',
+    icon: <ShieldX className="h-5 w-5" />,
+  },
+};
+
+const rideStatusConfig: Record<Ride['status'], { label: string; variant: 'secondary' | 'default' | 'destructive' }> = {
+  completed: { label: 'Completado', variant: 'secondary' },
+  'in-progress': { label: 'En Progreso', variant: 'default' },
+  cancelled: { label: 'Cancelado', variant: 'destructive' },
+};
+
+const paymentModelConfig: Record<PaymentModel, string> = {
+  commission: 'Comisión por Viaje',
+  membership: 'Membresía Mensual',
+};
+
+const membershipStatusConfig: Record<MembershipStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+    active: { label: 'Activa', variant: 'default' },
+    pending: { label: 'Pendiente de Pago', variant: 'outline' },
+    expired: { label: 'Vencida', variant: 'destructive' },
+}
+
+type EnrichedRide = Omit<Ride, 'passenger' | 'driver'> & { passenger: User, driver: Driver };
+
+export default function DriverDetailsPage() {
+  const router = useRouter();
+  const params = useParams();
+  const { id } = params;
+  const { toast } = useToast();
+  
+  const [driver, setDriver] = useState<Driver | null>(null);
+  const [rides, setRides] = useState<EnrichedRide[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // State for editable fields
+  const [paymentModel, setPaymentModel] = useState<PaymentModel>('commission');
+  const [documentsStatus, setDocumentsStatus] = useState<Driver['documentsStatus']>('pending');
+  const [individualDocStatuses, setIndividualDocStatuses] = useState<Record<DocumentName, DocumentStatus>>({
+    license: 'pending',
+    insurance: 'pending',
+    backgroundCheck: 'pending',
+    technicalReview: 'pending',
+  });
+  const [vehicleBrand, setVehicleBrand] = useState('');
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [licensePlate, setLicensePlate] = useState('');
+
+
+  useEffect(() => {
+    if (typeof id !== 'string') return;
+    
+    async function fetchDriverData() {
+      try {
+        const driverDocRef = doc(db, 'drivers', id);
+        const driverSnap = await getDoc(driverDocRef);
+
+        if (driverSnap.exists()) {
+          const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
+          setDriver(driverData);
+          setPaymentModel(driverData.paymentModel);
+          setDocumentsStatus(driverData.documentsStatus);
+          setVehicleBrand(driverData.vehicleBrand);
+          setVehicleModel(driverData.vehicleModel);
+          setLicensePlate(driverData.licensePlate);
+           setIndividualDocStatuses(driverData.documentStatus || {
+            license: 'pending',
+            insurance: 'pending',
+            backgroundCheck: 'pending',
+            technicalReview: 'pending',
+          });
+
+
+          // Fetch driver's rides
+           const ridesQuery = query(
+            collection(db, 'rides'),
+            where('driver', '==', driverDocRef)
+          );
+          const ridesSnapshot = await getDocs(ridesQuery);
+          
+          const driverRidesPromises = ridesSnapshot.docs.map(async (rideDoc) => {
+              const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
+              // Since the driver is already fetched, we can attach it directly.
+              const driver = { id: driverSnap.id, ...driverSnap.data() } as Driver;
+              const passengerSnap = await getDoc(rideData.passenger);
+              const passengerData = passengerSnap.data() as User;
+              return { ...rideData, driver, passenger: passengerData };
+          });
+
+          const driverRides = await Promise.all(driverRidesPromises);
+          setRides(driverRides.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+
+        } else {
+          console.error("No such driver!");
+        }
+      } catch (error) {
+        console.error("Error fetching driver data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchDriverData();
+  }, [id]);
+
+
+  if (loading) {
+    return (
+      <div className="p-8 flex justify-center items-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!driver) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl">Conductor no encontrado.</h1>
+      </div>
+    );
+  }
+  
+  const handleSaveChanges = async () => {
+    if (!driver) return;
+    setIsUpdating(true);
+    const driverRef = doc(db, 'drivers', driver.id);
+    try {
+      const allDocsApproved = Object.values(individualDocStatuses).every(s => s === 'approved');
+      const finalDocumentsStatus = allDocsApproved ? 'approved' : documentsStatus;
+
+      const updates: Partial<Driver> = {
+        paymentModel: paymentModel,
+        vehicleBrand: vehicleBrand,
+        vehicleModel: vehicleModel,
+        licensePlate: licensePlate,
+        documentStatus: individualDocStatuses,
+        documentsStatus: finalDocumentsStatus,
+      };
+
+      await updateDoc(driverRef, updates);
+      
+      // Update local state to reflect changes immediately
+      const updatedDriver = { ...driver, ...updates };
+      setDriver(updatedDriver);
+      setDocumentsStatus(finalDocumentsStatus);
+      
+      toast({
+        title: '¡Perfil del Conductor Actualizado!',
+        description: 'Los cambios en el perfil del conductor han sido guardados.',
+      });
+    } catch (error) {
+      console.error('Error updating driver:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'No se pudo actualizar el perfil del conductor.',
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+
+  const handleApproval = async (status: 'approved' | 'rejected') => {
+     if (!driver) return;
+    setIsUpdating(true);
+    const driverRef = doc(db, 'drivers', driver.id);
+    try {
+      await updateDoc(driverRef, { documentsStatus: status });
+      setDriver({ ...driver, documentsStatus: status });
+      setDocumentsStatus(status);
+      toast({
+        title: `Documentos ${status === 'approved' ? 'Aprobados' : 'Rechazados'}`,
+        description: `El estado general de la documentación de ${driver.name} se ha actualizado.`,
+      });
+    } catch (error) {
+        console.error('Error updating document status:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'No se pudo actualizar el estado de los documentos.',
+        });
+    } finally {
+        setIsUpdating(false);
+    }
+  };
+
+  const handleIndividualDocStatusChange = (docName: DocumentName, status: DocumentStatus) => {
+    setIndividualDocStatuses(prev => ({...prev, [docName]: status}));
+  };
+  
+  const getIndividualDocBadge = (docName: DocumentName) => {
+    const status = individualDocStatuses[docName];
+    const config: Record<DocumentStatus, { label: string; variant: 'default' | 'outline' | 'destructive' }> = {
+      approved: { label: 'Aprobado', variant: 'default' },
+      pending: { label: 'Pendiente', variant: 'outline' },
+      rejected: { label: 'Rechazado', variant: 'destructive' },
+    };
+    return <Badge variant={config[status].variant}>{config[status].label}</Badge>;
+  };
+  
+  const docStatus = documentStatusConfig[documentsStatus];
+
+  const documentDetails: { name: DocumentName, label: string, expiryDate?: string }[] = [
+      { name: 'license', label: 'Licencia de Conducir', expiryDate: driver.licenseExpiry },
+      { name: 'insurance', label: 'SOAT / Póliza de Seguro', expiryDate: driver.insuranceExpiry },
+      { name: 'technicalReview', label: 'Revisión Técnica', expiryDate: driver.technicalReviewExpiry },
+      { name: 'backgroundCheck', label: 'Certificado de Antecedentes', expiryDate: driver.backgroundCheckExpiry },
+  ];
+
+  return (
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <SidebarTrigger className="md:hidden" />
+          <Button variant="outline" size="icon" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-bold sm:text-3xl font-headline">
+            Detalles del Conductor
+          </h1>
+        </div>
+      </div>
+
+      <div className="grid gap-8 md:grid-cols-3">
+        <div className="md:col-span-1 space-y-8">
+          <Card>
+            <CardHeader className="items-center text-center">
+              <Avatar className="h-24 w-24 mb-4">
+                <AvatarImage src={driver.avatarUrl} alt={driver.name} />
+                <AvatarFallback>{driver.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <CardTitle>{driver.name}</CardTitle>
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                <span>{driver.rating.toFixed(1)} de calificación</span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center mb-4">
+                <Badge variant={statusConfig[driver.status].variant}>
+                  {statusConfig[driver.status].label}
+                </Badge>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Miembro desde:</span>
+                  <span className="font-medium">Ene 2023</span>
+                </div>
+                 <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">KYC Verificado:</span>
+                  {driver.kycVerified ? (
+                    <ShieldCheck className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <ShieldAlert className="h-5 w-5 text-yellow-600" />
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+                <CardTitle>Vehículo Asociado</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="vehicleBrand">Marca</Label>
+                    <Input id="vehicleBrand" value={vehicleBrand} onChange={(e) => setVehicleBrand(e.target.value)} disabled={isUpdating} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="vehicleModel">Modelo</Label>
+                    <Input id="vehicleModel" value={vehicleModel} onChange={(e) => setVehicleModel(e.target.value)} disabled={isUpdating} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="licensePlate">Placa</Label>
+                    <Input id="licensePlate" value={licensePlate} onChange={(e) => setLicensePlate(e.target.value)} disabled={isUpdating} />
+                </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5" />
+                    <span>Modelo de Pago</span>
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-4 text-sm">
+                    <Select value={paymentModel} onValueChange={(value) => setPaymentModel(value as PaymentModel)} disabled={isUpdating}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar modelo de pago" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="commission">Comisión por Viaje</SelectItem>
+                            <SelectItem value="membership">Membresía Mensual</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    
+                    {paymentModel === 'membership' && (
+                        <div className="flex justify-between items-center pt-2">
+                            <span className="text-muted-foreground">Membresía:</span>
+                            <Badge variant={membershipStatusConfig[driver.membershipStatus].variant}>
+                                {membershipStatusConfig[driver.membershipStatus].label}
+                            </Badge>
+                        </div>
+                    )}
+                </div>
+            </CardContent>
+          </Card>
+
+        </div>
+
+        <div className="md:col-span-2 space-y-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Verificación de Documentación</CardTitle>
+              <CardDescription>
+                Revisa el estado individual de cada documento y gestiona la aprobación general del conductor.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div
+                className={`flex items-center gap-3 rounded-lg border p-4 ${docStatus.color}`}
+              >
+                {docStatus.icon}
+                <div className="font-semibold">
+                  Estado general de aprobación: {docStatus.label}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold">Documentos y Vigencias</h3>
+                <ul className="space-y-3">
+                  {documentDetails.map(docDetail => {
+                      const statusInfo = docDetail.expiryDate ? getDocumentStatus(docDetail.expiryDate) : { label: 'Fecha no disponible', icon: <ShieldAlert className="h-5 w-5" />, color: 'text-yellow-600' };
+                      return (
+                         <li key={docDetail.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-2">
+                                    <FileText className="h-5 w-5 text-muted-foreground" />
+                                    <span>{docDetail.label}</span>
+                                </div>
+                                {docDetail.expiryDate ? (
+                                    <div className={cn("flex items-center gap-1.5 text-sm font-medium ml-7", statusInfo.color)}>
+                                        {statusInfo.icon}
+                                        <span>{statusInfo.label} (Vence: {format(new Date(docDetail.expiryDate), 'dd/MM/yyyy')})</span>
+                                    </div>
+                                ) : (
+                                     <div className={cn("flex items-center gap-1.5 text-sm font-medium ml-7", statusInfo.color)}>
+                                        {statusInfo.icon}
+                                        <span>{statusInfo.label}</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className='flex items-center gap-2'>
+                              {getIndividualDocBadge(docDetail.name)}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                  <DropdownMenuItem onClick={() => handleIndividualDocStatusChange(docDetail.name, 'approved')}>Aprobar</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleIndividualDocStatusChange(docDetail.name, 'rejected')}>Rechazar</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleIndividualDocStatusChange(docDetail.name, 'pending')}>Marcar como Pendiente</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                        </li>
+                      )
+                  })}
+                </ul>
+              </div>
+
+              <div className="flex flex-col gap-4 pt-4 border-t">
+                 <Button onClick={handleSaveChanges} disabled={isUpdating} className="w-full">
+                    {isUpdating ? <Loader2 className="mr-2 animate-spin"/> : <Save className="mr-2" />}
+                    {isUpdating ? 'Guardando Cambios...' : 'Guardar Todos los Cambios'}
+                </Button>
+                <div className="flex gap-4">
+                    <Button className="w-full" onClick={() => handleApproval('approved')} disabled={isUpdating}>
+                    {isUpdating ? <Loader2 className="mr-2 animate-spin"/> : <CheckCircle className="mr-2" />}
+                    Aprobar Conductor
+                    </Button>
+                    <Button variant="destructive" className="w-full" onClick={() => handleApproval('rejected')} disabled={isUpdating}>
+                    {isUpdating ? <Loader2 className="mr-2 animate-spin"/> : <XCircle className="mr-2" />}
+                    Rechazar Conductor
+                    </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+           <Card>
+            <CardHeader>
+              <CardTitle>Historial de Viajes Recientes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {rides.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Pasajero</TableHead>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead className="text-right">Tarifa</TableHead>
+                      <TableHead>Estado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rides.map((ride) => (
+                      <TableRow key={ride.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                             <Avatar className="h-8 w-8">
+                                <AvatarImage src={ride.passenger.avatarUrl} alt={ride.passenger.name} />
+                                <AvatarFallback>{ride.passenger.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <span>{ride.passenger.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{format(new Date(ride.date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-right">S/{ride.fare.toFixed(2)}</TableCell>
+                        <TableCell>
+                           <Badge variant={rideStatusConfig[ride.status].variant}>
+                                {rideStatusConfig[ride.status].label}
+                            </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">
+                  Este conductor aún no ha realizado ningún viaje.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+        </div>
+      </div>
+    </div>
+  );
+}

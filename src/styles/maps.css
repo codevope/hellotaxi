@@ -1,0 +1,39 @@
+/* Estilos específicos para Google Maps */
+.google-map-container {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+.google-map-container > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Forzar que todos los elementos internos del mapa ocupen el espacio completo */
+.google-map-container div[style*="position: relative"] {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.google-map-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Estilos para el mapa de Google */
+[class*="gm-"] {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Asegurar que el contenedor del mapa sea visible */
+.gm-style {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.gm-style > div {
+  width: 100% !important;
+  height: 100% !important;
+}
