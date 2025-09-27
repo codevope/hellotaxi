@@ -29,8 +29,8 @@ export interface MapContextType {
   mapZoom: number;
   
   // Actions
-  setPickupLocation: (location: MapLocation | null) => void;
-  setDropoffLocation: (location: MapLocation | null) => void;
+  setPickupLocation: (location: MapLocation | null, centerMap?: boolean) => void;
+  setDropoffLocation: (location: MapLocation | null, centerMap?: boolean) => void;
   setMapCenter: (center: { lat: number; lng: number }) => void;
   setMapZoom: (zoom: number) => void;
   geocodeAddress: (address: string) => Promise<MapLocation | null>;
@@ -89,7 +89,7 @@ export function MapProvider({ children }: MapProviderProps) {
         setMapZoom(15); // Zoom más cercano para la ubicación del usuario
       }
     }
-  }, [userLocation, pickupLocation, dropoffLocation, mapCenter]);
+  }, [userLocation, pickupLocation, dropoffLocation, mapCenter.lat, mapCenter.lng]);
 
   const geocodeAddress = useCallback(async (address: string): Promise<MapLocation | null> => {
     try {
@@ -107,19 +107,21 @@ export function MapProvider({ children }: MapProviderProps) {
       return null;
     }
   }, []);
-
-  const setPickupLocation = useCallback((location: MapLocation | null) => {
+  
+  const setPickupLocation = useCallback((location: MapLocation | null, centerMap: boolean = true) => {
     setPickupLocationState(location);
-    // Solo centrar el mapa en la primera ubicación
-    if (location && !pickupLocation) {
+    if (location && centerMap) {
       setMapCenter(location.coordinates);
       setMapZoom(16);
     }
-  }, [pickupLocation]);
+  }, []);
 
-  const setDropoffLocation = useCallback((location: MapLocation | null) => {
+  const setDropoffLocation = useCallback((location: MapLocation | null, centerMap: boolean = true) => {
     setDropoffLocationState(location);
-    // No manipular el mapa automáticamente para evitar bucles
+    if (location && centerMap) {
+      setMapCenter(location.coordinates);
+      setMapZoom(16);
+    }
   }, []);
 
   const clearRideLocations = useCallback(() => {

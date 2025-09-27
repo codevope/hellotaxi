@@ -72,8 +72,6 @@ export default function RideRequestForm({
   const [currentRide, setCurrentRide] = useState<Omit<Ride, 'id' | 'driver' | 'passenger'> & { driver: Driver, passenger: User, fareBreakdown?: FareBreakdown } | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [appSettings, setAppSettings] = useState<Settings | null>(null);
-  const [pickupCoordinates, setPickupCoordinates] = useState<{ lat: number; lng: number } | null>(null);
-  const [dropoffCoordinates, setDropoffCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [isCancelReasonDialogOpen, setIsCancelReasonDialogOpen] = useState(false);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [hasAutoFilledPickup, setHasAutoFilledPickup] = useState(false);
@@ -83,11 +81,10 @@ export default function RideRequestForm({
   const { user } = useAuth();
   const { location: userLocation, loading: locationLoading } = useGeolocation();
   const { 
-    pickupLocation: contextPickupLocation,
-    dropoffLocation: contextDropoffLocation,
+    pickupLocation,
+    dropoffLocation,
     setPickupLocation, 
     setDropoffLocation, 
-    calculateDistance 
   } = useMap();
   const { toast } = useToast();
   const { calculateRoute } = useETACalculator();
@@ -97,26 +94,14 @@ export default function RideRequestForm({
     defaultValues: { pickup: '', dropoff: '', serviceType: 'economy', paymentMethod: 'cash' },
   });
   
-  // Handlers simples sin useCallback para evitar bucles
-  const handlePickupSelect = (address: string, coordinates?: { lat: number; lng: number }) => {
-    setPickupCoordinates(coordinates || null);
-    
+  const handleLocationSelect = (address: string, coordinates: { lat: number; lng: number } | undefined, type: 'pickup' | 'dropoff') => {
     if (coordinates) {
-      setPickupLocation({
-        coordinates,
-        address
-      });
-    }
-  };
-
-  const handleDropoffSelect = (address: string, coordinates?: { lat: number; lng: number }) => {
-    setDropoffCoordinates(coordinates || null);
-    
-    if (coordinates) {
-      setDropoffLocation({
-        coordinates,
-        address
-      });
+      const locationData = { address, coordinates };
+      if (type === 'pickup') {
+        setPickupLocation(locationData);
+      } else {
+        setDropoffLocation(locationData);
+      }
     }
   };
   
@@ -126,63 +111,42 @@ export default function RideRequestForm({
 
   // Auto-rellenar pickup con ubicación actual del usuario (como Uber)
   useEffect(() => {
-    if (userLocation && userLocation.address && !hasAutoFilledPickup && !contextPickupLocation) {
-      const address = userLocation.address || 'Mi ubicación actual';
-      const coordinates = {
-        lat: userLocation.latitude,
-        lng: userLocation.longitude
+    if (userLocation?.address && !hasAutoFilledPickup && !pickupLocation) {
+      const locationData = {
+        coordinates: { lat: userLocation.latitude, lng: userLocation.longitude },
+        address: userLocation.address,
       };
-      
-      // Actualizar formulario
-      form.setValue('pickup', address);
-      
-      // Actualizar estado local
-      setPickupCoordinates(coordinates);
+      setPickupLocation(locationData);
       setHasAutoFilledPickup(true);
-      
-      // Actualizar contexto del mapa
-      setPickupLocation({
-        coordinates,
-        address
-      });
-
-      // Mostrar notificación sutil
       toast({
         title: "📍 Ubicación detectada",
         description: "Hemos establecido tu ubicación actual como punto de recojo",
         duration: 3000,
       });
     }
-  }, [userLocation, hasAutoFilledPickup, contextPickupLocation, form, setPickupLocation, toast]);
+  }, [userLocation, hasAutoFilledPickup, pickupLocation, setPickupLocation, toast]);
 
-  // Sincronizar formulario con cambios del contexto (clicks en el mapa)
+  // Sincronizar formulario con cambios del contexto
   useEffect(() => {
-    if (contextPickupLocation && contextPickupLocation.address) {
-      const currentPickup = form.getValues('pickup');
-      if (currentPickup !== contextPickupLocation.address) {
-        form.setValue('pickup', contextPickupLocation.address);
-        setPickupCoordinates(contextPickupLocation.coordinates);
-      }
+    if (pickupLocation) {
+      form.setValue('pickup', pickupLocation.address, { shouldValidate: true });
     }
-  }, [contextPickupLocation, form]);
+  }, [pickupLocation, form]);
 
   useEffect(() => {
-    if (contextDropoffLocation && contextDropoffLocation.address) {
-      const currentDropoff = form.getValues('dropoff');
-      if (currentDropoff !== contextDropoffLocation.address) {
-        form.setValue('dropoff', contextDropoffLocation.address);
-        setDropoffCoordinates(contextDropoffLocation.coordinates);
-      }
+    if (dropoffLocation) {
+      form.setValue('dropoff', dropoffLocation.address, { shouldValidate: true });
     }
-  }, [contextDropoffLocation, form]);
+  }, [dropoffLocation, form]);
+
 
   // Calcular ETA cuando cambien ambas ubicaciones
   useEffect(() => {
     const calculateETA = async () => {
-      if (pickupCoordinates && dropoffCoordinates) {
+      if (pickupLocation && dropoffLocation) {
         setIsCalculatingRoute(true);
         try {
-          const route = await calculateRoute(pickupCoordinates, dropoffCoordinates);
+          const route = await calculateRoute(pickupLocation.coordinates, dropoffLocation.coordinates);
           setRouteInfo(route);
         } catch (error) {
           console.error('Error calculating ETA:', error);
@@ -192,12 +156,11 @@ export default function RideRequestForm({
         }
       } else {
         setRouteInfo(null);
-        setIsCalculatingRoute(false);
       }
     };
 
     calculateETA();
-  }, [pickupCoordinates, dropoffCoordinates, calculateRoute]);
+  }, [pickupLocation, dropoffLocation, calculateRoute]);
 
   async function findDriver(serviceType: ServiceType): Promise<Driver | null> {
     const driversRef = collection(db, "drivers");
@@ -607,10 +570,7 @@ export default function RideRequestForm({
               <FormLabel>Punto de Recojo</FormLabel>
               <FormControl>
                 <AutocompleteInput
-                  onPlaceSelect={(address, coordinates) => {
-                    field.onChange(address);
-                    handlePickupSelect(address, coordinates);
-                  }}
+                  onPlaceSelect={(address, coordinates) => handleLocationSelect(address, coordinates, 'pickup')}
                   value={field.value}
                   onChange={field.onChange}
                   placeholder="¿Dónde te recogemos?"
@@ -630,10 +590,7 @@ export default function RideRequestForm({
               <FormLabel>Punto de Destino</FormLabel>
               <FormControl>
                  <AutocompleteInput
-                  onPlaceSelect={(address, coordinates) => {
-                    field.onChange(address);
-                    handleDropoffSelect(address, coordinates);
-                  }}
+                  onPlaceSelect={(address, coordinates) => handleLocationSelect(address, coordinates, 'dropoff')}
                   value={field.value}
                   onChange={field.onChange}
                   placeholder="¿A dónde vas?"
@@ -647,7 +604,7 @@ export default function RideRequestForm({
         />
 
         {/* ETA Display */}
-        {(pickupCoordinates && dropoffCoordinates) && (
+        {(pickupLocation && dropoffLocation) && (
           <div className="my-4">
             <ETADisplay 
               routeInfo={routeInfo}
