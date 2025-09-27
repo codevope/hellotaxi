@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -11,13 +12,6 @@ import { useMap } from '@/contexts/map-context';
 interface PlacePrediction {
   description: string;
   place_id: string;
-}
-
-interface Location {
-  lat: number;
-  lng: number;
-  address?: string;
-  placeId?: string;
 }
 
 interface AutocompleteInputProps {
@@ -114,10 +108,13 @@ export default function AutocompleteInput({
         const address = results[0].formatted_address;
         setInputValue(address);
         setPredictions([]);
+        setIsFocused(false); // Close dropdown
+        if (onChange) onChange(address); // Sync form state
         onPlaceSelect(address, { lat: location.lat(), lng: location.lng() });
       } else {
         // Fallback for safety
         setInputValue(prediction.description);
+        setIsFocused(false);
         onPlaceSelect(prediction.description, undefined);
       }
     });
@@ -128,6 +125,8 @@ export default function AutocompleteInput({
         const address = 'Mi ubicación actual';
         setInputValue(address);
         setPredictions([]);
+        setIsFocused(false);
+        if (onChange) onChange(address);
         onPlaceSelect(address, userLocation.coordinates);
     }
   };

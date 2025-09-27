@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -79,7 +80,7 @@ export default function RideRequestForm({
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   
   const { user } = useAuth();
-  const { location: userLocation, loading: locationLoading } = useGeolocation();
+  const { location: userGeolocation } = useGeolocation();
   const { 
     pickupLocation,
     dropoffLocation,
@@ -94,7 +95,12 @@ export default function RideRequestForm({
     defaultValues: { pickup: '', dropoff: '', serviceType: 'economy', paymentMethod: 'cash' },
   });
   
-  const handleLocationSelect = (address: string, coordinates: { lat: number; lng: number } | undefined, type: 'pickup' | 'dropoff') => {
+  // This function is the single point of truth for updating locations
+  const handleLocationSelect = (
+    address: string,
+    coordinates: { lat: number; lng: number } | undefined,
+    type: 'pickup' | 'dropoff'
+  ) => {
     if (coordinates) {
       const locationData = { address, coordinates };
       if (type === 'pickup') {
@@ -109,12 +115,12 @@ export default function RideRequestForm({
     getSettings().then(settings => setAppSettings(settings));
   }, []);
 
-  // Auto-rellenar pickup con ubicación actual del usuario (como Uber)
+  // Auto-fill pickup with user's current location (like Uber)
   useEffect(() => {
-    if (userLocation?.address && !hasAutoFilledPickup && !pickupLocation) {
+    if (userGeolocation?.address && !hasAutoFilledPickup && !pickupLocation) {
       const locationData = {
-        coordinates: { lat: userLocation.latitude, lng: userLocation.longitude },
-        address: userLocation.address,
+        coordinates: { lat: userGeolocation.latitude, lng: userGeolocation.longitude },
+        address: userGeolocation.address,
       };
       setPickupLocation(locationData);
       setHasAutoFilledPickup(true);
@@ -124,9 +130,9 @@ export default function RideRequestForm({
         duration: 3000,
       });
     }
-  }, [userLocation, hasAutoFilledPickup, pickupLocation, setPickupLocation, toast]);
+  }, [userGeolocation, hasAutoFilledPickup, pickupLocation, setPickupLocation, toast]);
 
-  // Sincronizar formulario con cambios del contexto
+  // Sync form fields when context locations change
   useEffect(() => {
     if (pickupLocation) {
       form.setValue('pickup', pickupLocation.address, { shouldValidate: true });
@@ -140,7 +146,7 @@ export default function RideRequestForm({
   }, [dropoffLocation, form]);
 
 
-  // Calcular ETA cuando cambien ambas ubicaciones
+  // Calculate ETA when both locations change
   useEffect(() => {
     const calculateETA = async () => {
       if (pickupLocation && dropoffLocation) {
@@ -343,6 +349,8 @@ export default function RideRequestForm({
     setFinalFare(null);
     setChatMessages([]);
     setIsCancelReasonDialogOpen(false);
+    setPickupLocation(null);
+    setDropoffLocation(null);
     form.reset();
   }
   
@@ -577,10 +585,9 @@ export default function RideRequestForm({
                   onChange={field.onChange}
                   placeholder="¿Dónde te recogemos?"
                   showCurrentLocationButton={true}
-                  showSmartSearch={false} // Solo mostrar en dropoff
+                  error={form.formState.errors.pickup?.message}
                 />
               </FormControl>
-              <FormMessage />
             </FormItem>
           )}
         />
@@ -597,10 +604,9 @@ export default function RideRequestForm({
                   onChange={field.onChange}
                   placeholder="¿A dónde vas?"
                   showCurrentLocationButton={false}
-                  showSmartSearch={true} // Mostrar búsqueda inteligente para destino
+                  error={form.formState.errors.dropoff?.message}
                 />
               </FormControl>
-              <FormMessage />
             </FormItem>
           )}
         />
