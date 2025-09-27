@@ -10,7 +10,7 @@ interface GoogleMapsProviderProps {
 
 const GoogleMapsProvider: React.FC<GoogleMapsProviderProps> = ({
   children,
-  libraries = ['places', 'marker']
+  libraries = ['places', 'marker', 'routes', 'geocoding']
 }) => {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
