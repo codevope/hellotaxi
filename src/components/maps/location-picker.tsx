@@ -1,7 +1,8 @@
+
 'use client';
 
 import React, { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MapPin, Target } from 'lucide-react';
 import {
@@ -39,8 +40,12 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
 
   const [mapCenter, setMapCenter] = useState<Location>(
     initialLocation ||
-      userLocation?.coordinates || { lat: -12.0464, lng: -77.0428 }
+      (userLocation ? { lat: userLocation.coordinates.lat, lng: userLocation.coordinates.lng } : { lat: -12.0464, lng: -77.0428 })
   );
+  
+  const handleMapClick = (location: Location) => {
+    // No hacer nada al hacer clic en el mapa
+  };
 
   const handlePlaceSelect = (location: Location) => {
     setSelectedLocation(location);
@@ -65,7 +70,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   };
 
   return (
-    <GoogleMapsProvider>
+    <GoogleMapsProvider libraries={['places', 'geocoding']}>
       <Card className={cn('w-full mx-auto shadow-none border-0', className)}>
         <CardContent className="space-y-4 pt-6">
           <div className="space-y-2">
@@ -81,7 +86,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             center={mapCenter}
             height="300px"
             zoom={15}
-            className="rounded-lg border"
+            className="rounded-lg border pointer-events-none"
             mapId="LOCATION_PICKER_MAP"
           >
             {selectedLocation && (
