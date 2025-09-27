@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -13,6 +14,8 @@ import {
   RouteDisplay,
   type Location 
 } from './maps';
+import { GeocodingService } from '@/services/geocoding-service';
+import { useToast } from '@/hooks/use-toast';
 
 interface MapViewProps {
   pickupLocation?: Location;
@@ -48,6 +51,7 @@ const MapView: React.FC<MapViewProps> = ({
     locationSource
   } = useMap();
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
+  const { toast } = useToast();
 
   // Usar ubicaciones del contexto si no se proporcionan como props
   const pickupLocation = propPickupLocation || (contextPickupLocation ? {
@@ -67,7 +71,7 @@ const MapView: React.FC<MapViewProps> = ({
     if (!userLocation && !locationError) {
       requestLocation();
     }
-  }, [userLocation, locationError]);
+  }, [userLocation, locationError, requestLocation]);
 
   // Actualizar centro del mapa cuando el usuario obtenga su ubicación
   React.useEffect(() => {
@@ -87,29 +91,51 @@ const MapView: React.FC<MapViewProps> = ({
     address: 'Tu ubicación actual'
   } : undefined;
 
-  const handleMapClick = (location: Location) => {
+  const handleMapClick = async (location: Location) => {
     if (!interactive) return;
-    
-    // Convertir Location a MapLocation para el contexto
-    const mapLocation = {
-      coordinates: {
-        lat: location.lat,
-        lng: location.lng
-      },
-      address: location.address || `${location.lat}, ${location.lng}`
-    };
-    
-    // Determinar qué tipo de ubicación establecer basado en el estado actual
-    if (!pickupLocation) {
-      setPickupLocation(mapLocation);
-      if (onLocationSelect) {
-        onLocationSelect(location, 'pickup');
-      }
-    } else if (!dropoffLocation) {
-      setDropoffLocation(mapLocation);
-      if (onLocationSelect) {
-        onLocationSelect(location, 'dropoff');
-      }
+
+    try {
+        const geocoded = await GeocodingService.reverseGeocode(location.lat, location.lng);
+        const mapLocation = {
+            coordinates: { lat: geocoded.lat, lng: geocoded.lng },
+            address: geocoded.formattedAddress,
+            placeId: geocoded.placeId,
+        };
+
+        if (!pickupLocation) {
+            setPickupLocation(mapLocation);
+            if (onLocationSelect) {
+                onLocationSelect(geocoded, 'pickup');
+            }
+        } else if (!dropoffLocation) {
+            setDropoffLocation(mapLocation);
+            if (onLocationSelect) {
+                onLocationSelect(geocoded, 'dropoff');
+            }
+        } else {
+             // Si ambos están seleccionados, el siguiente clic resetea y elige el pickup.
+             setDropoffLocation(null);
+             setPickupLocation(mapLocation);
+        }
+
+    } catch (error) {
+        console.error("Error en geocodificación inversa:", error);
+        toast({
+            variant: "destructive",
+            title: "Error de ubicación",
+            description: "No se pudo obtener la dirección para el punto seleccionado.",
+        });
+        
+        // Fallback a coordenadas si la geocodificación falla
+        const fallbackLocation = {
+          coordinates: { lat: location.lat, lng: location.lng },
+          address: `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`
+        };
+        if (!pickupLocation) {
+            setPickupLocation(fallbackLocation);
+        } else if (!dropoffLocation) {
+            setDropoffLocation(fallbackLocation);
+        }
     }
   };
 
