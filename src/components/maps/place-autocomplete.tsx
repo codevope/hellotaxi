@@ -8,6 +8,7 @@ import { MapPin, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Location } from '.';
 import { useMap } from '@/contexts/map-context';
+import { Button } from '../ui/button';
 
 
 interface PlaceAutocompleteProps {
@@ -31,6 +32,7 @@ const PlaceAutocomplete = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   
   const places = useMapsLibrary('places');
+  const geocoding = useMapsLibrary('geocoding');
   const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
   const geocoder = useRef<google.maps.Geocoder | null>(null);
 
@@ -39,9 +41,11 @@ const PlaceAutocomplete = ({
   useEffect(() => {
     if (places) {
       autocompleteService.current = new places.AutocompleteService();
-      geocoder.current = new places.Geocoder();
     }
-  }, [places]);
+    if(geocoding) {
+      geocoder.current = new geocoding.Geocoder();
+    }
+  }, [places, geocoding]);
 
   const fetchSuggestions = useCallback((input: string) => {
     if (!autocompleteService.current || input.length < 3) {
