@@ -522,6 +522,8 @@ export default function RideRequestForm({
     );
   }
 
+  const { pickup, dropoff } = form.getValues();
+
   return (
     <Form {...form}>
       <form
@@ -609,6 +611,8 @@ export default function RideRequestForm({
             <ETADisplay 
               routeInfo={routeInfo}
               isCalculating={isCalculatingRoute}
+              startAddress={pickup}
+              endAddress={dropoff}
             />
           </div>
         )}

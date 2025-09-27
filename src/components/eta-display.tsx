@@ -17,6 +17,8 @@ interface ETADisplayProps {
   routeInfo?: RouteInfo | null;
   isCalculating?: boolean;
   error?: string | null;
+  startAddress: string;
+  endAddress: string;
   className?: string;
 }
 
@@ -24,6 +26,8 @@ const ETADisplay: React.FC<ETADisplayProps> = ({
   routeInfo,
   isCalculating = false,
   error,
+  startAddress,
+  endAddress,
   className = ''
 }) => {
   const { getTrafficStatus, formatDuration, formatDistance } = useETACalculator();
@@ -143,10 +147,10 @@ const ETADisplay: React.FC<ETADisplayProps> = ({
         {/* Direcciones */}
         <div className="text-xs text-gray-600 space-y-1">
           <p className="truncate">
-            <span className="font-medium">Desde:</span> {routeInfo.startAddress}
+            <span className="font-medium">Desde:</span> {startAddress}
           </p>
           <p className="truncate">
-            <span className="font-medium">Hacia:</span> {routeInfo.endAddress}
+            <span className="font-medium">Hacia:</span> {endAddress}
           </p>
         </div>
       </CardContent>
