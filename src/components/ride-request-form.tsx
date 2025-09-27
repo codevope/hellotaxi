@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -18,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, Car, Star, X, MessageSquare, Calendar as CalendarIcon, Wallet, CreditCard } from 'lucide-react';
-import type { Ride, Driver, ChatMessage, User, PaymentMethod, ServiceType, ServiceTypeConfig, Settings, FareBreakdown, CancellationReason } from '@/lib/types';
+import type { Ride, Driver, ChatMessage, User, PaymentMethod, ServiceType, Settings, FareBreakdown, CancellationReason } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import FareNegotiation from './fare-negotiation';
 import RatingForm from './rating-form';
@@ -33,15 +32,15 @@ import { db } from '@/lib/firebase';
 import { getSettings } from '@/services/settings-service';
 import { useAuth } from '@/hooks/use-auth';
 import { useMap } from '@/contexts/map-context';
-import { useGeolocation } from '@/hooks/use-geolocation-improved';
 import { Separator } from './ui/separator';
-import AutocompleteInput from './autocomplete-input';
 import { Input } from './ui/input';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { processRating } from '@/ai/flows/process-rating';
 import ETADisplay from './eta-display';
 import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
+import { PlaceAutocomplete } from '@/components/maps';
+import type { Location } from '@/components/maps';
 
 const formSchema = z.object({
   pickup: z.string().min(5, 'Por favor, introduce una ubicación de recojo válida.'),
@@ -75,17 +74,16 @@ export default function RideRequestForm({
   const [appSettings, setAppSettings] = useState<Settings | null>(null);
   const [isCancelReasonDialogOpen, setIsCancelReasonDialogOpen] = useState(false);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
-  const [hasAutoFilledPickup, setHasAutoFilledPickup] = useState(false);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   
   const { user } = useAuth();
-  const { location: userGeolocation } = useGeolocation();
   const { 
     pickupLocation,
     dropoffLocation,
     setPickupLocation, 
-    setDropoffLocation, 
+    setDropoffLocation,
+    userLocation
   } = useMap();
   const { toast } = useToast();
   const { calculateRoute } = useETACalculator();
@@ -95,13 +93,16 @@ export default function RideRequestForm({
     defaultValues: { pickup: '', dropoff: '', serviceType: 'economy', paymentMethod: 'cash' },
   });
   
-  const handleLocationSelect = (
-    address: string,
-    coordinates: { lat: number; lng: number } | undefined,
-    type: 'pickup' | 'dropoff'
-  ) => {
-    if (coordinates) {
-      const locationData = { address, coordinates };
+  const handlePlaceSelect = (place: google.maps.places.PlaceResult | null, type: 'pickup' | 'dropoff') => {
+    if (place?.geometry?.location) {
+      const locationData = {
+        address: place.formatted_address || place.name || '',
+        coordinates: {
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng(),
+        },
+        placeId: place.place_id,
+      };
       if (type === 'pickup') {
         setPickupLocation(locationData);
       } else {
@@ -113,22 +114,6 @@ export default function RideRequestForm({
   useEffect(() => {
     getSettings().then(settings => setAppSettings(settings));
   }, []);
-
-  useEffect(() => {
-    if (userGeolocation?.address && !hasAutoFilledPickup && !pickupLocation) {
-      const locationData = {
-        coordinates: { lat: userGeolocation.latitude, lng: userGeolocation.longitude },
-        address: userGeolocation.address,
-      };
-      setPickupLocation(locationData);
-      setHasAutoFilledPickup(true);
-      toast({
-        title: "📍 Ubicación detectada",
-        description: "Hemos establecido tu ubicación actual como punto de recojo",
-        duration: 3000,
-      });
-    }
-  }, [userGeolocation, hasAutoFilledPickup, pickupLocation, setPickupLocation, toast]);
 
   useEffect(() => {
     if (pickupLocation) {
@@ -577,15 +562,12 @@ export default function RideRequestForm({
             <FormItem>
               <FormLabel>Punto de Recojo</FormLabel>
               <FormControl>
-                <AutocompleteInput
-                  onPlaceSelect={(address, coordinates) => handleLocationSelect(address, coordinates, 'pickup')}
-                  value={field.value}
-                  onChange={field.onChange}
+                <PlaceAutocomplete
+                  onPlaceSelect={(place) => handlePlaceSelect(place, 'pickup')}
                   placeholder="¿Dónde te recogemos?"
-                  showCurrentLocationButton={true}
-                  error={form.formState.errors.pickup?.message}
                 />
               </FormControl>
+               <FormMessage />
             </FormItem>
           )}
         />
@@ -596,15 +578,12 @@ export default function RideRequestForm({
             <FormItem>
               <FormLabel>Punto de Destino</FormLabel>
               <FormControl>
-                 <AutocompleteInput
-                  onPlaceSelect={(address, coordinates) => handleLocationSelect(address, coordinates, 'dropoff')}
-                  value={field.value}
-                  onChange={field.onChange}
+                 <PlaceAutocomplete
+                  onPlaceSelect={(place) => handlePlaceSelect(place, 'dropoff')}
                   placeholder="¿A dónde vas?"
-                  showCurrentLocationButton={false}
-                  error={form.formState.errors.dropoff?.message}
                 />
               </FormControl>
+               <FormMessage />
             </FormItem>
           )}
         />
