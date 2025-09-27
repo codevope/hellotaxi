@@ -1,10 +1,11 @@
-'use client';
+
+"use client";
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { Input } from '@/components/ui/input';
-import { MapPin, Loader2, X } from 'lucide-react';
-import { Button } from '../ui/button';
+import { MapPin } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface PlaceAutocompleteProps {
   onPlaceSelect: (place: google.maps.places.PlaceResult | null) => void;
@@ -13,13 +14,14 @@ interface PlaceAutocompleteProps {
   defaultValue?: string;
 }
 
-export const PlaceAutocomplete = ({
+const PlaceAutocomplete = ({
   onPlaceSelect,
   placeholder = 'Buscar una dirección...',
   className,
   defaultValue = '',
 }: PlaceAutocompleteProps) => {
-  const [placeAutocomplete, setPlaceAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
+  const [placeAutocomplete, setPlaceAutocomplete] =
+    useState<google.maps.places.Autocomplete | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const places = useMapsLibrary('places');
 
@@ -59,7 +61,9 @@ export const PlaceAutocomplete = ({
   return (
     <div className={cn("relative", className)}>
         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-        <Input ref={inputRef} placeholder={placeholder} className="pl-10"/>
+        <Input ref={inputRef} placeholder={placeholder} className="pl-10" defaultValue={defaultValue} />
     </div>
   );
 };
+
+export default PlaceAutocomplete;
