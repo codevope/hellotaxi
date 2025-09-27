@@ -12,6 +12,7 @@ import {
   type Location 
 } from './';
 import { useMap } from '@/contexts/map-context';
+import { cn } from '@/lib/utils';
 
 interface LocationPickerProps {
   onLocationSelect: (location: Location) => void;
@@ -31,7 +32,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   isPickup = false,
 }) => {
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(initialLocation ? {...initialLocation, address: 'Ubicación seleccionada'} : null);
-  const { userLocation } = useMap();
+  const { userLocation, geocodeAddress } = useMap();
 
   const [mapCenter, setMapCenter] = useState<Location>(
     initialLocation || userLocation?.coordinates || { lat: -12.0464, lng: -77.0428 }
@@ -43,10 +44,10 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   };
 
   const handleMapClick = async (location: Location) => {
-    // Aquí necesitaríamos geocodificación inversa, por ahora usamos coordenadas.
-    // En una implementación real, se llamaría a un servicio de geocoding.
-    const clickedLocation = { ...location, address: `Coord: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` };
-    setSelectedLocation(clickedLocation);
+    const geocodedLocation = await geocodeAddress(location);
+    if(geocodedLocation) {
+        setSelectedLocation(geocodedLocation);
+    }
   };
 
   const handleConfirm = () => {
