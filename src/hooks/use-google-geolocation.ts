@@ -9,8 +9,7 @@ export interface PreciseLocationData {
   accuracy: number;
   address?: string;
   timestamp: number;
-  source: 'gps' | 'network' | 'google-api' | 'ip';
-  confidence: 'high' | 'medium' | 'low';
+  source: 'gps' | 'network' | 'unknown';
 }
 
 export interface UseGoogleGeolocationReturn {
@@ -27,14 +26,14 @@ export interface UseGoogleGeolocationReturn {
 
 const HIGH_ACCURACY_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
-  timeout: 10000, 
-  maximumAge: 0,
+  timeout: 15000, 
+  maximumAge: 0, // No queremos una ubicación en caché
 };
 
 const CONTINUOUS_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
   timeout: 30000, 
-  maximumAge: 5000,
+  maximumAge: 5000, // Permitir caché de 5 segundos para tracking
 };
 
 export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
@@ -45,9 +44,9 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
   const watchIdRef = useRef<number | null>(null);
 
   const getNavigatorLocation = useCallback(async (options: PositionOptions): Promise<PreciseLocationData | null> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        resolve(null);
+        reject(new Error('La geolocalización no es soportada por este navegador.'));
         return;
       }
 
@@ -61,72 +60,52 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
             accuracy,
             timestamp: position.timestamp,
             source: accuracy < 100 ? 'gps' : 'network',
-            confidence: accuracy < 50 ? 'high' : accuracy < 200 ? 'medium' : 'low',
           });
         },
         (error) => {
           console.error(`Error navigator geolocation: ${error.message}`, error);
-          resolve(null);
+          reject(error); // Rechazar la promesa con el objeto de error
         },
         options
       );
     });
   }, []);
 
-  const getIPLocation = useCallback(async (): Promise<PreciseLocationData | null> => {
-    try {
-      // This is a fallback and will be inaccurate.
-      const response = await fetch('https://ipapi.co/json/');
-      const data = await response.json();
-      
-      if (data.latitude && data.longitude) {
-        return {
-          latitude: parseFloat(data.latitude),
-          longitude: parseFloat(data.longitude),
-          accuracy: 50000, // IP based is very inaccurate
-          timestamp: Date.now(),
-          source: 'ip',
-          confidence: 'low',
-          address: `${data.city}, ${data.region}, ${data.country_name}`,
-        };
-      }
-    } catch (error) {
-      console.error('Error getting IP location:', error);
-    }
-    
-    return null;
-  }, []);
 
   const requestPreciseLocation = useCallback(async () => {
     setLoading(true);
     setError(null);
-    console.log('🔄 Searching for precise location...');
+    console.log('🔄 Buscando ubicación precisa...');
 
-    // Strategy 1: High-accuracy GPS from browser
-    let result = await getNavigatorLocation(HIGH_ACCURACY_OPTIONS);
-    if (result && result.accuracy < 500) { // Accept if accuracy is better than 500m
-      console.log('✅ Precise GPS location obtained.');
-      setLocation(result);
-      setLoading(false);
-      return;
-    }
-
-    // Strategy 2: Fallback to IP as a last resort (and signal it's a bad location)
-    console.warn('⚠️ Could not get precise location. Falling back to IP-based location.');
-    result = await getIPLocation();
-    if (result) {
+    try {
+      const result = await getNavigatorLocation(HIGH_ACCURACY_OPTIONS);
+      if (result) {
+        console.log('✅ Ubicación precisa obtenida.');
         setLocation(result);
-    } else {
-        setError('Could not determine location using any method.');
+      }
+    } catch (err) {
+        let errorMessage = 'No se pudo obtener la ubicación.';
+        if (err instanceof GeolocationPositionError) {
+            if (err.code === err.PERMISSION_DENIED) {
+                errorMessage = 'Permiso de ubicación denegado.';
+            } else if (err.code === err.POSITION_UNAVAILABLE) {
+                errorMessage = 'La ubicación no está disponible.';
+            } else if (err.code === err.TIMEOUT) {
+                errorMessage = 'Se agotó el tiempo de espera para obtener la ubicación.';
+            }
+        }
+        console.error(errorMessage, err);
+        setError(errorMessage);
+        setLocation(null); // Asegurarse de que no haya una ubicación obsoleta
+    } finally {
+        setLoading(false);
     }
-    
-    setLoading(false);
-  }, [getNavigatorLocation, getIPLocation]);
+  }, [getNavigatorLocation]);
 
   const startLocationTracking = useCallback(() => {
     if (!navigator.geolocation || isTracking) return;
 
-    console.log('🔄 Starting continuous location tracking...');
+    console.log('🔄 Iniciando seguimiento continuo de ubicación...');
     setIsTracking(true);
 
     watchIdRef.current = navigator.geolocation.watchPosition(
@@ -138,15 +117,16 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
           accuracy,
           timestamp: position.timestamp,
           source: accuracy < 100 ? 'gps' : 'network',
-          confidence: accuracy < 50 ? 'high' : accuracy < 200 ? 'medium' : 'low',
         };
-        console.log('📍 Location updated:', newLocation);
+        console.log('📍 Ubicación actualizada (tracking):', newLocation);
         setLocation(newLocation);
         setError(null);
+        setLoading(false);
       },
       (error) => {
-        console.error('Tracking error:', error);
-        setError(`Tracking Error: ${error.message}`);
+        console.error('Error de seguimiento:', error);
+        setError(`Error de seguimiento: ${error.message}`);
+        setIsTracking(false);
       },
       CONTINUOUS_OPTIONS
     );
@@ -157,18 +137,19 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
       setIsTracking(false);
-      console.log('⏹️ Location tracking stopped.');
+      console.log('⏹️ Seguimiento de ubicación detenido.');
     }
   }, []);
 
   useEffect(() => {
-    // Initial location request
+    // Solicitud de ubicación inicial
     requestPreciseLocation();
-    // Cleanup on unmount
+    // Limpieza al desmontar
     return () => {
       stopLocationTracking();
     };
-  }, [requestPreciseLocation, stopLocationTracking]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     location,
