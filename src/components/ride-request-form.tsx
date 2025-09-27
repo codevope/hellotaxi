@@ -632,15 +632,18 @@ export default function RideRequestForm({
         open={!!locationPickerFor}
         onOpenChange={(open) => !open && setLocationPickerFor(null)}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl p-0">
+          <DialogHeader className="p-6 pb-0">
+             <DialogTitle>
+                {locationPickerFor === 'pickup'
+                    ? 'Seleccionar punto de recojo'
+                    : 'Seleccionar destino'}
+            </DialogTitle>
+          </DialogHeader>
           <LocationPicker
             onLocationSelect={handleLocationSelect}
             onCancel={() => setLocationPickerFor(null)}
-            title={
-              locationPickerFor === 'pickup'
-                ? 'Seleccionar punto de recojo'
-                : 'Seleccionar destino'
-            }
+            isPickup={locationPickerFor === 'pickup'}
             initialLocation={
               locationPickerFor === 'pickup'
                 ? pickupLocation?.coordinates
