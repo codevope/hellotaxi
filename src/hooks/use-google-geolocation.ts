@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -123,7 +124,7 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
           });
         },
         (error) => {
-          console.error('Error navigator geolocation:', error);
+          console.error(`Error navigator geolocation: ${error.message}`, error);
           resolve(null);
         },
         options
