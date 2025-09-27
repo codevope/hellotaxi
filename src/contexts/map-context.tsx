@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
@@ -33,7 +34,7 @@ export interface MapContextType {
   setDropoffLocation: (location: MapLocation | null, centerMap?: boolean) => void;
   setMapCenter: (center: { lat: number; lng: number }) => void;
   setMapZoom: (zoom: number) => void;
-  geocodeAddress: (address: string) => Promise<MapLocation | null>;
+  geocodeAddress: (location: { lat: number; lng: number }) => Promise<MapLocation | null>;
   clearRideLocations: () => void;
   calculateDistance: () => number | null;
   
@@ -91,9 +92,9 @@ export function MapProvider({ children }: MapProviderProps) {
     }
   }, [userLocation, pickupLocation, dropoffLocation, mapCenter.lat, mapCenter.lng]);
 
-  const geocodeAddress = useCallback(async (address: string): Promise<MapLocation | null> => {
+  const geocodeAddress = useCallback(async (location: { lat: number; lng: number }): Promise<MapLocation | null> => {
     try {
-      const result = await GeocodingService.geocodeAddress(address);
+      const result = await GeocodingService.reverseGeocode(location.lat, location.lng);
       return {
         coordinates: {
           lat: result.lat,
