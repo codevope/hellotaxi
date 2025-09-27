@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from './use-auth';
 
 export interface PreciseLocationData {
   latitude: number;
@@ -10,7 +9,7 @@ export interface PreciseLocationData {
   accuracy: number;
   address?: string;
   timestamp: number;
-  source: 'gps' | 'network' | 'google-api' | 'user-profile' | 'ip';
+  source: 'gps' | 'network' | 'google-api' | 'ip';
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -26,7 +25,7 @@ export interface UseGoogleGeolocationReturn {
   isTracking: boolean;
 }
 
-const GOOGLE_MAPS_OPTIONS: PositionOptions = {
+const HIGH_ACCURACY_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
   timeout: 10000, 
   maximumAge: 0,
@@ -34,63 +33,16 @@ const GOOGLE_MAPS_OPTIONS: PositionOptions = {
 
 const CONTINUOUS_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
-  timeout: 10000, 
+  timeout: 30000, 
   maximumAge: 5000,
 };
 
 export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
-  const { user } = useAuth();
   const [location, setLocation] = useState<PreciseLocationData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [isTracking, setIsTracking] = useState(false);
   const watchIdRef = useRef<number | null>(null);
-  const retryCountRef = useRef(0);
-
-  const getUserProfileLocation = useCallback(async () => {
-    if (!user) return null;
-    
-    try {
-      return null;
-    } catch (error) {
-      console.log('No se pudo obtener ubicación del perfil');
-      return null;
-    }
-  }, [user]);
-
-  const getGoogleAPILocation = useCallback(async (): Promise<PreciseLocationData | null> => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) return null;
-
-    try {
-      const response = await fetch(`https://www.googleapis.com/geolocation/v1/geolocate?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          considerIp: true,
-        }),
-      });
-
-      const data = await response.json();
-      
-      if (data.location) {
-        return {
-          latitude: data.location.lat,
-          longitude: data.location.lng,
-          accuracy: data.accuracy || 1000,
-          timestamp: Date.now(),
-          source: 'google-api',
-          confidence: data.accuracy < 100 ? 'high' : data.accuracy < 1000 ? 'medium' : 'low',
-        };
-      }
-    } catch (error) {
-      console.error('Error con Google Geolocation API:', error);
-    }
-    
-    return null;
-  }, []);
 
   const getNavigatorLocation = useCallback(async (options: PositionOptions): Promise<PreciseLocationData | null> => {
     return new Promise((resolve) => {
@@ -102,9 +54,7 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude, accuracy } = position.coords;
-          
           console.log('📍 Navigator location:', { latitude, longitude, accuracy });
-          
           resolve({
             latitude,
             longitude,
@@ -125,6 +75,7 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
 
   const getIPLocation = useCallback(async (): Promise<PreciseLocationData | null> => {
     try {
+      // This is a fallback and will be inaccurate.
       const response = await fetch('https://ipapi.co/json/');
       const data = await response.json();
       
@@ -132,7 +83,7 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
         return {
           latitude: parseFloat(data.latitude),
           longitude: parseFloat(data.longitude),
-          accuracy: 50000, // IP based is very inaccurate, assign a high number (50km)
+          accuracy: 50000, // IP based is very inaccurate
           timestamp: Date.now(),
           source: 'ip',
           confidence: 'low',
@@ -140,7 +91,7 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
         };
       }
     } catch (error) {
-      console.error('Error obteniendo ubicación por IP:', error);
+      console.error('Error getting IP location:', error);
     }
     
     return null;
@@ -149,69 +100,38 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
   const requestPreciseLocation = useCallback(async () => {
     setLoading(true);
     setError(null);
-    retryCountRef.current = 0;
+    console.log('🔄 Searching for precise location...');
 
-    console.log('🔄 Iniciando búsqueda de ubicación precisa...');
-
-    try {
-      
-      console.log('📡 Intentando GPS de alta precisión...');
-      let result = await getNavigatorLocation(GOOGLE_MAPS_OPTIONS);
-      if (result && result.accuracy < 200) { // Require accuracy < 200m
-        console.log('✅ Ubicación GPS precisa obtenida');
-        setLocation(result);
-        setLoading(false);
-        return;
-      }
-
-      console.log('🌐 Intentando Google Geolocation API...');
-      result = await getGoogleAPILocation();
-      if (result && result.confidence !== 'low') {
-        console.log('✅ Ubicación obtenida de Google API');
-        setLocation(result);
-        setLoading(false);
-        return;
-      }
-
-      console.log('⚡ Intentando ubicación rápida del navegador...');
-      result = await getNavigatorLocation(CONTINUOUS_OPTIONS);
-      if (result) {
-        console.log('✅ Ubicación básica obtenida del navegador');
-        setLocation(result);
-        setLoading(false);
-        return;
-      }
-      
-      console.log('🌍 Usando ubicación por IP como último recurso...');
-      result = await getIPLocation();
-      if (result) {
-        console.log('⚠️ Ubicación aproximada obtenida por IP');
-        setLocation(result);
-        setLoading(false);
-        return;
-      }
-
-      setError('No se pudo obtener la ubicación con ningún método');
-      console.error('❌ Todas las estrategias de ubicación fallaron');
-      
-    } catch (err) {
-      setError('Error obteniendo ubicación: ' + (err as Error).message);
-      console.error('❌ Error general de ubicación:', err);
-    } finally {
+    // Strategy 1: High-accuracy GPS from browser
+    let result = await getNavigatorLocation(HIGH_ACCURACY_OPTIONS);
+    if (result && result.accuracy < 500) { // Accept if accuracy is better than 500m
+      console.log('✅ Precise GPS location obtained.');
+      setLocation(result);
       setLoading(false);
+      return;
     }
-  }, [getGoogleAPILocation, getNavigatorLocation, getIPLocation]);
+
+    // Strategy 2: Fallback to IP as a last resort (and signal it's a bad location)
+    console.warn('⚠️ Could not get precise location. Falling back to IP-based location.');
+    result = await getIPLocation();
+    if (result) {
+        setLocation(result);
+    } else {
+        setError('Could not determine location using any method.');
+    }
+    
+    setLoading(false);
+  }, [getNavigatorLocation, getIPLocation]);
 
   const startLocationTracking = useCallback(() => {
     if (!navigator.geolocation || isTracking) return;
 
-    console.log('🔄 Iniciando tracking continuo de ubicación...');
+    console.log('🔄 Starting continuous location tracking...');
     setIsTracking(true);
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, accuracy } = position.coords;
-        
         const newLocation: PreciseLocationData = {
           latitude,
           longitude,
@@ -220,19 +140,15 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
           source: accuracy < 100 ? 'gps' : 'network',
           confidence: accuracy < 50 ? 'high' : accuracy < 200 ? 'medium' : 'low',
         };
-
-        console.log('📍 Ubicación actualizada:', newLocation);
+        console.log('📍 Location updated:', newLocation);
         setLocation(newLocation);
         setError(null);
       },
       (error) => {
-        console.error('Error en tracking:', error);
-        setError(`Error de tracking: ${error.message}`);
+        console.error('Tracking error:', error);
+        setError(`Tracking Error: ${error.message}`);
       },
-      {
-        ...CONTINUOUS_OPTIONS,
-        maximumAge: 5000, // Cache de 5 segundos
-      }
+      CONTINUOUS_OPTIONS
     );
   }, [isTracking]);
 
@@ -241,19 +157,18 @@ export function useGoogleGeolocation(): UseGoogleGeolocationReturn {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
       setIsTracking(false);
-      console.log('⏹️ Tracking de ubicación detenido');
+      console.log('⏹️ Location tracking stopped.');
     }
   }, []);
 
   useEffect(() => {
+    // Initial location request
     requestPreciseLocation();
-  }, [requestPreciseLocation]);
-
-  useEffect(() => {
+    // Cleanup on unmount
     return () => {
       stopLocationTracking();
     };
-  }, [stopLocationTracking]);
+  }, [requestPreciseLocation, stopLocationTracking]);
 
   return {
     location,

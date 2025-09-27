@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { MapPin, Navigation, Target } from 'lucide-react';
 import { 
   GoogleMapsProvider, 
@@ -12,17 +11,15 @@ import {
   PlaceAutocomplete,
   type Location 
 } from './';
+import { useMap } from '@/contexts/map-context';
 
 interface LocationPickerProps {
   onLocationSelect: (location: Location) => void;
   onCancel?: () => void;
   title?: string;
-  initialLocation?: Location;
-  restrictions?: {
-    country?: string[];
-    types?: string[];
-  };
+  initialLocation?: { lat: number, lng: number };
   className?: string;
+  isPickup?: boolean;
 }
 
 const LocationPicker: React.FC<LocationPickerProps> = ({
@@ -30,12 +27,14 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   onCancel,
   title = "Seleccionar ubicación",
   initialLocation,
-  restrictions = { country: ['PE'] },
-  className = ''
+  className = '',
+  isPickup = false,
 }) => {
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(initialLocation || null);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(initialLocation ? {...initialLocation, address: 'Ubicación seleccionada'} : null);
+  const { userLocation } = useMap();
+
   const [mapCenter, setMapCenter] = useState<Location>(
-    initialLocation || { lat: -12.0464, lng: -77.0428, address: 'Lima, Perú' }
+    initialLocation || userLocation?.coordinates || { lat: -12.0464, lng: -77.0428 }
   );
 
   const handlePlaceSelect = (location: Location) => {
@@ -43,8 +42,11 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     setMapCenter(location);
   };
 
-  const handleMapClick = (location: Location) => {
-    setSelectedLocation(location);
+  const handleMapClick = async (location: Location) => {
+    // Aquí necesitaríamos geocodificación inversa, por ahora usamos coordenadas.
+    // En una implementación real, se llamaría a un servicio de geocoding.
+    const clickedLocation = { ...location, address: `Coord: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` };
+    setSelectedLocation(clickedLocation);
   };
 
   const handleConfirm = () => {
@@ -54,36 +56,28 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   };
 
   const handleCurrentLocation = () => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const location: Location = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            address: 'Ubicación actual'
-          };
-          setSelectedLocation(location);
-          setMapCenter(location);
-        },
-        (error) => {
-          console.error('Error al obtener ubicación:', error);
-        }
-      );
+    if (userLocation?.coordinates) {
+      const location: Location = {
+        lat: userLocation.coordinates.lat,
+        lng: userLocation.coordinates.lng,
+        address: 'Mi ubicación actual'
+      };
+      setSelectedLocation(location);
+      setMapCenter(location);
     }
   };
 
   return (
     <GoogleMapsProvider>
-      <Card className={`w-full max-w-2xl mx-auto ${className}`}>
+      <Card className={cn("w-full mx-auto", className)}>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-blue-500" />
+            <MapPin className="h-5 w-5 text-primary" />
             {title}
           </CardTitle>
         </CardHeader>
         
         <CardContent className="space-y-4">
-          {/* Buscador de lugares */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">
               Buscar por dirección
@@ -91,47 +85,27 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             <PlaceAutocomplete
               onPlaceSelect={handlePlaceSelect}
               placeholder="Escribe una dirección o lugar..."
-              restrictions={restrictions}
+              isPickup={isPickup}
             />
           </div>
-
-          {/* Botón de ubicación actual */}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleCurrentLocation}
-            className="w-full flex items-center gap-2"
+          
+          <InteractiveMap
+            center={mapCenter}
+            height="300px"
+            zoom={15}
+            onMapClick={handleMapClick}
+            className="rounded-lg border"
+            mapId="LOCATION_PICKER_MAP"
           >
-            <Navigation className="h-4 w-4" />
-            Usar mi ubicación actual
-          </Button>
+            {selectedLocation && (
+              <MapMarker
+                position={selectedLocation}
+                type="custom"
+                title="Ubicación seleccionada"
+              />
+            )}
+          </InteractiveMap>
 
-          {/* Mapa interactivo */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              O selecciona en el mapa
-            </label>
-            
-            <InteractiveMap
-              center={mapCenter}
-              height="300px"
-              zoom={15}
-              onMapClick={handleMapClick}
-              className="rounded-lg border"
-              mapId="LOCATION_PICKER_MAP"
-            >
-              {selectedLocation && (
-                <MapMarker
-                  position={selectedLocation}
-                  type="custom"
-                  title="Ubicación seleccionada"
-                  showInfoWindow={true}
-                />
-              )}
-            </InteractiveMap>
-          </div>
-
-          {/* Información de la ubicación seleccionada */}
           {selectedLocation && (
             <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-start gap-2">
@@ -140,21 +114,14 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
                   <p className="text-sm font-medium text-blue-900">
                     Ubicación seleccionada
                   </p>
-                  {selectedLocation.address ? (
-                    <p className="text-sm text-blue-700 break-words">
-                      {selectedLocation.address}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-blue-600">
-                      {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
-                    </p>
-                  )}
+                  <p className="text-sm text-blue-700 break-words">
+                    {selectedLocation.address}
+                  </p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Botones de acción */}
           <div className="flex gap-3 pt-4">
             <Button
               onClick={handleConfirm}

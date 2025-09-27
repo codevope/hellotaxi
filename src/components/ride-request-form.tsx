@@ -16,7 +16,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Car, Star, X, MessageSquare, Calendar as CalendarIcon, Wallet, CreditCard } from 'lucide-react';
+import { Loader2, Car, Star, X, MessageSquare, Calendar as CalendarIcon, Wallet, CreditCard, MapPin } from 'lucide-react';
 import type { Ride, Driver, ChatMessage, User, PaymentMethod, ServiceType, Settings, FareBreakdown, CancellationReason } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import FareNegotiation from './fare-negotiation';
@@ -39,8 +39,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { processRating } from '@/ai/flows/process-rating';
 import ETADisplay from './eta-display';
 import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
-import { PlaceAutocomplete } from '@/components/maps';
-import type { Location } from '@/components/maps';
+import { LocationPicker, type Location } from '@/components/maps';
 
 const formSchema = z.object({
   pickup: z.string().min(5, 'Por favor, introduce una ubicación de recojo válida.'),
@@ -76,6 +75,7 @@ export default function RideRequestForm({
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [locationPickerFor, setLocationPickerFor] = useState<'pickup' | 'dropoff' | null>(null);
   
   const { user } = useAuth();
   const { 
@@ -83,7 +83,6 @@ export default function RideRequestForm({
     dropoffLocation,
     setPickupLocation, 
     setDropoffLocation,
-    userLocation
   } = useMap();
   const { toast } = useToast();
   const { calculateRoute } = useETACalculator();
@@ -93,22 +92,13 @@ export default function RideRequestForm({
     defaultValues: { pickup: '', dropoff: '', serviceType: 'economy', paymentMethod: 'cash' },
   });
   
-  const handlePlaceSelect = (place: google.maps.places.PlaceResult | null, type: 'pickup' | 'dropoff') => {
-    if (place?.geometry?.location) {
-      const locationData = {
-        address: place.formatted_address || place.name || '',
-        coordinates: {
-          lat: place.geometry.location.lat(),
-          lng: place.geometry.location.lng(),
-        },
-        placeId: place.place_id,
-      };
-      if (type === 'pickup') {
-        setPickupLocation(locationData);
-      } else {
-        setDropoffLocation(locationData);
-      }
+  const handleLocationSelect = (location: Location) => {
+    if (locationPickerFor === 'pickup') {
+      setPickupLocation({ coordinates: { lat: location.lat, lng: location.lng }, address: location.address || '' });
+    } else if (locationPickerFor === 'dropoff') {
+      setDropoffLocation({ coordinates: { lat: location.lat, lng: location.lng }, address: location.address || '' });
     }
+    setLocationPickerFor(null); // Close the dialog
   };
   
   useEffect(() => {
@@ -361,7 +351,6 @@ export default function RideRequestForm({
 
   const cancelDialogDescription = "Esta acción podría afectar negativamente tu calificación como pasajero. ¿Aún deseas cancelar?";
 
-
   if (status === 'searching') {
     return (
       <Alert>
@@ -516,6 +505,18 @@ export default function RideRequestForm({
   const { pickup, dropoff } = form.getValues();
 
   return (
+    <>
+    <Dialog open={!!locationPickerFor} onOpenChange={(open) => !open && setLocationPickerFor(null)}>
+        <DialogContent className="max-w-3xl">
+            <LocationPicker 
+                onLocationSelect={handleLocationSelect}
+                onCancel={() => setLocationPickerFor(null)}
+                title={locationPickerFor === 'pickup' ? 'Seleccionar punto de recojo' : 'Seleccionar destino'}
+                initialLocation={locationPickerFor === 'pickup' ? pickupLocation?.coordinates : dropoffLocation?.coordinates}
+            />
+        </DialogContent>
+    </Dialog>
+
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(() => setStatus('negotiating'))}
@@ -555,38 +556,25 @@ export default function RideRequestForm({
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="pickup"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Punto de Recojo</FormLabel>
-              <FormControl>
-                <PlaceAutocomplete
-                  onPlaceSelect={(place) => handlePlaceSelect(place, 'pickup')}
-                  placeholder="¿Dónde te recogemos?"
-                />
-              </FormControl>
-               <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="dropoff"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Punto de Destino</FormLabel>
-              <FormControl>
-                 <PlaceAutocomplete
-                  onPlaceSelect={(place) => handlePlaceSelect(place, 'dropoff')}
-                  placeholder="¿A dónde vas?"
-                />
-              </FormControl>
-               <FormMessage />
-            </FormItem>
-          )}
-        />
+        
+        <div className="space-y-2">
+            <Label>Punto de Recojo</Label>
+            <Button variant="outline" className="w-full justify-start text-left font-normal" onClick={() => setLocationPickerFor('pickup')}>
+                <MapPin className="mr-2 h-4 w-4" />
+                {pickupLocation ? pickupLocation.address : 'Seleccionar punto de recojo'}
+            </Button>
+            <FormMessage>{form.formState.errors.pickup?.message}</FormMessage>
+        </div>
+        
+        <div className="space-y-2">
+            <Label>Punto de Destino</Label>
+            <Button variant="outline" className="w-full justify-start text-left font-normal" onClick={() => setLocationPickerFor('dropoff')}>
+                 <MapPin className="mr-2 h-4 w-4" />
+                {dropoffLocation ? dropoffLocation.address : 'Seleccionar destino'}
+            </Button>
+            <FormMessage>{form.formState.errors.dropoff?.message}</FormMessage>
+        </div>
+
 
         {(pickupLocation && dropoffLocation) && (
           <div className="my-4">
@@ -705,5 +693,6 @@ export default function RideRequestForm({
         </div>
       </form>
     </Form>
+    </>
   );
 }
