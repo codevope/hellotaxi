@@ -16,6 +16,8 @@ import { useToast } from '@/hooks/use-toast';
 
 interface MapViewProps {
   onLocationSelect?: (location: Location, type: 'pickup' | 'dropoff') => void;
+  pickupLocation: Location | null;
+  dropoffLocation: Location | null;
   activeRide?: Ride | null;
   className?: string;
   height?: string;
@@ -24,6 +26,8 @@ interface MapViewProps {
 
 const MapView: React.FC<MapViewProps> = ({
   onLocationSelect,
+  pickupLocation,
+  dropoffLocation,
   activeRide,
   className = '',
   height = '100%',
@@ -32,8 +36,6 @@ const MapView: React.FC<MapViewProps> = ({
   const { location: userLocation, requestLocation, loading } = useGeolocation();
   const { toast } = useToast();
   
-  const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
-  const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
   const [mapCenter, setMapCenter] = useState<Location>({ lat: -12.046374, lng: -77.042793 }); // Default to Lima
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
 
@@ -50,7 +52,6 @@ const MapView: React.FC<MapViewProps> = ({
   }, [userLocation, loading, requestLocation]);
 
   useEffect(() => {
-    // When a location is selected, center the map on it
     if(pickupLocation && !dropoffLocation) {
         setMapCenter(pickupLocation);
     } else if (dropoffLocation) {
@@ -66,7 +67,7 @@ const MapView: React.FC<MapViewProps> = ({
   } : undefined;
 
   const handleMapClick = async (location: Location) => {
-    if (!interactive) return;
+    if (!interactive || !onLocationSelect) return;
 
     try {
         const geocoded = await GeocodingService.reverseGeocode(location.lat, location.lng);
@@ -77,16 +78,11 @@ const MapView: React.FC<MapViewProps> = ({
         };
 
         if (!pickupLocation) {
-            setPickupLocation(mapLocation);
-            if(onLocationSelect) onLocationSelect(mapLocation, 'pickup');
-
+            onLocationSelect(mapLocation, 'pickup');
         } else if (!dropoffLocation) {
-            setDropoffLocation(mapLocation);
-            if(onLocationSelect) onLocationSelect(mapLocation, 'dropoff');
+            onLocationSelect(mapLocation, 'dropoff');
         } else {
-             setDropoffLocation(null);
-             setPickupLocation(mapLocation);
-             if(onLocationSelect) onLocationSelect(mapLocation, 'pickup');
+             onLocationSelect(mapLocation, 'pickup');
         }
 
     } catch (error) {
@@ -102,10 +98,11 @@ const MapView: React.FC<MapViewProps> = ({
           lng: location.lng,
           address: `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`
         };
+
         if (!pickupLocation) {
-            setPickupLocation(fallbackLocation);
+            onLocationSelect(fallbackLocation, 'pickup');
         } else if (!dropoffLocation) {
-            setDropoffLocation(fallbackLocation);
+            onLocationSelect(fallbackLocation, 'dropoff');
         }
     }
   };
@@ -157,16 +154,9 @@ const MapView: React.FC<MapViewProps> = ({
             <RouteDisplay
               origin={pickupLocation}
               destination={dropoffLocation}
-              onRouteCalculated={(route) => {
-                
-              }}
-              onError={(error) => {
-                console.error('Route error:', error);
-              }}
             />
           )}
         </InteractiveMap>
-        
       </div>
     </GoogleMapsProvider>
   );

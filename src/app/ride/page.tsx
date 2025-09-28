@@ -9,7 +9,7 @@ import AppHeader from '@/components/app-header';
 import MapView from '@/components/map-view';
 import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
-import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
+import type { Ride, Driver, ChatMessage, CancellationReason, User, Location } from '@/lib/types';
 import { History, Car, Siren, LayoutDashboard, MessageCircle, Bot, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -52,6 +52,8 @@ function RidePageContent() {
   const [status, setStatus] = useState<'idle' | 'completed' | 'rating'>('idle');
   const [isRatingSubmitting, setIsSubmittingRating] = useState(false);
   const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
+  const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
+  const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
 
 
   const { toast } = useToast();
@@ -59,6 +61,15 @@ function RidePageContent() {
   useEffect(() => {
     getSettings().then(setAppSettings);
   }, []);
+
+  const handleLocationSelect = (location: Location, type: 'pickup' | 'dropoff') => {
+    if (type === 'pickup') {
+      setPickupLocation(location);
+    } else {
+      setDropoffLocation(location);
+    }
+  };
+
 
   const handleSosConfirm = () => {
     toast({
@@ -81,6 +92,8 @@ function RidePageContent() {
     setActiveRide(null);
     setAssignedDriver(null);
     setChatMessages([]);
+    setPickupLocation(null);
+    setDropoffLocation(null);
     setActiveTab('book');
     setStatus('idle');
   }
@@ -170,7 +183,12 @@ function RidePageContent() {
         <AppHeader />
         <main className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 p-4 lg:p-8 min-h-0">
             <div className="lg:col-span-2 flex flex-col min-h-0 rounded-xl overflow-hidden shadow-lg relative">
-              <MapView activeRide={activeRide} />
+              <MapView 
+                pickupLocation={pickupLocation}
+                dropoffLocation={dropoffLocation}
+                onLocationSelect={handleLocationSelect}
+                activeRide={activeRide} 
+              />
 
               {/* Floating Action Buttons */}
               <Sheet open={isSupportChatOpen} onOpenChange={setIsSupportChatOpen}>
@@ -321,7 +339,16 @@ function RidePageContent() {
                     </CardContent>
                   </Card>
                 ) : status !== 'rating' ? (
-                  <RideRequestForm onRideAssigned={handleRideAssigned} />
+                  <RideRequestForm 
+                    onRideAssigned={handleRideAssigned}
+                    pickupLocation={pickupLocation}
+                    dropoffLocation={dropoffLocation}
+                    onLocationSelect={handleLocationSelect}
+                    onReset={() => {
+                      setPickupLocation(null);
+                      setDropoffLocation(null);
+                    }}
+                  />
                  ) : assignedDriver && (
                   <RatingForm
                     userToRate={assignedDriver}

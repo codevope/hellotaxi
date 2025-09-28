@@ -14,7 +14,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Alert } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Loader2,
   Car,
@@ -33,6 +33,7 @@ import type {
   ServiceType,
   Settings,
   FareBreakdown,
+  Location,
 } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import FareNegotiation from './fare-negotiation';
@@ -61,7 +62,7 @@ import {
 } from './ui/dialog';
 import ETADisplay from './eta-display';
 import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
-import { LocationPicker, type Location, InteractiveMap } from '@/components/maps';
+import { LocationPicker } from '@/components/maps';
 import { Label } from './ui/label';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -77,6 +78,10 @@ const formSchema = z.object({
 
 type RideRequestFormProps = {
   onRideAssigned: (ride: Ride, driver: Driver) => void;
+  pickupLocation: Location | null;
+  dropoffLocation: Location | null;
+  onLocationSelect: (location: Location, type: 'pickup' | 'dropoff') => void;
+  onReset: () => void;
 };
 
 
@@ -94,6 +99,10 @@ const serviceTypeIcons: Record<ServiceType, React.ReactNode> = {
 
 export default function RideRequestForm({
   onRideAssigned,
+  pickupLocation,
+  dropoffLocation,
+  onLocationSelect,
+  onReset,
 }: RideRequestFormProps) {
   const [status, setStatus] = useState<
     | 'idle'
@@ -110,8 +119,6 @@ export default function RideRequestForm({
   const [locationPickerFor, setLocationPickerFor] = useState<
     'pickup' | 'dropoff' | null
   >(null);
-  const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
-  const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const { calculateRoute, isCalculating, error: routeError } = useETACalculator();
@@ -128,6 +135,12 @@ export default function RideRequestForm({
       couponCode: '',
     },
   });
+  
+  useEffect(() => {
+    form.setValue('pickup', pickupLocation?.address || '');
+    form.setValue('dropoff', dropoffLocation?.address || '');
+  }, [pickupLocation, dropoffLocation, form]);
+
 
   useEffect(() => {
     async function fetchSettings() {
@@ -137,16 +150,15 @@ export default function RideRequestForm({
     fetchSettings();
   }, []);
 
-  const handleLocationSelect = (location: Location) => {
+  const handleLocationSelected = (location: Location) => {
     if (locationPickerFor === 'pickup') {
-      setPickupLocation(location);
-      form.setValue('pickup', location.address || `${location.lat}, ${location.lng}`);
+      onLocationSelect(location, 'pickup');
     } else if (locationPickerFor === 'dropoff') {
-      setDropoffLocation(location);
-      form.setValue('dropoff', location.address || `${location.lat}, ${location.lng}`);
+      onLocationSelect(location, 'dropoff');
     }
-    setLocationPickerFor(null); // Close the dialog
+    setLocationPickerFor(null);
   };
+
 
   const handleCalculateFare = async () => {
     if (!pickupLocation || !dropoffLocation) return;
@@ -292,8 +304,7 @@ export default function RideRequestForm({
   function resetForm() {
     setStatus('idle');
     setFinalFare(null);
-    setPickupLocation(null);
-    setDropoffLocation(null);
+    onReset();
     setRouteInfo(null);
     form.reset();
   }
@@ -315,11 +326,11 @@ export default function RideRequestForm({
     return (
       <Alert>
         <Loader2 className="h-4 w-4 animate-spin" />
-        <Alert>Buscando tu viaje...</Alert>
-        <Alert>
+        <AlertTitle>Buscando tu viaje...</AlertTitle>
+        <AlertDescription>
           Hemos acordado una tarifa de S/{finalFare?.toFixed(2)}. Ahora, estamos
           asignando un conductor para el servicio "{form.getValues('serviceType')}".
-        </Alert>
+        </AlertDescription>
       </Alert>
     );
   }
@@ -347,7 +358,7 @@ export default function RideRequestForm({
             </DialogTitle>
           </DialogHeader>
           <LocationPicker
-            onLocationSelect={handleLocationSelect}
+            onLocationSelect={handleLocationSelected}
             onCancel={() => setLocationPickerFor(null)}
             isPickup={locationPickerFor === 'pickup'}
             initialLocation={locationPickerFor === 'pickup' ? pickupLocation : dropoffLocation}
@@ -482,7 +493,7 @@ export default function RideRequestForm({
                 )}
               />
               
-              {status === 'calculated' && routeInfo && (
+              {(status === 'calculating' || status === 'calculated') && routeInfo && (
                 <ETADisplay
                   routeInfo={routeInfo}
                   isCalculating={isCalculating}
