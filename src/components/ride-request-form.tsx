@@ -108,7 +108,7 @@ const formSchema = z.object({
   pickup: z.string().min(5, 'Por favor, introduce una ubicación de recojo válida.'),
   dropoff: z.string().min(5, 'Por favor, introduce una ubicación de destino válida.'),
   serviceType: z.enum(['economy', 'comfort', 'exclusive'], { required_error: 'Debes seleccionar un tipo de servicio.' }).default('economy'),
-  paymentMethod: z.enum(['cash', 'yape', 'plin', 'card'], { required_error: 'Debes seleccionar un método de pago.' }).default('cash'),
+  paymentMethod: z.enum(['cash', 'yape', 'plin'], { required_error: 'Debes seleccionar un método de pago.' }).default('cash'),
   couponCode: z.string().optional(),
   scheduledTime: z.date().optional(),
 });
@@ -117,18 +117,35 @@ type RideRequestFormProps = {
   setActiveRide: (ride: Ride | null) => void;
 };
 
-const paymentMethodIcons: Record<PaymentMethod, React.ReactNode> = {
+const yapeLogo = (
+  <svg width="40" height="20" viewBox="0 0 102 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path fillRule="evenodd" clipRule="evenodd" d="M63.8571 0.738281H101.341V8.58316H81.821V16.113H98.923V23.7121H81.821V32.1837H101.401V39.7828H63.8571V0.738281Z" fill="#752EDD"/>
+    <path fillRule="evenodd" clipRule="evenodd" d="M0.860107 0.738281H38.3441V8.58316H20.0811V16.113H35.8031V23.7121H20.0811V39.7828H12.2361V8.58316H0.860107V0.738281Z" fill="#752EDD"/>
+    <path d="M41.7773 39.7828L54.7733 0.738281H63.0293L50.0333 39.7828H41.7773Z" fill="#752EDD"/>
+  </svg>
+);
+
+const plinLogo = (
+  <svg width="40" height="24" viewBox="0 0 119 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0 0.509766H16.1364V49.601H0V0.509766Z" fill="#00A3FF"/>
+    <path d="M24.2041 0.509766H40.3405V49.601H24.2041V0.509766Z" fill="#00A3FF"/>
+    <path d="M48.4082 17.0784H74.3174V33.0315H48.4082V17.0784Z" fill="#00A3FF"/>
+    <path d="M82.3857 0.509766H98.5221V49.601H82.3857V0.509766Z" fill="#00A3FF"/>
+    <path d="M102.66 0.509766H118.796V49.601H102.66V0.509766Z" fill="#00A3FF"/>
+  </svg>
+);
+
+
+const paymentMethodIcons: Record<Exclude<PaymentMethod, 'card'>, React.ReactNode> = {
   cash: <Wallet className="h-8 w-8" />,
-  yape: <span className="font-bold text-2xl">Y</span>,
-  plin: <span className="font-bold text-2xl">P</span>,
-  card: <CreditCard className="h-8 w-8" />,
+  yape: yapeLogo,
+  plin: plinLogo,
 };
 
-const paymentMethodLabels: Record<PaymentMethod, string> = {
+const paymentMethodLabels: Record<Exclude<PaymentMethod, 'card'>, string> = {
   cash: "Efectivo",
   yape: "Yape",
-  plin: "Plin",
-  card: "Tarjeta"
+  plin: "Plin"
 }
 
 
@@ -648,6 +665,7 @@ export default function RideRequestForm({
           onSubmit={form.handleSubmit(handleCalculateFare)}
           className="space-y-6"
         >
+          {status === 'idle' || status === 'calculating' || status === 'calculated' ? (
             <>
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -740,10 +758,10 @@ export default function RideRequestForm({
                     <FormControl>
                       <RadioGroup
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="grid grid-cols-4 gap-4"
+                        value={field.value}
+                        className="grid grid-cols-3 gap-4"
                       >
-                         {Object.keys(paymentMethodIcons).map((method) => (
+                         {(Object.keys(paymentMethodIcons) as Array<keyof typeof paymentMethodIcons>).map((method) => (
                           <FormItem key={method}>
                             <FormControl>
                               <RadioGroupItem
@@ -759,8 +777,8 @@ export default function RideRequestForm({
                                 field.value === method && "border-primary bg-primary/10"
                               )}
                             >
-                              {paymentMethodIcons[method as PaymentMethod]}
-                              <span className="font-semibold mt-2 text-sm">{paymentMethodLabels[method as PaymentMethod]}</span>
+                              {paymentMethodIcons[method]}
+                              <span className="font-semibold mt-2 text-sm">{paymentMethodLabels[method]}</span>
                             </FormLabel>
                           </FormItem>
                         ))}
@@ -806,9 +824,9 @@ export default function RideRequestForm({
                 )}
               </div>
             </>
+          ) : null}
         </form>
       </Form>
     </>
   );
 }
-

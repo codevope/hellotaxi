@@ -174,7 +174,7 @@ export const rides: (Omit<Ride, 'id' | 'driver' | 'passenger'> & { driverName: s
         passengerEmail: 'lucia.f@example.com',
         status: 'completed',
         serviceType: 'comfort',
-        paymentMethod: 'card'
+        paymentMethod: 'yape'
     },
     {
         pickup: 'Aeropuerto Jorge Chávez',
@@ -225,7 +225,7 @@ export const rides: (Omit<Ride, 'id' | 'driver' | 'passenger'> & { driverName: s
         cancellationReason: { code: 'DRIVER_LATE', reason: 'El conductor se demora mucho en llegar' },
         cancelledBy: 'passenger',
         serviceType: 'comfort',
-        paymentMethod: 'card'
+        paymentMethod: 'plin'
     }
 ];
 

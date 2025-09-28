@@ -4,7 +4,7 @@ import type { DocumentReference } from 'firebase/firestore';
 export type ServiceType = 'economy' | 'comfort' | 'exclusive';
 export type PaymentModel = 'commission' | 'membership';
 export type MembershipStatus = 'active' | 'pending' | 'expired';
-export type PaymentMethod = 'cash' | 'yape' | 'plin' | 'card';
+export type PaymentMethod = 'cash' | 'yape' | 'plin';
 export type UserRole = 'passenger' | 'driver';
 
 export type DocumentName = 'license' | 'insurance' | 'technicalReview' | 'backgroundCheck';

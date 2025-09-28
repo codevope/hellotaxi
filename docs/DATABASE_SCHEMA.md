@@ -116,7 +116,7 @@ interface Ride {
   passenger: DocumentReference;  // Referencia al documento user
   status: RideStatus;            // 'completed' | 'in-progress' | 'cancelled'
   serviceType: ServiceType;      // Tipo de servicio solicitado
-  paymentMethod: PaymentMethod;  // 'cash' | 'yape' | 'plin' | 'card'
+  paymentMethod: PaymentMethod;  // 'cash' | 'yape' | 'plin'
   cancellationReason?: CancellationReason; // Razón de cancelación
   cancelledBy?: 'passenger' | 'driver';    // Quién canceló
   assignmentTimestamp?: string;  // Cuando se asignó el conductor

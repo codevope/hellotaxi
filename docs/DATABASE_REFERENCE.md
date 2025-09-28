@@ -140,7 +140,7 @@ const rideRef = await addDoc(collection(db, 'rides'), rideData);
 ```typescript
 // Estados y tipos principales
 type ServiceType = 'economy' | 'comfort' | 'exclusive';
-type PaymentMethod = 'cash' | 'yape' | 'plin' | 'card';
+type PaymentMethod = 'cash' | 'yape' | 'plin';
 type RideStatus = 'completed' | 'in-progress' | 'cancelled';
 type DriverStatus = 'available' | 'unavailable' | 'on-ride';
 type DocumentStatus = 'pending' | 'approved' | 'rejected';
