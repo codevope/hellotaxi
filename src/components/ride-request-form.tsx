@@ -86,6 +86,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from './ui/alert-dialog';
 import {
   Dialog,
@@ -645,22 +646,17 @@ export default function RideRequestForm({
         onOpenChange={(open) => !open && setLocationPickerFor(null)}
       >
         <DialogContent className="p-0">
-           <DialogHeader className="p-6 pb-0">
-             <DialogTitle>
-                {locationPickerFor === 'pickup'
-                    ? 'Seleccionar punto de recojo'
-                    : 'Seleccionar destino'}
+          <DialogHeader className="p-6 pb-0">
+            <DialogTitle>
+              {locationPickerFor === 'pickup'
+                ? 'Seleccionar punto de recojo'
+                : 'Seleccionar destino'}
             </DialogTitle>
           </DialogHeader>
           <LocationPicker
             onLocationSelect={handleLocationSelect}
             onCancel={() => setLocationPickerFor(null)}
             isPickup={locationPickerFor === 'pickup'}
-            initialLocation={
-              locationPickerFor === 'pickup'
-                ? pickupLocation?.coordinates
-                : dropoffLocation?.coordinates
-            }
           />
         </DialogContent>
       </Dialog>
@@ -878,5 +874,3 @@ export default function RideRequestForm({
     </>
   );
 }
-
-    
