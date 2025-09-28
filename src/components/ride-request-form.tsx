@@ -707,9 +707,9 @@ export default function RideRequestForm({
                         </FormControl>
                         <FormLabel
                           htmlFor={`service-${service.id}`}
-                          className={cn(
+                           className={cn(
                             'flex flex-col items-center justify-center gap-2 rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer',
-                            '[:has(:checked)]:border-primary [:has(:checked)]:bg-primary/10'
+                            field.value === service.id && 'border-primary bg-primary/10'
                           )}
                         >
                           {serviceTypeIcons[service.id]}
@@ -744,9 +744,9 @@ export default function RideRequestForm({
                           </FormControl>
                            <FormLabel
                             htmlFor={`payment-${method}`}
-                            className={cn(
+                             className={cn(
                               'flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground cursor-pointer',
-                              '[:has(:checked)]:border-primary [:has(:checked)]:bg-primary/10'
+                              field.value === method && 'border-primary bg-primary/10'
                             )}
                           >
                             {paymentMethodIcons[method]}
