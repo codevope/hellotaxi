@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { estimateRideFareDeterministic } from '@/ai/flows/get-fare-estimates';
+import type { FareBreakdown, ServiceType } from '@/lib/types';
 
 export interface RouteInfo {
   distance: {
@@ -11,20 +13,16 @@ export interface RouteInfo {
     text: string;
     value: number; // en segundos
   };
-  durationInTraffic?: {
-    text: string;
-    value: number; // en segundos
-  };
   startAddress: string;
   endAddress: string;
   polyline?: string;
+  estimatedFare?: number;
+  fareBreakdown?: FareBreakdown;
 }
 
 export interface ETACalculationOptions {
-  departureTime?: Date;
   travelMode?: google.maps.TravelMode;
-  avoidHighways?: boolean;
-  avoidTolls?: boolean;
+  serviceType: ServiceType;
 }
 
 export interface UseETACalculatorReturn {
@@ -34,7 +32,7 @@ export interface UseETACalculatorReturn {
   calculateRoute: (
     origin: { lat: number; lng: number },
     destination: { lat: number; lng: number },
-    options?: ETACalculationOptions
+    options: ETACalculationOptions
   ) => Promise<RouteInfo | null>;
   formatDuration: (seconds: number) => string;
   formatDistance: (meters: number) => string;
@@ -74,7 +72,7 @@ export function useETACalculator(): UseETACalculatorReturn {
   const calculateRoute = useCallback(async (
     origin: { lat: number; lng: number },
     destination: { lat: number; lng: number },
-    options: ETACalculationOptions = {}
+    options: ETACalculationOptions
   ): Promise<RouteInfo | null> => {
     if (!window.google?.maps) {
       setError('Google Maps no está disponible');
@@ -91,13 +89,6 @@ export function useETACalculator(): UseETACalculatorReturn {
         origin: new google.maps.LatLng(origin.lat, origin.lng),
         destination: new google.maps.LatLng(destination.lat, destination.lng),
         travelMode: options.travelMode || google.maps.TravelMode.DRIVING,
-        unitSystem: google.maps.UnitSystem.METRIC,
-        avoidHighways: options.avoidHighways || false,
-        avoidTolls: options.avoidTolls || false,
-        drivingOptions: {
-          departureTime: options.departureTime || new Date(),
-          trafficModel: google.maps.TrafficModel.BEST_GUESS
-        }
       };
 
       const response = await new Promise<google.maps.DirectionsResult>((resolve, reject) => {
@@ -117,6 +108,20 @@ export function useETACalculator(): UseETACalculatorReturn {
       const route = response.routes[0];
       const leg = route.legs[0];
 
+      // Ahora, calculamos la tarifa usando el flujo determinístico
+      const distanceKm = (leg.distance?.value || 0) / 1000;
+      const durationMinutes = (leg.duration?.value || 0) / 60;
+      const rideDate = new Date();
+      const peakTime = rideDate.getHours() >= 16 && rideDate.getHours() <= 19;
+
+      const fareResult = await estimateRideFareDeterministic({
+        distanceKm,
+        durationMinutes,
+        peakTime,
+        serviceType: options.serviceType,
+        rideDate: rideDate.toISOString(),
+      });
+
       const routeData: RouteInfo = {
         distance: {
           text: leg.distance?.text || '',
@@ -126,12 +131,10 @@ export function useETACalculator(): UseETACalculatorReturn {
           text: leg.duration?.text || '',
           value: leg.duration?.value || 0
         },
-        durationInTraffic: leg.duration_in_traffic ? {
-          text: leg.duration_in_traffic.text,
-          value: leg.duration_in_traffic.value
-        } : undefined,
         startAddress: leg.start_address,
-        endAddress: leg.end_address
+        endAddress: leg.end_address,
+        estimatedFare: fareResult.estimatedFare,
+        fareBreakdown: fareResult.breakdown,
       };
 
       setRouteInfo(routeData);

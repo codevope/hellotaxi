@@ -160,6 +160,7 @@ export default function RideRequestForm({
     useMap();
   const { toast } = useToast();
   const { calculateRoute } = useETACalculator();
+  const serviceType = useForm().watch('serviceType');
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -214,7 +215,8 @@ export default function RideRequestForm({
         try {
           const route = await calculateRoute(
             pickupLocation.coordinates,
-            dropoffLocation.coordinates
+            dropoffLocation.coordinates,
+            { serviceType: form.getValues('serviceType') }
           );
           setRouteInfo(route);
         } catch (error) {
@@ -229,7 +231,7 @@ export default function RideRequestForm({
     };
 
     calculateETA();
-  }, [pickupLocation, dropoffLocation, calculateRoute]);
+  }, [pickupLocation, dropoffLocation, calculateRoute, form, serviceType]);
 
   async function findDriver(serviceType: ServiceType): Promise<Driver | null> {
     const driversRef = collection(db, 'drivers');
