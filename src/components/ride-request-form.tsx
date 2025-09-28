@@ -69,6 +69,7 @@ import {
   updateDoc,
   getDoc,
   increment,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getSettings } from '@/services/settings-service';
@@ -96,7 +97,7 @@ import { processRating } from '@/ai/flows/process-rating';
 import ETADisplay from './eta-display';
 import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
 import { LocationPicker, type Location } from '@/components/maps';
-import { Label } from '@/components/ui/label';
+import { Label } from './ui/label';
 
 const formSchema = z.object({
   pickup: z.string().min(5, 'Por favor, introduce una ubicación de recojo válida.'),
@@ -131,13 +132,7 @@ export default function RideRequestForm({
   >('idle');
   const [assignedDriver, setAssignedDriver] = useState<Driver | null>(null);
   const [finalFare, setFinalFare] = useState<number | null>(null);
-  const [currentRide, setCurrentRide] = useState<
-    (Omit<Ride, 'id' | 'driver' | 'passenger'> & {
-      driver: Driver;
-      passenger: User;
-      fareBreakdown?: FareBreakdown;
-    }) | null
-  >(null);
+  const [currentRide, setCurrentRide] = useState<Ride | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [appSettings, setAppSettings] = useState<Settings | null>(null);
   const [isCancelReasonDialogOpen, setIsCancelReasonDialogOpen] =
@@ -230,6 +225,7 @@ export default function RideRequestForm({
       driversRef,
       where('status', '==', 'available'),
       where('serviceType', '==', serviceType),
+      where('documentsStatus', '==', 'approved'),
       limit(1)
     );
 
@@ -296,46 +292,47 @@ export default function RideRequestForm({
     const availableDriver = await findDriver(serviceType);
 
     if (availableDriver && user) {
-      const userRef = doc(db, 'users', user.uid);
+        setAssignedDriver(availableDriver);
+        const passengerRef = doc(db, 'users', user.uid);
+        const driverRef = doc(db, 'drivers', availableDriver.id);
+        
+        try {
+            // Create the ride document
+            const newRideData = {
+                pickup: form.getValues('pickup'),
+                dropoff: form.getValues('dropoff'),
+                date: new Date().toISOString(),
+                fare: fare,
+                driver: driverRef,
+                passenger: passengerRef,
+                serviceType: form.getValues('serviceType'),
+                paymentMethod: form.getValues('paymentMethod'),
+                assignmentTimestamp: new Date().toISOString(),
+                fareBreakdown: breakdown,
+                status: 'in-progress' as const,
+            };
+            const rideDocRef = await addDoc(collection(db, 'rides'), newRideData);
 
-      setAssignedDriver(availableDriver);
-      setStatus('assigned');
+            // Update driver and passenger in a batch
+            const batch = writeBatch(db);
+            batch.update(driverRef, { status: 'on-ride' });
+            batch.update(passengerRef, { totalRides: increment(1) });
+            await batch.commit();
 
-      const passengerSnapshot = await getDoc(userRef);
-      const passenger = passengerSnapshot.data() as User;
+            // Set component state with the newly created ride
+            const createdRide: Ride = { id: rideDocRef.id, ...newRideData };
+            setCurrentRide(createdRide);
+            setActiveRide(createdRide);
+            setStatus('assigned');
+            setChatMessages([
+                { sender: availableDriver.name, text: '¡Hola! Ya estoy en camino.', timestamp: new Date().toISOString(), isDriver: true, },
+            ]);
 
-      const newRideData = {
-        pickup: form.getValues('pickup'),
-        dropoff: form.getValues('dropoff'),
-        date: new Date().toISOString(),
-        fare: fare,
-        driver: availableDriver,
-        passenger: passenger,
-        serviceType: form.getValues('serviceType'),
-        paymentMethod: form.getValues('paymentMethod'),
-        assignmentTimestamp: new Date().toISOString(),
-        fareBreakdown: breakdown,
-        status: 'in-progress' as const,
-      };
-
-      const newRideForState: Ride = {
-        ...newRideData,
-        id: `ride-${Date.now()}`,
-        driver: doc(db, 'drivers', availableDriver.id),
-        passenger: userRef,
-      };
-
-      setActiveRide(newRideForState);
-      setCurrentRide(newRideData);
-
-      setChatMessages([
-        {
-          sender: availableDriver.name,
-          text: '¡Hola! Ya estoy en camino.',
-          timestamp: new Date().toISOString(),
-          isDriver: true,
-        },
-      ]);
+        } catch (error) {
+            console.error('Error creating ride and updating statuses:', error);
+            toast({ variant: 'destructive', title: 'Error al crear el viaje', description: 'No se pudo registrar el viaje. Inténtalo de nuevo.' });
+            resetRide();
+        }
     } else {
       toast({
         variant: 'destructive',
@@ -346,45 +343,60 @@ export default function RideRequestForm({
     }
   }
 
-  function handleCompleteRide() {
+  async function handleCompleteRide() {
+    if (!currentRide || !assignedDriver) return;
     setStatus('completed');
-    if (currentRide) {
-      const completedRideForState: Ride = {
-        ...currentRide,
-        id: `ride-${Date.now()}`,
-        status: 'completed' as const,
-        driver: doc(db, 'drivers', currentRide.driver.id),
-        passenger: doc(db, 'users', currentRide.passenger.id),
-      };
-      setActiveRide(completedRideForState);
-      setCurrentRide({ ...currentRide, status: 'completed' });
-      setTimeout(() => setStatus('rating'), 2000);
+    
+    const rideRef = doc(db, 'rides', currentRide.id);
+    const driverRef = doc(db, 'drivers', assignedDriver.id);
+
+    try {
+        const batch = writeBatch(db);
+        batch.update(rideRef, { status: 'completed' });
+        batch.update(driverRef, { status: 'available' });
+        await batch.commit();
+
+        const completedRide = { ...currentRide, status: 'completed' as const };
+        setActiveRide(completedRide);
+        setCurrentRide(completedRide);
+        setTimeout(() => setStatus('rating'), 2000);
+
+    } catch (error) {
+        console.error('Error completing ride:', error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo completar el viaje.'});
+        // Don't reset, allow user to try again
+        setStatus('assigned');
     }
   }
 
   async function handleCancelRide(reason: CancellationReason) {
-    if (currentRide && user) {
-      const cancelledRide: Ride = {
-        ...currentRide,
-        status: 'cancelled' as const,
-        cancellationReason: reason,
-        cancelledBy: 'passenger' as const,
-        id: `ride-${Date.now()}`,
-        driver: doc(db, 'drivers', currentRide.driver.id),
-        passenger: doc(db, 'users', currentRide.passenger.id),
-      };
-      setActiveRide(cancelledRide);
+    if (!currentRide || !user || !assignedDriver) return;
 
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        rating: increment(-0.1),
-      });
+    const rideRef = doc(db, 'rides', currentRide.id);
+    const driverRef = doc(db, 'drivers', assignedDriver.id);
+    const passengerRef = doc(db, 'users', user.uid);
+    
+    try {
+        const batch = writeBatch(db);
+        batch.update(rideRef, { 
+            status: 'cancelled',
+            cancellationReason: reason,
+            cancelledBy: 'passenger'
+        });
+        batch.update(driverRef, { status: 'available' });
+        // Optional: Penalize user rating for cancellation
+        batch.update(passengerRef, { rating: increment(-0.1) });
+        await batch.commit();
+
+        toast({
+            title: 'Viaje Cancelado',
+            description: `Motivo: ${reason.reason}.`,
+        });
+        resetRide();
+    } catch (error) {
+        console.error('Error cancelling ride:', error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cancelar el viaje.'});
     }
-    toast({
-      title: 'Viaje Cancelado',
-      description: `Motivo: ${reason.reason}. Tu calificación ha sido ligeramente afectada.`,
-    });
-    resetRide();
   }
 
   async function handleRatingSubmit(rating: number, comment: string) {
@@ -594,7 +606,7 @@ export default function RideRequestForm({
   if (status === 'rating' && currentRide) {
     return (
       <RatingForm
-        userToRate={currentRide.driver}
+        userToRate={assignedDriver!}
         isDriver={true}
         onSubmit={handleRatingSubmit}
         isSubmitting={isSubmittingRating}
@@ -632,8 +644,8 @@ export default function RideRequestForm({
         open={!!locationPickerFor}
         onOpenChange={(open) => !open && setLocationPickerFor(null)}
       >
-        <DialogContent className="max-w-3xl p-0">
-          <DialogHeader className="p-6 pb-0">
+        <DialogContent className="p-0">
+           <DialogHeader className="p-6 pb-0">
              <DialogTitle>
                 {locationPickerFor === 'pickup'
                     ? 'Seleccionar punto de recojo'
@@ -866,3 +878,5 @@ export default function RideRequestForm({
     </>
   );
 }
+
+    
