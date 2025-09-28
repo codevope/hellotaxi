@@ -22,7 +22,7 @@ interface InteractiveMapProps {
 }
 
 const InteractiveMap: React.FC<InteractiveMapProps> = ({
-  center = { lat: -12.0464, lng: -77.0428 },
+  center: newCenter = { lat: -12.0464, lng: -77.0428 },
   zoom = 13,
   height = '100%',
   onMapClick,
@@ -83,7 +83,7 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
       <Map
         mapId={mapId}
-        center={center}
+        center={newCenter}
         zoom={zoom}
         gestureHandling="greedy"
         disableDefaultUI={false}
@@ -105,5 +105,3 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
 };
 
 export default InteractiveMap;
-
-    
