@@ -10,7 +10,7 @@ import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
 import { MapProvider } from '@/contexts/map-context';
 import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
-import { History, Car, Siren, LayoutDashboard, MessageCircle, MessageSquare as ChatIcon } from 'lucide-react';
+import { History, Car, Siren, LayoutDashboard, MessageCircle, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -260,80 +260,84 @@ function RidePageContent() {
           </CardContent>
         </Card>
 
-        {activeRide && (
-          <>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute bottom-20 right-8 lg:right-[calc(33.33%+2rem)] lg:bottom-20 h-16 w-16 rounded-full shadow-2xl animate-pulse"
-                >
-                  <Siren className="h-8 w-8" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    ¿Estás seguro de que quieres activar la alerta de pánico?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta acción notificará inmediatamente a nuestra central de
-                    seguridad con tu ubicación actual y los detalles de tu
-                    viaje. Úsalo solo en caso de una emergencia real.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive hover:bg-destructive/90"
-                    onClick={handleSosConfirm}
+        {/* Floating Action Buttons */}
+        <div className="absolute bottom-4 right-4 z-20 flex flex-col gap-4">
+          {activeRide && (
+            <>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="h-16 w-16 rounded-full shadow-2xl animate-pulse"
                   >
-                    Sí, Activar Alerta
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    <Siren className="h-8 w-8" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      ¿Estás seguro de que quieres activar la alerta de pánico?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción notificará inmediatamente a nuestra central de
+                      seguridad con tu ubicación actual y los detalles de tu
+                      viaje. Úsalo solo en caso de una emergencia real.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive hover:bg-destructive/90"
+                      onClick={handleSosConfirm}
+                    >
+                      Sí, Activar Alerta
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             
-            <Sheet open={isDriverChatOpen} onOpenChange={setIsDriverChatOpen}>
-              <SheetTrigger asChild>
-                <Button
-                  size="icon"
-                  className="absolute bottom-4 left-[calc(50%-1.75rem)] lg:left-4 h-14 w-14 rounded-full shadow-lg"
-                >
-                  <MessageCircle className="h-7 w-7" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-full max-w-sm p-0">
-                  <SheetHeader className="p-4 border-b text-left">
-                    <SheetTitle className="flex items-center gap-2">
-                        <MessageCircle className="h-5 w-5" />
-                        <span>Chat con el Conductor</span>
-                    </SheetTitle>
-                  </SheetHeader>
-                   <Chat
-                      messages={chatMessages}
-                      onSendMessage={handleSendMessage}
-                    />
-              </SheetContent>
-            </Sheet>
-          </>
-        )}
+              <Sheet open={isDriverChatOpen} onOpenChange={setIsDriverChatOpen}>
+                <SheetTrigger asChild>
+                  <Button
+                    size="icon"
+                    className="h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90"
+                  >
+                    <MessageCircle className="h-7 w-7" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-full max-w-sm p-0">
+                    <SheetHeader className="p-4 border-b text-left">
+                      <SheetTitle className="flex items-center gap-2">
+                          <MessageCircle className="h-5 w-5" />
+                          <span>Chat con el Conductor</span>
+                      </SheetTitle>
+                    </SheetHeader>
+                     <Chat
+                        messages={chatMessages}
+                        onSendMessage={handleSendMessage}
+                      />
+                </SheetContent>
+              </Sheet>
+            </>
+          )}
 
-        <Sheet>
-          <SheetTrigger asChild>
-              <Button
-              variant="outline"
-              size="icon"
-              className="absolute bottom-4 right-4 h-14 w-14 rounded-full shadow-lg border-2 border-primary/50"
-            >
-              <ChatIcon className="h-7 w-7 text-primary" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-full max-w-sm p-0">
-              <SupportChat />
-          </SheetContent>
-        </Sheet>
+          <Sheet>
+            <SheetTrigger asChild>
+                <Button
+                variant="outline"
+                size="icon"
+                className="h-14 w-14 rounded-full shadow-lg border-2 border-primary/50 bg-background"
+              >
+                <MessageSquare className="h-7 w-7 text-primary" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-full max-w-sm p-0">
+                <SupportChat />
+            </SheetContent>
+          </Sheet>
+        </div>
+
 
          <Dialog
           open={isCancelReasonDialogOpen}
@@ -425,3 +429,5 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
+
+    
