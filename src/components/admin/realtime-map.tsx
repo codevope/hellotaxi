@@ -18,49 +18,39 @@ export default function RealtimeMap() {
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                // Fetch initial map center from settings
                 const settings = await getSettings();
                 setMapCenter({ lat: settings.mapCenterLat, lng: settings.mapCenterLng });
-
-                // Set up the realtime listener for drivers
-                const driversCol = collection(db, 'drivers');
-                const unsubscribe = onSnapshot(driversCol, (snapshot) => {
-                    const fetchedDrivers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
-                    setDrivers(fetchedDrivers);
-                    // Stop loading once we have the first batch of data
-                    setIsLoading(false); 
-                }, (error) => {
-                    console.error("Error fetching drivers for map:", error);
-                    setIsLoading(false); // Stop loading even on error
-                });
-
-                // Return unsubscribe function for cleanup
-                return unsubscribe;
             } catch (error) {
                 console.error("Error fetching initial settings:", error);
-                setIsLoading(false); // Stop loading if settings fail
+            } finally {
+                setIsLoading(false);
             }
         };
 
-        const unsubscribePromise = fetchInitialData();
+        fetchInitialData();
 
-        return () => {
-            unsubscribePromise.then(unsubscribe => {
-                if (unsubscribe) {
-                    unsubscribe();
-                }
-            });
-        };
+        const driversCol = collection(db, 'drivers');
+        const unsubscribe = onSnapshot(driversCol, (snapshot) => {
+            const fetchedDrivers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
+            setDrivers(fetchedDrivers);
+        }, (error) => {
+            console.error("Error fetching drivers for map:", error);
+        });
+
+        return () => unsubscribe();
     }, []);
 
     return (
         <div className="relative w-full h-full">
             {isLoading && (
                 <div className="absolute inset-0 bg-muted/80 flex items-center justify-center z-10 rounded-lg">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <div className='text-center space-y-2'>
+                        <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                        <p className='text-muted-foreground'>Cargando mapa...</p>
+                    </div>
                 </div>
             )}
-            <GoogleMapsProvider>
+             <GoogleMapsProvider>
                 <div className="relative w-full h-full">
                     <MapView 
                         pickupLocation={null}
