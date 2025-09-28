@@ -5,14 +5,13 @@ import { useEffect, useState } from 'react';
 import { estimateRideFareDeterministic } from '@/ai/flows/estimate-ride-fare';
 import { negotiateFare } from '@/ai/flows/negotiate-fare';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, CircleDollarSign, Info, ShieldX, MessageSquare, ThumbsUp } from 'lucide-react';
+import { Loader2, CircleDollarSign, ShieldX, MessageSquare, ThumbsUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Slider } from '@/components/ui/slider';
 import type { FareBreakdown } from '@/lib/types';
 
-const NEGOTIATION_RANGE = 0.15; // 15%
+const PASSENGER_NEGOTIATION_RANGE = 0.20; // Pasajero puede ofrecer hasta 20% menos
 
 type FareNegotiationProps = {
   rideDetails: {
@@ -60,14 +59,14 @@ export default function FareNegotiation({
       try {
         const result = await estimateRideFareDeterministic(fareInput);
         const fare = result.estimatedFare;
-        const lowerBound = Math.max(1, Math.floor(fare * (1 - NEGOTIATION_RANGE)));
-        const upperBound = Math.ceil(fare * (1 + NEGOTIATION_RANGE));
-
+        // El pasajero negocia hacia abajo. El mínimo es un 20% menos. El máximo es la tarifa estimada.
+        const lowerBound = Math.max(1, Math.floor(fare * (1 - PASSENGER_NEGOTIATION_RANGE)));
+        
         setEstimatedFare(fare);
         setBreakdown(result.breakdown);
-        setProposedFare(fare);
+        setProposedFare(fare); // La propuesta inicial es la tarifa completa
         setMinFare(lowerBound);
-        setMaxFare(upperBound);
+        setMaxFare(fare); // El máximo que puede proponer el pasajero es la tarifa original
         setStatus('negotiating');
       } catch (error) {
         console.error('La estimación de tarifa falló:', error);
@@ -91,8 +90,8 @@ export default function FareNegotiation({
         const result = await negotiateFare({
             estimatedFare,
             proposedFare,
-            minFare: Math.floor(estimatedFare * 0.9), // Driver's absolute minimum is 10% less
-            maxFare: Math.ceil(estimatedFare * 1.2), // Driver's absolute maximum is 20% more
+            minFare: Math.floor(estimatedFare * 0.9), // Mínimo absoluto del conductor (10% menos)
+            maxFare: Math.ceil(estimatedFare * 1.2),  // Máximo que el conductor esperaría (20% más)
         });
 
         setDriverResponse(result);
@@ -159,9 +158,9 @@ export default function FareNegotiation({
     <div className="space-y-4">
       <Alert>
         <CircleDollarSign className="h-4 w-4" />
-        <AlertTitle>Tarifa Estimada: S/{estimatedFare?.toFixed(2)}</AlertTitle>
+        <AlertTitle>Tarifa Sugerida: S/{estimatedFare?.toFixed(2)}</AlertTitle>
         <AlertDescription>
-          Puedes proponer una tarifa entre S/{minFare.toFixed(2)} y S/{maxFare.toFixed(2)}.
+          Desliza para proponer una tarifa menor. Puedes ofrecer desde S/{minFare.toFixed(2)}.
         </AlertDescription>
       </Alert>
 
@@ -171,7 +170,7 @@ export default function FareNegotiation({
           id="fare-slider"
           min={minFare}
           max={maxFare}
-          step={0.5}
+          step={0.50}
           value={[proposedFare]}
           onValueChange={(value) => setProposedFare(value[0])}
           disabled={status === 'processing' || status === 'counter-offer'}

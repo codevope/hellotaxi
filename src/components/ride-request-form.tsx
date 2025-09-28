@@ -33,6 +33,7 @@ import {
   Wallet,
   CreditCard,
   MapPin,
+  Tag,
 } from 'lucide-react';
 import type {
   Ride,
@@ -87,7 +88,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from './ui/alert-dialog';
+} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
@@ -103,8 +104,9 @@ import { Label } from './ui/label';
 const formSchema = z.object({
   pickup: z.string().min(5, 'Por favor, introduce una ubicación de recojo válida.'),
   dropoff: z.string().min(5, 'Por favor, introduce una ubicación de destino válida.'),
-  serviceType: z.enum(['economy', 'comfort', 'exclusive']).default('economy'),
-  paymentMethod: z.enum(['cash', 'yape', 'plin', 'card']).default('cash'),
+  serviceType: z.enum(['economy', 'comfort', 'exclusive'], { required_error: 'Debes seleccionar un tipo de servicio.' }).default('economy'),
+  paymentMethod: z.enum(['cash', 'yape', 'plin', 'card'], { required_error: 'Debes seleccionar un método de pago.' }).default('cash'),
+  couponCode: z.string().optional(),
   scheduledTime: z.date().optional(),
 });
 
@@ -158,6 +160,7 @@ export default function RideRequestForm({
       dropoff: '',
       serviceType: 'economy',
       paymentMethod: 'cash',
+      couponCode: '',
     },
   });
 
@@ -257,13 +260,12 @@ export default function RideRequestForm({
         status: 'pending',
         serviceType: values.serviceType,
         paymentMethod: values.paymentMethod,
+        createdAt: new Date().toISOString(),
       });
 
       toast({
         title: '¡Viaje Agendado!',
-        description: `Tu viaje de ${
-          values.pickup
-        } a ${values.dropoff} ha sido programado para el ${format(
+        description: `Tu viaje ha sido programado para el ${format(
           values.scheduledTime!,
           'dd/MM/yyyy a las HH:mm'
         )}.`,
@@ -308,6 +310,7 @@ export default function RideRequestForm({
                 passenger: passengerRef,
                 serviceType: form.getValues('serviceType'),
                 paymentMethod: form.getValues('paymentMethod'),
+                couponCode: form.getValues('couponCode') || '',
                 assignmentTimestamp: new Date().toISOString(),
                 fareBreakdown: breakdown,
                 status: 'in-progress' as const,
@@ -343,39 +346,12 @@ export default function RideRequestForm({
       resetRide();
     }
   }
-
-  async function handleCompleteRide() {
-    if (!currentRide || !assignedDriver) return;
-    setStatus('completed');
-    
-    const rideRef = doc(db, 'rides', currentRide.id);
-    const driverRef = doc(db, 'drivers', assignedDriver.id);
-
-    try {
-        const batch = writeBatch(db);
-        batch.update(rideRef, { status: 'completed' });
-        batch.update(driverRef, { status: 'available' });
-        await batch.commit();
-
-        const completedRide = { ...currentRide, status: 'completed' as const };
-        setActiveRide(completedRide);
-        setCurrentRide(completedRide);
-        setTimeout(() => setStatus('rating'), 2000);
-
-    } catch (error) {
-        console.error('Error completing ride:', error);
-        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo completar el viaje.'});
-        // Don't reset, allow user to try again
-        setStatus('assigned');
-    }
-  }
-
+  
   async function handleCancelRide(reason: CancellationReason) {
     if (!currentRide || !user || !assignedDriver) return;
 
     const rideRef = doc(db, 'rides', currentRide.id);
     const driverRef = doc(db, 'drivers', assignedDriver.id);
-    const passengerRef = doc(db, 'users', user.uid);
     
     try {
         const batch = writeBatch(db);
@@ -385,8 +361,6 @@ export default function RideRequestForm({
             cancelledBy: 'passenger'
         });
         batch.update(driverRef, { status: 'available' });
-        // Optional: Penalize user rating for cancellation
-        batch.update(passengerRef, { rating: increment(-0.1) });
         await batch.commit();
 
         toast({
@@ -406,7 +380,7 @@ export default function RideRequestForm({
 
     try {
       await processRating({
-        ratedUserId: currentRide.driver.id,
+        ratedUserId: assignedDriver!.id, // We are sure assignedDriver is not null here
         isDriver: true,
         rating,
         comment,
@@ -464,9 +438,6 @@ export default function RideRequestForm({
       }, 2000);
     }
   }
-
-  const cancelDialogDescription =
-    'Esta acción podría afectar negativamente tu calificación como pasajero. ¿Aún deseas cancelar?';
 
   if (status === 'searching') {
     return (
@@ -534,13 +505,6 @@ export default function RideRequestForm({
         </Card>
 
         <div className="space-y-2">
-          <Button
-            onClick={handleCompleteRide}
-            variant="secondary"
-            className="w-full"
-          >
-            Completar Viaje (Simulación)
-          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" className="w-full">
@@ -551,7 +515,7 @@ export default function RideRequestForm({
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Seguro que quieres cancelar?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {cancelDialogDescription}
+                  Esta acción podría afectar negativamente tu calificación como pasajero. ¿Aún deseas cancelar?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -574,7 +538,7 @@ export default function RideRequestForm({
             <DialogHeader>
               <DialogTitle>¿Por qué estás cancelando?</DialogTitle>
             </DialogHeader>
-            <div className="space-y-2">
+            <div className="space-y-2 py-4">
               {appSettings?.cancellationReasons.map((reason) => (
                 <Button
                   key={reason.code}
@@ -598,16 +562,16 @@ export default function RideRequestForm({
         <Loader2 className="h-4 w-4 animate-spin" />
         <AlertTitle>Viaje Completado</AlertTitle>
         <AlertDescription>
-          Procesando el pago de S/{finalFare?.toFixed(2)}...
+          El conductor ha finalizado el viaje.
         </AlertDescription>
       </Alert>
     );
   }
 
-  if (status === 'rating' && currentRide) {
+  if (status === 'rating' && currentRide && assignedDriver) {
     return (
       <RatingForm
-        userToRate={assignedDriver!}
+        userToRate={assignedDriver}
         isDriver={true}
         onSubmit={handleRatingSubmit}
         isSubmitting={isSubmittingRating}
@@ -645,8 +609,8 @@ export default function RideRequestForm({
         open={!!locationPickerFor}
         onOpenChange={(open) => !open && setLocationPickerFor(null)}
       >
-        <DialogContent className="p-0">
-          <DialogHeader className="p-6 pb-0">
+        <DialogContent>
+          <DialogHeader>
             <DialogTitle>
               {locationPickerFor === 'pickup'
                 ? 'Seleccionar punto de recojo'
@@ -666,41 +630,6 @@ export default function RideRequestForm({
           onSubmit={form.handleSubmit(() => setStatus('negotiating'))}
           className="space-y-6"
         >
-          <FormField
-            control={form.control}
-            name="serviceType"
-            render={({ field }) => (
-              <FormItem className="space-y-3">
-                <FormLabel>Tipo de Servicio</FormLabel>
-                <FormControl>
-                  <RadioGroup
-                    onValueChange={field.onChange}
-                    value={field.value}
-                    className="grid grid-cols-3 gap-4"
-                  >
-                    {appSettings.serviceTypes.map((service) => (
-                      <FormItem key={service.id} className="flex-1">
-                        <FormControl>
-                          <RadioGroupItem
-                            value={service.id}
-                            className="sr-only"
-                          />
-                        </FormControl>
-                        <FormLabel className="group flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
-                          <span className="font-semibold">{service.name}</span>
-                          <span className="text-xs text-muted-foreground text-center group-hover:text-accent-foreground">
-                            {service.description}
-                          </span>
-                        </FormLabel>
-                      </FormItem>
-                    ))}
-                  </RadioGroup>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
           <div className="space-y-2">
             <Label>Punto de Recojo</Label>
             <Button
@@ -711,7 +640,7 @@ export default function RideRequestForm({
             >
               <MapPin className="mr-2 h-4 w-4" />
               {pickupLocation
-                ? pickupLocation.address
+                ? <span className="truncate">{pickupLocation.address}</span>
                 : 'Seleccionar punto de recojo'}
             </Button>
             <FormMessage>{form.formState.errors.pickup?.message}</FormMessage>
@@ -727,7 +656,7 @@ export default function RideRequestForm({
             >
               <MapPin className="mr-2 h-4 w-4" />
               {dropoffLocation
-                ? dropoffLocation.address
+                ? <span className="truncate">{dropoffLocation.address}</span>
                 : 'Seleccionar destino'}
             </Button>
             <FormMessage>{form.formState.errors.dropoff?.message}</FormMessage>
@@ -746,13 +675,50 @@ export default function RideRequestForm({
 
           <FormField
             control={form.control}
+            name="serviceType"
+            render={({ field }) => (
+              <FormItem className="space-y-3">
+                <FormLabel>Tipo de Servicio</FormLabel>
+                <FormControl>
+                  <RadioGroup
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    className="grid grid-cols-3 gap-4"
+                  >
+                    {appSettings.serviceTypes.map((service) => (
+                      <FormItem key={service.id} className="flex-1">
+                        <FormControl>
+                          <RadioGroupItem
+                            value={service.id}
+                            id={`service-${service.id}`}
+                            className="sr-only"
+                          />
+                        </FormControl>
+                        <FormLabel htmlFor={`service-${service.id}`} className="group flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                          <span className="font-semibold">{service.name}</span>
+                          <span className="text-xs text-muted-foreground text-center group-hover:text-accent-foreground">
+                            {service.description}
+                          </span>
+                        </FormLabel>
+                      </FormItem>
+                    ))}
+                  </RadioGroup>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="paymentMethod"
             render={({ field }) => (
               <FormItem className="space-y-3">
                 <FormLabel>Método de Pago</FormLabel>
                 <FormControl>
                   <RadioGroup
-                    onValueChange={field.onChange}
+                    onValuecha
+nge={field.onChange}
                     value={field.value}
                     className="grid grid-cols-4 gap-4"
                   >
@@ -760,9 +726,9 @@ export default function RideRequestForm({
                       (method) => (
                         <FormItem key={method} className="flex-1">
                           <FormControl>
-                            <RadioGroupItem value={method} className="sr-only" />
+                            <RadioGroupItem value={method} id={`payment-${method}`} className="sr-only" />
                           </FormControl>
-                          <FormLabel className="flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                          <FormLabel htmlFor={`payment-${method}`} className="flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
                             {paymentMethodIcons[method]}
                             <span className="font-semibold text-xs capitalize">
                               {method === 'cash' ? 'Efectivo' : method}
@@ -777,6 +743,26 @@ export default function RideRequestForm({
               </FormItem>
             )}
           />
+          
+          <div className="space-y-2">
+            <FormField
+              control={form.control}
+              name="couponCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cupón de Descuento (Opcional)</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                        <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input {...field} placeholder="Ej: BIENVENIDO10" className="pl-10"/>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
 
           <FormField
             control={form.control}
@@ -840,7 +826,7 @@ export default function RideRequestForm({
             )}
           />
 
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 pt-4">
             <Button
               type="submit"
               className="w-full"

@@ -1,9 +1,10 @@
+
 'use client';
 
 import AppHeader from '@/components/app-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Car, ShieldCheck, ShieldAlert, ShieldX, FileText, Star } from 'lucide-react';
+import { Loader2, Car, ShieldCheck, ShieldAlert, ShieldX, FileText, Star, AlertCircle, User as UserIcon } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -15,13 +16,14 @@ import { getDocumentStatus } from '@/lib/document-status';
 import type { DocumentName, DocumentStatus, Ride, User } from '@/lib/types';
 import { format } from 'date-fns';
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, writeBatch, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
+import { Separator } from '@/components/ui/separator';
 
 
 const overallDocStatusConfig = {
@@ -58,7 +60,7 @@ const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: str
     'on-ride': { label: 'En Viaje', variant: 'outline' },
 }
 
-type EnrichedRide = Omit<Ride, 'passenger'> & { passenger: User };
+type EnrichedRide = Omit<Ride, 'passenger' | 'driver'> & { passenger: User, driver: Driver };
 
 function DriverDashboardPageContent() {
   const { driver, loading } = useDriverAuth();
@@ -66,37 +68,59 @@ function DriverDashboardPageContent() {
   const [completedRides, setCompletedRides] = useState<EnrichedRide[]>([]);
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
   const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
-
+  const [activeRide, setActiveRide] = useState<EnrichedRide | null>(null);
+  const [isCompletingRide, setIsCompletingRide] = useState(false);
 
   useEffect(() => {
     if (!driver) return;
+    
+    let unsubscribeActiveRide: Unsubscribe | null = null;
+    let unsubscribeCompletedRides: Unsubscribe | null = null;
 
-    const fetchCompletedRides = async () => {
-        const driverRef = doc(db, 'drivers', driver.id);
-        const ridesQuery = query(
-            collection(db, 'rides'),
-            where('driver', '==', driverRef),
-            where('status', '==', 'completed')
-        );
-
-        const ridesSnapshot = await getDocs(ridesQuery);
-        const ridesPromises = ridesSnapshot.docs.map(async (rideDoc) => {
+    // Listener for active ride
+    const driverRef = doc(db, 'drivers', driver.id);
+    const activeRideQuery = query(
+        collection(db, 'rides'),
+        where('driver', '==', driverRef),
+        where('status', '==', 'in-progress')
+    );
+    unsubscribeActiveRide = onSnapshot(activeRideQuery, async (snapshot) => {
+        if (!snapshot.empty) {
+            const rideDoc = snapshot.docs[0];
             const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
             const passengerSnap = await getDoc(rideData.passenger);
-            return { ...rideData, passenger: passengerSnap.data() as User };
+            const passengerData = passengerSnap.data() as User;
+            setActiveRide({ ...rideData, driver, passenger: passengerData });
+        } else {
+            setActiveRide(null);
+        }
+    });
+
+    // Listener for completed rides to rate
+    const completedRidesQuery = query(
+        collection(db, 'rides'),
+        where('driver', '==', driverRef),
+        where('status', '==', 'completed')
+    );
+     unsubscribeCompletedRides = onSnapshot(completedRidesQuery, async (snapshot) => {
+        const ridesPromises = snapshot.docs.map(async (rideDoc) => {
+            const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
+            const passengerSnap = await getDoc(rideData.passenger);
+            return { ...rideData, driver, passenger: passengerSnap.data() as User };
         });
-
         const results = await Promise.all(ridesPromises);
-        // Aquí podríamos filtrar los ya calificados en un futuro
+        // Here you could filter out rides that have already been rated by the driver
         setCompletedRides(results.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-    };
+    });
+    
+    return () => {
+        if(unsubscribeActiveRide) unsubscribeActiveRide();
+        if(unsubscribeCompletedRides) unsubscribeCompletedRides();
+    }
 
-    fetchCompletedRides();
   }, [driver]);
 
-
   const handleAvailabilityChange = (isAvailable: boolean) => {
-    // Lógica para actualizar el estado del conductor en la base de datos
     console.log('Cambiando disponibilidad a:', isAvailable);
     toast({
       title: `Estado actualizado: ${isAvailable ? 'Disponible' : 'No Disponible'}`,
@@ -128,6 +152,32 @@ function DriverDashboardPageContent() {
       });
     } finally {
       setIsRatingSubmitting(false);
+    }
+  }
+
+  const handleCompleteRide = async () => {
+    if (!activeRide) return;
+    setIsCompletingRide(true);
+
+    const rideRef = doc(db, 'rides', activeRide.id);
+    const driverRef = doc(db, 'drivers', activeRide.driver.id);
+    
+    try {
+        const batch = writeBatch(db);
+        batch.update(rideRef, { status: 'completed' });
+        batch.update(driverRef, { status: 'available' });
+        await batch.commit();
+
+        toast({
+            title: '¡Viaje Finalizado!',
+            description: 'Has completado el viaje exitosamente.',
+        });
+        // The listener will automatically update the UI
+    } catch (error) {
+        console.error('Error completing ride:', error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo finalizar el viaje.'});
+    } finally {
+        setIsCompletingRide(false);
     }
   }
   
@@ -173,7 +223,7 @@ function DriverDashboardPageContent() {
                     id="availability-switch"
                     checked={driverStatus === 'available'}
                     onCheckedChange={handleAvailabilityChange}
-                    disabled={!isApproved}
+                    disabled={!isApproved || driver.status === 'on-ride'}
                     aria-label="Estado de disponibilidad"
                   />
                   <Label htmlFor="availability-switch">
@@ -192,12 +242,66 @@ function DriverDashboardPageContent() {
                 </Alert>
             </CardContent>
           </Card>
+          
+          {activeRide && (
+            <Card className="border-primary border-2 animate-pulse">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-primary">
+                        <Car className="h-6 w-6" />
+                        <span>¡Viaje en Progreso!</span>
+                    </CardTitle>
+                    <CardDescription>Estás llevando a un pasajero a su destino.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                            <Avatar className="h-12 w-12">
+                                <AvatarImage src={activeRide.passenger.avatarUrl} alt={activeRide.passenger.name} />
+                                <AvatarFallback>{activeRide.passenger.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <p className="font-semibold">{activeRide.passenger.name}</p>
+                                <p className="text-sm text-muted-foreground">Destino: <span className="font-medium truncate">{activeRide.dropoff}</span></p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-sm text-muted-foreground">Tarifa</p>
+                            <p className="font-bold text-lg">S/{activeRide.fare.toFixed(2)}</p>
+                        </div>
+                    </div>
+                     <Button className="w-full" onClick={handleCompleteRide} disabled={isCompletingRide}>
+                        {isCompletingRide ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : null}
+                        Finalizar Viaje
+                    </Button>
+                </CardContent>
+            </Card>
+          )}
+
+          {!activeRide && (
+            <Card>
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                      <Car className="h-6 w-6 text-primary" />
+                      <span>Solicitudes de Viaje</span>
+                  </CardTitle>
+              </CardHeader>
+               <CardContent>
+                  <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>No hay solicitudes pendientes</AlertTitle>
+                      <AlertDescription>
+                          Cuando un pasajero solicite un viaje cerca de ti, aparecerá aquí.
+                      </AlertDescription>
+                  </Alert>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Star className="h-6 w-6 text-primary" />
-                    <span>Viajes Recientes por Calificar</span>
+                    <span>Viajes por Calificar</span>
                 </CardTitle>
             </CardHeader>
             <CardContent>
@@ -247,6 +351,7 @@ function DriverDashboardPageContent() {
                 </Table>
                 ) : (
                 <Alert>
+                    <AlertCircle className="h-4 w-4" />
                     <AlertTitle>No hay viajes por calificar</AlertTitle>
                     <AlertDescription>
                         Cuando completes un viaje, aparecerá aquí para que puedas calificar al pasajero.
@@ -256,22 +361,6 @@ function DriverDashboardPageContent() {
             </CardContent>
           </Card>
           
-           <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Car className="h-6 w-6 text-primary" />
-                    <span>Solicitudes de Viaje</span>
-                </CardTitle>
-            </CardHeader>
-             <CardContent>
-                <Alert>
-                    <AlertTitle>No hay solicitudes pendientes</AlertTitle>
-                    <AlertDescription>
-                        Cuando un pasajero solicite un viaje cerca de ti, aparecerá aquí.
-                    </AlertDescription>
-                </Alert>
-            </CardContent>
-          </Card>
 
            <Card>
             <CardHeader>

@@ -1,8 +1,9 @@
+
 'use server';
 
 import { collection, doc, writeBatch, DocumentReference, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { drivers, users, rides, claims, sosAlerts, notifications, settings, serviceTypes, coupons, specialFareRules, cancellationReasons } from '@/lib/seed-data';
+import { drivers, users, rides, claims, sosAlerts, notifications, settings, serviceTypes, coupons, specialFareRules, cancellationReasons, peakTimeRules } from '@/lib/seed-data';
 
 const collectionsToReset = [
     'rides',
@@ -60,9 +61,7 @@ export async function seedDatabase() {
   // Create users and store their references in a map by email
   const userRefsByEmail = new Map<string, DocumentReference>();
   users.forEach((userData) => {
-    // For idempotency, we create a predictable ID, e.g., from the email.
-    // In a real app, you'd let Firestore generate a random ID.
-    // For the seed script, this helps avoid duplicates on re-runs.
+    // For idempotency, we create a predictable ID from the email
     const userId = userData.email.replace(/[^a-zA-Z0-9]/g, '_');
     const docRef = doc(db, 'users', userId);
     batch.set(docRef, { ...userData, id: userId });
@@ -104,7 +103,7 @@ export async function seedDatabase() {
 
   // Seed app settings
   const settingsDocRef = doc(db, 'appSettings', 'main');
-  batch.set(settingsDocRef, { ...settings, serviceTypes, cancellationReasons });
+  batch.set(settingsDocRef, { ...settings, serviceTypes, cancellationReasons, specialFareRules, peakTimeRules });
   console.log('App settings prepared for batch.');
 
 

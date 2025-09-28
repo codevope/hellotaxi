@@ -1,3 +1,4 @@
+
 import type { DocumentReference } from 'firebase/firestore';
 
 export type ServiceType = 'economy' | 'comfort' | 'exclusive';
@@ -89,6 +90,9 @@ export interface Review {
     comment: string;
     sentiment: 'positive' | 'negative' | 'neutral';
     createdAt: string; // ISO Date string
+    rideId: string; // ID del viaje calificado
+    authorId: string; // ID de quien califica
+    targetId: string; // ID de quien es calificado
 }
 
 
@@ -101,6 +105,7 @@ export interface ScheduledRide {
     status: 'pending' | 'confirmed' | 'cancelled';
     serviceType: ServiceType;
     paymentMethod: PaymentMethod;
+    createdAt: string;
 }
 
 export interface ChatMessage {

@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Star } from 'lucide-react';
+import { Star, Loader2 } from 'lucide-react';
 import type { Driver, User } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -29,9 +30,9 @@ export default function RatingForm({ userToRate, isDriver, onSubmit, isSubmittin
     };
 
     return (
-        <Card>
+        <Card className="border-0 shadow-none">
             <CardHeader className="text-center">
-                <CardTitle>Califica tu Viaje</CardTitle>
+                <CardTitle>Califica tu Experiencia</CardTitle>
                 <CardDescription>Tu opinión nos ayuda a mejorar.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -71,6 +72,7 @@ export default function RatingForm({ userToRate, isDriver, onSubmit, isSubmittin
                 />
 
                 <Button onClick={handleSubmit} className="w-full" disabled={rating === 0 || isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Enviar Calificación
                 </Button>
             </CardContent>

@@ -1,6 +1,7 @@
+
 // This file contains the initial data to seed the Firestore database.
 
-import type { Driver, User, Ride, Claim, SOSAlert, Notification, Settings, ServiceTypeConfig, Coupon, SpecialFareRule, CancellationReason } from '@/lib/types';
+import type { Driver, User, Ride, Claim, SOSAlert, Notification, Settings, ServiceTypeConfig, Coupon, SpecialFareRule, CancellationReason, PeakTimeRule } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 const getImageUrl = (id: string) => PlaceHolderImages.find(img => img.id === id)?.imageUrl || '';
@@ -64,7 +65,7 @@ export const drivers: Omit<Driver, 'id'>[] = [
     vehicleBrand: 'Hyundai',
     vehicleModel: 'Accent',
     licensePlate: 'GHI-789',
-    status: 'on-ride',
+    status: 'available',
     documentsStatus: 'pending',
     kycVerified: false,
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
@@ -194,7 +195,7 @@ export const rides: (Omit<Ride, 'id' | 'driver' | 'passenger'> & { driverName: s
         fare: 18.00,
         driverName: 'Juan Perez',
         passengerEmail: 'lucia.f@example.com',
-        status: 'in-progress',
+        status: 'completed',
         serviceType: 'economy',
         paymentMethod: 'cash',
         assignmentTimestamp: '2023-10-24T19:58:00Z',
@@ -344,11 +345,16 @@ export const cancellationReasons: CancellationReason[] = [
     { code: 'OTHER', reason: 'Otro motivo' },
 ];
 
+export const peakTimeRules: PeakTimeRule[] = [
+    { id: 'peak1', name: 'Hora Punta Tarde', startTime: '16:00', endTime: '19:00', surcharge: 25 },
+    { id: 'peak2', name: 'Horario Nocturno', startTime: '23:00', endTime: '05:00', surcharge: 35 },
+];
+
 
 // ================================================================= //
 //                           SETTINGS                                //
 // ================================================================= //
-export const settings: Partial<Omit<Settings, 'specialFareRules' | 'peakTimeRules' | 'cancellationReasons'>> = {
+export const settings: Omit<Settings, 'serviceTypes' | 'cancellationReasons' | 'specialFareRules' | 'peakTimeRules'> = {
     baseFare: 3.5,
     perKmFare: 1.0,
     perMinuteFare: 0.20,
