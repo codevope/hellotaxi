@@ -248,16 +248,34 @@ export function useAuth() {
     }
   };
 
-  const linkPhoneNumber = async (confirmationResult: any, otp: string) => {
+  const linkPhoneNumber = async (confirmationResult: any, otp: string, phone: string) => {
     if (!firebaseUser) throw new Error('Usuario no autenticado.');
     const credential = PhoneAuthProvider.credential(confirmationResult.verificationId, otp);
     await linkWithCredential(firebaseUser, credential);
+    
+    // Guardar el número de teléfono en Firestore
+    const userRef = doc(db, 'users', firebaseUser.uid);
+    await updateDoc(userRef, { phone });
+    if(appUser) {
+        setAppUser({...appUser, phone});
+    }
+
     await checkAndCompleteProfile();
   };
 
   const setPasswordForUser = async (newPassword: string) => {
     if (!firebaseUser) throw new Error('Usuario no autenticado.');
-    await updatePassword(firebaseUser, newPassword);
+    
+    // Si el usuario se registró con Google y no tiene contraseña, este método no funciona directamente.
+    // Necesitamos vincular una credencial de email/password.
+    const email = firebaseUser.email;
+    if (email) {
+        const credential = EmailAuthProvider.credential(email, newPassword);
+        await linkWithCredential(firebaseUser, credential);
+    } else {
+        throw new Error('No hay un correo electrónico asociado a esta cuenta para establecer una contraseña.');
+    }
+    
     await checkAndCompleteProfile();
   }
 

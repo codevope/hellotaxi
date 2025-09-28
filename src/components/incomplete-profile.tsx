@@ -62,7 +62,8 @@ export default function IncompleteProfile() {
     if (!confirmationResult) return;
     setLoading('phone');
     try {
-      await linkPhoneNumber(confirmationResult, otp);
+      const fullPhoneNumber = `+51${phone}`;
+      await linkPhoneNumber(confirmationResult, otp, fullPhoneNumber);
       toast({ title: '¡Teléfono Verificado y Vinculado!' });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error en la verificación', description: 'El código OTP no es válido.' });
