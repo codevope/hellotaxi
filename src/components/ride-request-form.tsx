@@ -528,7 +528,7 @@ export default function RideRequestForm({
               </div>
 
               {status === 'calculated' && (
-                  <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
                     <Button
                       type="button"
                       className="w-full"

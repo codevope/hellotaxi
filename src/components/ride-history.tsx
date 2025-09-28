@@ -10,8 +10,18 @@ import { collection, getDocs, doc, query, where, getDoc } from 'firebase/firesto
 import type { Ride, Driver, User } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import { Badge } from './ui/badge';
+import { format } from 'date-fns';
 
 type EnrichedRide = Omit<Ride, 'driver' | 'passenger'> & { driver: Driver; passenger: User };
+
+const statusConfig = {
+  completed: { label: 'Completado', variant: 'secondary' },
+  'in-progress': { label: 'En Progreso', variant: 'default' },
+  cancelled: { label: 'Cancelado', variant: 'destructive' },
+};
+
 
 export default function RideHistory() {
   const [rides, setRides] = useState<EnrichedRide[]>([]);
@@ -82,33 +92,43 @@ export default function RideHistory() {
 
   return (
     <ScrollArea className="h-96">
-      <div className="space-y-4 pr-4">
-        {rides.map((ride) => (
-          <Card key={ride.id}>
-            <CardHeader className="flex flex-row items-center justify-between p-4">
-              <div>
-                <p className="text-sm font-medium">
-                  {new Date(ride.date).toLocaleDateString()}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {ride.pickup.substring(0, 20)}... &rarr;{' '}
-                  {ride.dropoff.substring(0, 20)}...
-                </p>
-              </div>
-              <p className="font-bold text-lg">S/{ride.fare.toFixed(2)}</p>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 flex items-center gap-2">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={ride.driver.avatarUrl} alt={ride.driver.name} />
-                <AvatarFallback>{ride.driver.name.charAt(0)}</AvatarFallback>
-              </Avatar>
-              <span className="text-sm text-muted-foreground">
-                con {ride.driver.name}
-              </span>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Ruta</TableHead>
+            <TableHead>Conductor</TableHead>
+            <TableHead className="text-right">Tarifa</TableHead>
+            <TableHead>Estado</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rides.map((ride) => (
+            <TableRow key={ride.id}>
+              <TableCell>
+                <div className="flex flex-col">
+                  <span className="font-medium truncate max-w-[150px]">{ride.pickup}</span>
+                  <span className="text-muted-foreground truncate max-w-[150px]">&rarr; {ride.dropoff}</span>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={ride.driver.avatarUrl} alt={ride.driver.name} />
+                    <AvatarFallback>{ride.driver.name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium">{ride.driver.name}</span>
+                </div>
+              </TableCell>
+              <TableCell className="text-right font-bold text-primary">S/{ride.fare.toFixed(2)}</TableCell>
+              <TableCell>
+                <Badge variant={statusConfig[ride.status].variant}>
+                  {statusConfig[ride.status].label}
+                </Badge>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </ScrollArea>
   );
 }
