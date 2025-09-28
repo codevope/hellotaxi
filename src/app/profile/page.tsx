@@ -35,6 +35,7 @@ import { useEffect, useState } from 'react';
 import type { User as AppUser } from '@/lib/types';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { useRouter } from 'next/navigation';
+import { GoogleIcon } from '@/components/google-icon';
 
 const profileSchema = z.object({
   displayName: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
@@ -312,7 +313,7 @@ export default function ProfilePage() {
     return (
       <>
         <AppHeader />
-        <main className="flex flex-col items-center p-4 text-center py-16 md:py-24">
+        <main className="flex flex-col items-center justify-center text-center p-4 py-16 md:py-24">
           <Card className="max-w-md p-8">
             <CardHeader>
               <CardTitle>Acceso Restringido</CardTitle>
@@ -321,7 +322,8 @@ export default function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={signInWithGoogle} size="lg">
+              <Button onClick={signInWithGoogle} size="lg" variant="outline">
+                <GoogleIcon className="mr-2 h-5 w-5" />
                 Iniciar Sesión con Google
               </Button>
             </CardContent>

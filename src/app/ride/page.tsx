@@ -39,6 +39,7 @@ import { Star } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
+import { GoogleIcon } from '@/components/google-icon';
 
 
 function RidePageContent() {
@@ -409,7 +410,7 @@ export default function RidePage() {
         return (
             <>
             <AppHeader />
-            <main className="flex flex-col items-center p-4 text-center py-16 md:py-24">
+            <main className="flex flex-col items-center justify-center text-center p-4 py-16 md:py-24">
                 <Card className="max-w-md p-8">
                     <CardHeader>
                         <CardTitle>Inicia sesión para viajar</CardTitle>
@@ -418,7 +419,10 @@ export default function RidePage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                         <Button onClick={signInWithGoogle} size="lg">Iniciar Sesión con Google</Button>
+                         <Button onClick={signInWithGoogle} size="lg" variant="outline">
+                            <GoogleIcon className="mr-2 h-5 w-5" />
+                            Iniciar Sesión con Google
+                         </Button>
                     </CardContent>
                 </Card>
             </main>

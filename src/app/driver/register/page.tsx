@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { GoogleIcon } from '@/components/google-icon';
 
 function DriverRegistrationContent() {
   const [isLoading, setIsLoading] = useState(false);
@@ -96,7 +97,7 @@ export default function DriverRegistrationPage() {
     return (
       <>
         <AppHeader />
-        <div className="flex flex-col items-center justify-center text-center flex-1 p-8">
+        <main className="flex-1 flex flex-col items-center justify-center text-center p-8 py-16 md:py-24">
           <Card className="max-w-md p-8">
             <CardHeader>
               <CardTitle>Inicia Sesión para Registrarte</CardTitle>
@@ -106,12 +107,13 @@ export default function DriverRegistrationPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={signInWithGoogle} size="lg">
+              <Button onClick={signInWithGoogle} size="lg" variant="outline">
+                <GoogleIcon className="mr-2 h-5 w-5" />
                 Iniciar Sesión con Google
               </Button>
             </CardContent>
           </Card>
-        </div>
+        </main>
       </>
     );
   }
