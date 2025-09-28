@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Loader2, Mail, Phone, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
+import { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from '@/components/ui/input-otp';
 
 export default function LoginPage() {
   const { 
@@ -120,9 +121,10 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="email-login">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="email-login">Ingresar</TabsTrigger>
                 <TabsTrigger value="email-register">Registrarse</TabsTrigger>
+                <TabsTrigger value="phone-login">Teléfono</TabsTrigger>
               </TabsList>
               <TabsContent value="email-login" className="space-y-4 pt-4">
                  <form onSubmit={handleEmailLogin} className="space-y-4">
@@ -178,11 +180,21 @@ export default function LoginPage() {
                     </Button>
                   </div>
                 ) : (
-                   <div className="space-y-4">
-                     <div className="space-y-2">
-                        <Label htmlFor="otp">Código de Verificación</Label>
-                        <Input id="otp" type="text" placeholder="Ingresa el código de 6 dígitos" value={otp} onChange={(e) => setOtp(e.target.value)} />
-                     </div>
+                   <div className="space-y-4 flex flex-col items-center">
+                     <Label htmlFor="otp">Código de Verificación</Label>
+                      <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+                        <InputOTPGroup>
+                          <InputOTPSlot index={0} />
+                          <InputOTPSlot index={1} />
+                          <InputOTPSlot index={2} />
+                        </InputOTPGroup>
+                        <InputOTPSeparator />
+                        <InputOTPGroup>
+                          <InputOTPSlot index={3} />
+                          <InputOTPSlot index={4} />
+                          <InputOTPSlot index={5} />
+                        </InputOTPGroup>
+                      </InputOTP>
                      <Button onClick={handleOtpConfirm} className="w-full" disabled={isSubmitting || otp.length < 6}>
                        {isSubmitting && <Loader2 className="mr-2 animate-spin" />}
                        Verificar e Ingresar

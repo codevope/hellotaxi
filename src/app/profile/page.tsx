@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, User, Calendar, Mail, BarChart, Save, Phone, Home, LogOut, Star, LogIn } from 'lucide-react';
+import { Loader2, User, Calendar, Mail, BarChart, Save, Phone, Home, LogOut, Star, LogIn, CheckCircle, Lock, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import es from 'date-fns/locale/es';
 import { useForm } from 'react-hook-form';
@@ -37,6 +37,7 @@ import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import IncompleteProfile from '@/components/incomplete-profile';
+import { GoogleIcon } from '@/components/google-icon';
 
 const profileSchema = z.object({
   displayName: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
@@ -136,6 +137,10 @@ function ProfilePageContent() {
       setIsSubmitting(false);
     }
   }
+
+  const hasPassword = user?.providerData.some(p => p.providerId === 'password');
+  const hasGoogle = user?.providerData.some(p => p.providerId === 'google.com');
+  const hasPhone = user?.providerData.some(p => p.providerId === 'phone');
   
   return (
     <div className="flex flex-col min-h-screen bg-secondary/30">
@@ -145,6 +150,7 @@ function ProfilePageContent() {
           {appUser.status === 'incomplete' ? (
             <IncompleteProfile />
           ) : (
+            <>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)}>
                 <Card className="overflow-hidden shadow-lg">
@@ -266,6 +272,52 @@ function ProfilePageContent() {
                 </Card>
               </form>
             </Form>
+
+             <Card>
+                <CardHeader>
+                    <CardTitle>Métodos de Autenticación</CardTitle>
+                    <CardDescription>
+                        Gestiona cómo accedes a tu cuenta. Para una cuenta activa, los tres métodos deben estar vinculados.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                            <Lock className="h-5 w-5 text-muted-foreground" />
+                            <span className="font-medium">Email y Contraseña</span>
+                        </div>
+                        {hasPassword ? (
+                            <CheckCircle className="h-6 w-6 text-green-500" />
+                        ) : (
+                            <Button variant="outline" size="sm" asChild><Link href="/profile">Completar</Link></Button>
+                        )}
+                    </div>
+                     <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                            <GoogleIcon className="h-5 w-5" />
+                            <span className="font-medium">Cuenta de Google</span>
+                        </div>
+                        {hasGoogle ? (
+                            <CheckCircle className="h-6 w-6 text-green-500" />
+                        ) : (
+                             <Button variant="outline" size="sm" asChild><Link href="/profile">Completar</Link></Button>
+                        )}
+                    </div>
+                     <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                            <Phone className="h-5 w-5 text-muted-foreground" />
+                            <span className="font-medium">Número de Teléfono</span>
+                        </div>
+                        {hasPhone ? (
+                            <CheckCircle className="h-6 w-6 text-green-500" />
+                        ) : (
+                            <Button variant="outline" size="sm" asChild><Link href="/profile">Completar</Link></Button>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
+            </>
           )}
 
           {isDriver && (

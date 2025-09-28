@@ -10,6 +10,7 @@ import { CheckCircle, Loader2, Mail, Phone, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from './ui/input-otp';
 
 export default function IncompleteProfile() {
   const { user, linkGoogleAccount, setupRecaptcha, signInWithPhone, linkPhoneNumber, setPasswordForUser } = useAuth();
@@ -116,8 +117,8 @@ export default function IncompleteProfile() {
         <CardDescription>Para activar todas las funciones de tu cuenta, por favor completa los siguientes pasos.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {renderStep({
-          completed: !!hasPassword,
+        {!hasPassword && renderStep({
+          completed: false,
           title: 'Establecer Contraseña',
           description: 'Crea una contraseña para poder iniciar sesión con tu correo electrónico.',
           content: (
@@ -133,8 +134,8 @@ export default function IncompleteProfile() {
             </div>
           )
         })}
-        {renderStep({
-          completed: !!hasGoogle,
+        {!hasGoogle && renderStep({
+          completed: false,
           title: 'Vincular Cuenta de Google',
           description: 'Conecta tu cuenta de Google para un inicio de sesión rápido y seguro.',
           button: (
@@ -144,8 +145,8 @@ export default function IncompleteProfile() {
             </Button>
           )
         })}
-         {renderStep({
-          completed: !!hasPhone,
+         {!hasPhone && renderStep({
+          completed: false,
           title: 'Verificar Número de Teléfono',
           description: 'Añade tu teléfono para una capa extra de seguridad y para que los conductores puedan contactarte.',
           content: (
@@ -163,7 +164,19 @@ export default function IncompleteProfile() {
                 </>
               ) : (
                 <>
-                  <Input type="text" placeholder="Ingresa el código OTP" value={otp} onChange={e => setOtp(e.target.value)} />
+                  <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+                      <InputOTPGroup>
+                          <InputOTPSlot index={0} />
+                          <InputOTPSlot index={1} />
+                          <InputOTPSlot index={2} />
+                      </InputOTPGroup>
+                      <InputOTPSeparator />
+                      <InputOTPGroup>
+                          <InputOTPSlot index={3} />
+                          <InputOTPSlot index={4} />
+                          <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                  </InputOTP>
                   <Button onClick={handleVerifyOtp} disabled={loading === 'phone' || otp.length < 6}>
                      {loading === 'phone' ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle className="mr-2" />}
                     Verificar
