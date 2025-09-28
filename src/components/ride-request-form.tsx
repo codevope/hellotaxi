@@ -91,7 +91,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
   Dialog,
@@ -119,11 +118,19 @@ type RideRequestFormProps = {
 };
 
 const paymentMethodIcons: Record<PaymentMethod, React.ReactNode> = {
-  cash: <Wallet className="h-6 w-6" />,
-  yape: <span className="font-bold text-lg">Y</span>,
-  plin: <span className="font-bold text-lg">P</span>,
-  card: <CreditCard className="h-6 w-6" />,
+  cash: <Wallet className="h-8 w-8" />,
+  yape: <span className="font-bold text-2xl">Y</span>,
+  plin: <span className="font-bold text-2xl">P</span>,
+  card: <CreditCard className="h-8 w-8" />,
 };
+
+const paymentMethodLabels: Record<PaymentMethod, string> = {
+  cash: "Efectivo",
+  yape: "Yape",
+  plin: "Plin",
+  card: "Tarjeta"
+}
+
 
 const serviceTypeIcons: Record<ServiceType, React.ReactNode> = {
     economy: <Car className="h-8 w-8" />,
@@ -176,6 +183,7 @@ export default function RideRequestForm({
   });
 
   const serviceType = form.watch('serviceType');
+  const paymentMethod = form.watch('paymentMethod');
 
   const handleLocationSelect = (location: Location) => {
     if (locationPickerFor === 'pickup') {
@@ -455,8 +463,7 @@ export default function RideRequestForm({
         routeInfo={routeInfo}
         onNegotiationComplete={handleNegotiationComplete}
         onCancel={() => {
-          setStatus('idle');
-          setRouteInfo(null);
+          setStatus('calculated');
         }}
       />
     );
@@ -641,7 +648,6 @@ export default function RideRequestForm({
           onSubmit={form.handleSubmit(handleCalculateFare)}
           className="space-y-6"
         >
-          {status === 'idle' || status === 'calculated' ? (
             <>
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -649,10 +655,10 @@ export default function RideRequestForm({
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full justify-start text-left font-normal"
+                    className="w-full justify-start text-left font-normal h-auto"
                     onClick={() => setLocationPickerFor('pickup')}
                   >
-                    <MapPin className="mr-2 h-4 w-4" />
+                    <MapPin className="mr-2 h-4 w-4 flex-shrink-0" />
                     {pickupLocation ? (
                       <span className="truncate">{pickupLocation.address}</span>
                     ) : (
@@ -669,10 +675,10 @@ export default function RideRequestForm({
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full justify-start text-left font-normal"
+                    className="w-full justify-start text-left font-normal h-auto"
                     onClick={() => setLocationPickerFor('dropoff')}
                   >
-                    <MapPin className="mr-2 h-4 w-4" />
+                    <MapPin className="mr-2 h-4 w-4 flex-shrink-0" />
                     {dropoffLocation ? (
                       <span className="truncate">{dropoffLocation.address}</span>
                     ) : (
@@ -709,7 +715,7 @@ export default function RideRequestForm({
                              <FormLabel
                               htmlFor={`service-${service.id}`}
                               className={cn(
-                                'flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer',
+                                'flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all',
                                 field.value === service.id && "border-primary bg-primary/10"
                               )}
                             >
@@ -724,6 +730,45 @@ export default function RideRequestForm({
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="paymentMethod"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>Método de Pago</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="grid grid-cols-4 gap-4"
+                      >
+                         {Object.keys(paymentMethodIcons).map((method) => (
+                          <FormItem key={method}>
+                            <FormControl>
+                              <RadioGroupItem
+                                value={method}
+                                id={`payment-${method}`}
+                                className="peer sr-only"
+                              />
+                            </FormControl>
+                            <FormLabel
+                              htmlFor={`payment-${method}`}
+                              className={cn(
+                                "flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all h-24",
+                                field.value === method && "border-primary bg-primary/10"
+                              )}
+                            >
+                              {paymentMethodIcons[method as PaymentMethod]}
+                              <span className="font-semibold mt-2 text-sm">{paymentMethodLabels[method as PaymentMethod]}</span>
+                            </FormLabel>
+                          </FormItem>
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
               
               {status === 'calculated' && routeInfo && (
                 <ETADisplay
@@ -734,13 +779,11 @@ export default function RideRequestForm({
               )}
 
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                {status === 'idle' && (
+                 {status === 'idle' && (
                   <Button
                     type="submit"
                     className="w-full"
-                    disabled={
-                      isCalculating || !pickupLocation || !dropoffLocation
-                    }
+                    disabled={isCalculating || !pickupLocation || !dropoffLocation}
                   >
                     {isCalculating ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -763,9 +806,9 @@ export default function RideRequestForm({
                 )}
               </div>
             </>
-          ) : null}
         </form>
       </Form>
     </>
   );
 }
+

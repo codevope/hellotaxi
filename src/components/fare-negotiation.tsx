@@ -54,12 +54,14 @@ function FareBreakdownDialog({ breakdown }: { breakdown: FareBreakdown }) {
                         <p>S/{item.value.toFixed(2)}</p>
                     </div>
                 ))}
-                <Separator />
+                
+                {(surcharges.some(s => s.value > 0) || discounts.some(d => d.value > 0)) && <Separator />}
+
                 <div className="flex justify-between items-center font-medium">
-                    <p>Subtotal</p>
+                    <p>Subtotal (sin recargos)</p>
                     <p>S/{breakdown.subtotal.toFixed(2)}</p>
                 </div>
-                <Separator />
+
                 {surcharges.filter(s => s.value > 0).map(surcharge => (
                      <div key={surcharge.label} className="flex justify-between items-center text-orange-600">
                         <p>{surcharge.label}</p>
@@ -72,14 +74,16 @@ function FareBreakdownDialog({ breakdown }: { breakdown: FareBreakdown }) {
                         <p>- S/{discount.value.toFixed(2)}</p>
                     </div>
                 ))}
-                <Separator className="my-2" />
+
+                {(surcharges.some(s => s.value > 0) || discounts.some(d => d.value > 0)) && <Separator />}
+
                 <div className="flex justify-between items-center text-lg font-bold">
                     <p>Total Sugerido</p>
                     <p>S/{breakdown.total.toFixed(2)}</p>
                 </div>
                  {breakdown.couponDiscount > 0 && (
                     <p className="text-xs text-center text-green-600">
-                        El descuento del cupón ya está aplicado en el total.
+                        El descuento del cupón ya está aplicado en el total sugerido.
                     </p>
                 )}
             </div>
@@ -252,3 +256,4 @@ export default function FareNegotiation({
     </div>
   );
 }
+
