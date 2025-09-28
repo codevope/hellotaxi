@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import type { Ride, User, Driver, Location, ChatMessage } from '@/lib/types';
+import type { Ride, User, Driver, ChatMessage } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { collection, query, where, getDocs, doc, writeBatch, onSnapshot, Unsubscribe, updateDoc, increment, getDoc, limit, addDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -132,7 +132,7 @@ function DriverDashboardPageContent() {
         }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver, status, startSimulation, stopSimulation]);
+  }, [driver, status]);
 
   // Listener for new ride requests
   useEffect(() => {

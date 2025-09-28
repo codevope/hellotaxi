@@ -56,6 +56,8 @@ function RidePageContent() {
     setActiveRide,
     setAssignedDriver,
     setChatMessages,
+    setPickupLocation,
+    setDropoffLocation,
     startSearch,
     assignDriver,
     updateRideStatus,
