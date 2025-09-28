@@ -2,10 +2,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Navigation, MapPin } from 'lucide-react';
 import { useGoogleGeolocation } from '@/hooks/use-google-geolocation';
-import { useMap } from '@/contexts/map-context';
+import { useMapStore } from '@/stores/map-store';
 import type { Ride } from '@/lib/types';
 import { 
   GoogleMapsProvider, 
@@ -32,22 +30,22 @@ const MapView: React.FC<MapViewProps> = ({
   height = '100%',
   interactive = true
 }) => {
-  const { location: userLocation, error: locationError, requestPreciseLocation: requestLocation, loading } = useGoogleGeolocation();
+  const { location: userLocation, requestPreciseLocation: requestLocation, loading } = useGoogleGeolocation();
   const { 
     pickupLocation,
     dropoffLocation,
     mapCenter,
     setPickupLocation,
     setDropoffLocation,
-  } = useMap();
+  } = useMapStore();
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
   const { toast } = useToast();
 
   React.useEffect(() => {
-    if (!userLocation && !locationError) {
+    if (!userLocation) {
       requestLocation();
     }
-  }, [userLocation, locationError, requestLocation]);
+  }, [userLocation, requestLocation]);
 
   const userPos: Location | undefined = userLocation ? {
     lat: userLocation.latitude,
@@ -156,13 +154,6 @@ const MapView: React.FC<MapViewProps> = ({
           )}
         </InteractiveMap>
         
-          {locationError && (
-             <div className="absolute bottom-2 left-2 bg-red-50 text-red-600 text-xs px-2 py-1 rounded border border-red-200">
-              <MapPin className="h-3 w-3 inline mr-1" />
-              Error de geolocalización
-            </div>
-          )}
-          
       </div>
     </GoogleMapsProvider>
   );

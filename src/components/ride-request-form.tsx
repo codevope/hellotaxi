@@ -14,56 +14,28 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert } from '@/components/ui/alert';
 import {
   Loader2,
   Car,
-  Star,
   X,
-  MessageSquare,
-  Calendar as CalendarIcon,
-  Wallet,
-  CreditCard,
   MapPin,
-  Tag,
   Rocket,
   CarFront,
   Sparkles,
   ChevronRight,
-  List,
   Bot,
 } from 'lucide-react';
 import type {
   Ride,
   Driver,
-  ChatMessage,
-  User,
   PaymentMethod,
   ServiceType,
   Settings,
   FareBreakdown,
-  CancellationReason,
 } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import FareNegotiation from './fare-negotiation';
-import RatingForm from './rating-form';
-import Chat from './chat';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import {
   collection,
@@ -74,41 +46,25 @@ import {
   doc,
   addDoc,
   updateDoc,
-  getDoc,
   increment,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getSettings } from '@/services/settings-service';
 import { useAuth } from '@/hooks/use-auth';
-import { useMap } from '@/contexts/map-context';
-import { Separator } from './ui/separator';
+import { useMapStore } from '@/stores/map-store';
 import { Input } from './ui/input';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from './ui/dialog';
-import { processRating } from '@/ai/flows/process-rating';
 import ETADisplay from './eta-display';
 import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
 import { LocationPicker, type Location } from '@/components/maps';
 import { Label } from './ui/label';
 import Image from 'next/image';
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from './ui/sheet';
-import SupportChat from './support-chat';
 
 const formSchema = z.object({
   pickup: z.string().min(5, 'Por favor, introduce una ubicación de recojo válida.'),
@@ -156,8 +112,8 @@ export default function RideRequestForm({
   >(null);
 
   const { user } = useAuth();
-  const { pickupLocation, dropoffLocation, setPickupLocation, setDropoffLocation } =
-    useMap();
+  const { pickupLocation, dropoffLocation, setPickupLocation, setDropoffLocation, clearRideLocations } =
+    useMapStore();
   const { toast } = useToast();
   const { calculateRoute, isCalculating, error: routeError } = useETACalculator();
 
@@ -281,10 +237,7 @@ export default function RideRequestForm({
 
       toast({
         title: '¡Viaje Agendado!',
-        description: `Tu viaje ha sido programado para el ${format(
-          values.scheduledTime!,
-          'dd/MM/yyyy a las HH:mm'
-        )}.`,
+        description: `Tu viaje ha sido programado para el ${form.getValues('scheduledTime')!}.`,
       });
     } catch (error) {
       console.error('Error scheduling ride: ', error);
@@ -360,8 +313,7 @@ export default function RideRequestForm({
   function resetForm() {
     setStatus('idle');
     setFinalFare(null);
-    setPickupLocation(null);
-    setDropoffLocation(null);
+    clearRideLocations();
     setRouteInfo(null);
     form.reset();
   }
@@ -383,11 +335,11 @@ export default function RideRequestForm({
     return (
       <Alert>
         <Loader2 className="h-4 w-4 animate-spin" />
-        <AlertTitle>Buscando tu viaje...</AlertTitle>
-        <AlertDescription>
+        <Alert>Buscando tu viaje...</Alert>
+        <Alert>
           Hemos acordado una tarifa de S/{finalFare?.toFixed(2)}. Ahora, estamos
           asignando un conductor para el servicio "{form.getValues('serviceType')}".
-        </AlertDescription>
+        </Alert>
       </Alert>
     );
   }

@@ -9,7 +9,6 @@ import AppHeader from '@/components/app-header';
 import MapView from '@/components/map-view';
 import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
-import { MapProvider } from '@/contexts/map-context';
 import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
 import { History, Car, Siren, LayoutDashboard, MessageCircle, Bot, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -167,7 +166,6 @@ function RidePageContent() {
 
 
   return (
-    <MapProvider>
       <div className="flex flex-col h-screen bg-background">
         <AppHeader />
         <main className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 p-4 lg:p-8 min-h-0">
@@ -365,7 +363,6 @@ function RidePageContent() {
 
       </main>
       </div>
-    </MapProvider>
   );
 }
 

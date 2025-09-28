@@ -12,7 +12,7 @@ import {
   InteractiveMap,
   MapMarker,
 } from './';
-import { useMap } from '@/contexts/map-context';
+import { useMapStore } from '@/stores/map-store';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -37,7 +37,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
         ? { ...initialLocation, address: 'Ubicación seleccionada' }
         : null
     );
-  const { userLocation } = useMap();
+  const { userLocation } = useMapStore();
   const { toast } = useToast();
 
   const handlePlaceSelect = (location: Location) => {
