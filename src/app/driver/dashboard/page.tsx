@@ -13,18 +13,19 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { getDocumentStatus } from '@/lib/document-status';
-import type { DocumentName, DocumentStatus, Ride, User, Driver } from '@/lib/types';
+import type { DocumentName, DocumentStatus, Ride, User, Driver, Location } from '@/lib/types';
 import { format } from 'date-fns';
 import { useEffect, useState } from 'react';
 import { collection, query, where, getDocs, doc, getDoc, writeBatch, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
 import { Separator } from '@/components/ui/separator';
 import { GoogleIcon } from '@/components/google-icon';
+import { useGeolocation } from '@/hooks/use-geolocation-improved';
+import MapView from '@/components/map-view';
 
 
 const overallDocStatusConfig = {
@@ -71,6 +72,8 @@ function DriverDashboardPageContent() {
   const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
   const [activeRide, setActiveRide] = useState<EnrichedRide | null>(null);
   const [isCompletingRide, setIsCompletingRide] = useState(false);
+  const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
+  const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
 
   useEffect(() => {
     if (!driver) return;
@@ -94,6 +97,8 @@ function DriverDashboardPageContent() {
             setActiveRide({ ...rideData, driver, passenger: passengerData });
         } else {
             setActiveRide(null);
+            setPickupLocation(null);
+            setDropoffLocation(null);
         }
     });
 
@@ -194,11 +199,6 @@ function DriverDashboardPageContent() {
   const overallDocStatus = overallDocStatusConfig[driver.documentsStatus];
   const driverStatus = driver.status === 'on-ride' ? 'available' : driver.status;
 
-  const getIndividualDocStatus = (docName: DocumentName) => {
-      const status = driver.documentStatus?.[docName] || 'pending';
-      return individualDocStatusConfig[status];
-  }
-
   const documentDetails: { name: DocumentName, label: string, expiryDate?: string }[] = [
       { name: 'license', label: 'Licencia de Conducir', expiryDate: driver.licenseExpiry },
       { name: 'insurance', label: 'SOAT / Póliza de Seguro', expiryDate: driver.insuranceExpiry },
@@ -208,201 +208,103 @@ function DriverDashboardPageContent() {
 
 
   return (
-    <div className="flex flex-col min-h-screen bg-secondary/30">
+    <div className="flex flex-col min-h-screen bg-background">
       <AppHeader />
-      <main className="flex-1 p-4 sm:p-8">
-        <div className="max-w-4xl mx-auto space-y-8">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-3xl font-headline">Panel del Conductor</CardTitle>
-                  <CardDescription>Gestiona tu estado y visualiza tus viajes.</CardDescription>
-                </div>
-                <div className="flex items-center space-x-2">
-                   <Switch
-                    id="availability-switch"
-                    checked={driverStatus === 'available'}
-                    onCheckedChange={handleAvailabilityChange}
-                    disabled={!isApproved || driver.status === 'on-ride'}
-                    aria-label="Estado de disponibilidad"
-                  />
-                  <Label htmlFor="availability-switch">
-                    <Badge variant={statusConfig[driver.status].variant}>
-                       {statusConfig[driver.status].label}
-                    </Badge>
-                  </Label>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-                <Alert variant={overallDocStatus.variant}>
-                    {overallDocStatus.icon}
-                    <AlertTitle>Estado General: Documentos {overallDocStatus.label}</AlertTitle>
-                    <AlertDescription>{overallDocStatus.description}</AlertDescription>
-                </Alert>
-            </CardContent>
-          </Card>
-          
-          {activeRide && (
-            <Card className="border-primary border-2 animate-pulse">
+      <main className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 p-4 lg:p-8 min-h-0">
+         <div className="lg:col-span-2 flex flex-col min-h-0 rounded-xl overflow-hidden shadow-lg relative">
+             <MapView 
+                pickupLocation={pickupLocation}
+                dropoffLocation={dropoffLocation}
+                activeRide={activeRide} 
+                interactive={false}
+              />
+          </div>
+
+          <div className="flex flex-col gap-8">
+            <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-primary">
-                        <Car className="h-6 w-6" />
-                        <span>¡Viaje en Progreso!</span>
-                    </CardTitle>
-                    <CardDescription>Estás llevando a un pasajero a su destino.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
-                        <div className="flex items-center gap-4">
-                            <Avatar className="h-12 w-12">
-                                <AvatarImage src={activeRide.passenger.avatarUrl} alt={activeRide.passenger.name} />
-                                <AvatarFallback>{activeRide.passenger.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <p className="font-semibold">{activeRide.passenger.name}</p>
-                                <p className="text-sm text-muted-foreground">Destino: <span className="font-medium truncate">{activeRide.dropoff}</span></p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-sm text-muted-foreground">Tarifa</p>
-                            <p className="font-bold text-lg">S/{activeRide.fare.toFixed(2)}</p>
-                        </div>
+                <div className="flex justify-between items-start">
+                    <div>
+                    <CardTitle className="text-2xl font-headline">Panel del Conductor</CardTitle>
+                    <CardDescription>Gestiona tu estado y tus viajes.</CardDescription>
                     </div>
-                     <Button className="w-full" onClick={handleCompleteRide} disabled={isCompletingRide}>
-                        {isCompletingRide ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : null}
-                        Finalizar Viaje
-                    </Button>
+                    <div className="flex items-center space-x-2">
+                    <Switch
+                        id="availability-switch"
+                        checked={driverStatus === 'available'}
+                        onCheckedChange={handleAvailabilityChange}
+                        disabled={!isApproved || driver.status === 'on-ride'}
+                        aria-label="Estado de disponibilidad"
+                    />
+                    <Label htmlFor="availability-switch">
+                        <Badge variant={statusConfig[driver.status].variant}>
+                        {statusConfig[driver.status].label}
+                        </Badge>
+                    </Label>
+                    </div>
+                </div>
+                </CardHeader>
+                <CardContent>
+                    <Alert variant={overallDocStatus.variant}>
+                        {overallDocStatus.icon}
+                        <AlertTitle>Documentos: {overallDocStatus.label}</AlertTitle>
+                        <AlertDescription>{overallDocStatus.description}</AlertDescription>
+                    </Alert>
                 </CardContent>
             </Card>
-          )}
-
-          {!activeRide && (
-            <Card>
-              <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                      <Car className="h-6 w-6 text-primary" />
-                      <span>Solicitudes de Viaje</span>
-                  </CardTitle>
-              </CardHeader>
-               <CardContent>
-                  <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>No hay solicitudes pendientes</AlertTitle>
-                      <AlertDescription>
-                          Cuando un pasajero solicite un viaje cerca de ti, aparecerá aquí.
-                      </AlertDescription>
-                  </Alert>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Star className="h-6 w-6 text-primary" />
-                    <span>Viajes por Calificar</span>
-                </CardTitle>
-            </CardHeader>
-            <CardContent>
-                {completedRides.length > 0 ? (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Pasajero</TableHead>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead className="text-right">Acción</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {completedRides.map(ride => (
-                            <TableRow key={ride.id}>
-                                <TableCell>
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-10 w-10">
-                                            <AvatarImage src={ride.passenger.avatarUrl} alt={ride.passenger.name} />
-                                            <AvatarFallback>{ride.passenger.name.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        <span className="font-medium">{ride.passenger.name}</span>
-                                    </div>
-                                </TableCell>
-                                <TableCell>{format(new Date(ride.date), 'dd/MM/yyyy')}</TableCell>
-                                <TableCell className="text-right">
-                                     <Dialog open={isRatingDialogOpen} onOpenChange={setIsRatingDialogOpen}>
-                                        <DialogTrigger asChild>
-                                            <Button variant="outline" size="sm">Calificar Pasajero</Button>
-                                        </DialogTrigger>
-                                        <DialogContent>
-                                            <DialogHeader>
-                                                <DialogTitle>Calificar a {ride.passenger.name}</DialogTitle>
-                                            </DialogHeader>
-                                            <RatingForm 
-                                                userToRate={ride.passenger}
-                                                isDriver={false}
-                                                isSubmitting={isRatingSubmitting}
-                                                onSubmit={(rating, comment) => handleRatingSubmit(ride.passenger, rating, comment)}
-                                            />
-                                        </DialogContent>
-                                    </Dialog>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-                ) : (
-                <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>No hay viajes por calificar</AlertTitle>
-                    <AlertDescription>
-                        Cuando completes un viaje, aparecerá aquí para que puedas calificar al pasajero.
-                    </AlertDescription>
-                </Alert>
-                )}
-            </CardContent>
-          </Card>
-          
-
-           <Card>
-            <CardHeader>
-              <CardTitle>Gestión de Documentos</CardTitle>
-              <CardDescription>
-                Mantén tus documentos al día para poder recibir viajes.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <ul className="space-y-3">
-                   {documentDetails.map(docDetail => {
-                       const statusInfo = docDetail.expiryDate ? getDocumentStatus(docDetail.expiryDate) : { label: 'Fecha no disponible', icon: <ShieldAlert className="h-5 w-5" />, color: 'text-yellow-600' };
-                       const approvalStatus = getIndividualDocStatus(docDetail.name);
-                       return (
-                          <li key={docDetail.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
-                            <div className="flex flex-col gap-2">
-                                <div className="flex items-center gap-2">
-                                    <FileText className="h-5 w-5 text-muted-foreground" />
-                                    <span>{docDetail.label}</span>
-                                    <Badge variant={approvalStatus.variant}>{approvalStatus.label}</Badge>
-                                </div>
-                                <div className={cn("flex items-center gap-1.5 text-sm font-medium ml-7", statusInfo.color)}>
-                                    {statusInfo.icon}
-                                    {docDetail.expiryDate ? (
-                                      <span>{statusInfo.label} (Vence: {format(new Date(docDetail.expiryDate), 'dd/MM/yyyy')})</span>
-                                    ) : (
-                                      <span>{statusInfo.label}</span>
-                                    )}
+            
+            {activeRide ? (
+                <Card className="border-primary border-2 animate-pulse">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-primary">
+                            <Car className="h-6 w-6" />
+                            <span>¡Viaje en Progreso!</span>
+                        </CardTitle>
+                        <CardDescription>Estás llevando a un pasajero a su destino.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <Avatar className="h-12 w-12">
+                                    <AvatarImage src={activeRide.passenger.avatarUrl} alt={activeRide.passenger.name} />
+                                    <AvatarFallback>{activeRide.passenger.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="font-semibold">{activeRide.passenger.name}</p>
+                                    <p className="text-sm text-muted-foreground">Destino: <span className="font-medium truncate">{activeRide.dropoff}</span></p>
                                 </div>
                             </div>
-                            <Button variant="outline" size="sm" disabled>
-                              Subir PDF (Próximamente)
-                            </Button>
-                        </li>
-                       )
-                   })}
-                </ul>
-            </CardContent>
-          </Card>
-
-        </div>
+                            <div className="text-right">
+                                <p className="text-sm text-muted-foreground">Tarifa</p>
+                                <p className="font-bold text-lg">S/{activeRide.fare.toFixed(2)}</p>
+                            </div>
+                        </div>
+                        <Button className="w-full" onClick={handleCompleteRide} disabled={isCompletingRide}>
+                            {isCompletingRide ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : null}
+                            Finalizar Viaje
+                        </Button>
+                    </CardContent>
+                </Card>
+            ) : (
+                <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Car className="h-6 w-6 text-primary" />
+                        <span>Solicitudes de Viaje</span>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Alert>
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>No hay solicitudes pendientes</AlertTitle>
+                        <AlertDescription>
+                            Cuando un pasajero solicite un viaje cerca de ti, aparecerá aquí.
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+                </Card>
+            )}
+          </div>
       </main>
     </div>
   );
@@ -464,3 +366,5 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
+
+    
