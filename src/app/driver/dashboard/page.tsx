@@ -119,7 +119,7 @@ function DriverDashboardPageContent() {
             }
         }
       } else {
-         if (status !== 'rating') {
+         if (useRideStore.getState().status !== 'rating') {
             resetRide();
             stopSimulation();
          }
@@ -142,13 +142,20 @@ function DriverDashboardPageContent() {
         collection(db, 'rides'),
         where('status', '==', 'searching'),
         where('serviceType', '==', driver.serviceType),
-        limit(1)
+        limit(10) // Fetch more than 1 to have fallback if some are rejected
     );
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
         if (!snapshot.empty) {
-            const rideDoc = snapshot.docs[0];
-            if (rejectedRideIds.includes(rideDoc.id)) return; // Skip rejected rides
+            // Find the first ride that has not been rejected by this driver
+            const rideDoc = snapshot.docs.find(doc => !rejectedRideIds.includes(doc.id));
+            if (!rideDoc) {
+                 setRequestedRide(null);
+                 if (useRideStore.getState().status === 'requesting') {
+                    resetRide();
+                 }
+                return;
+            }
 
             const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
             const passengerSnap = await getDoc(rideData.passenger);
@@ -159,7 +166,7 @@ function DriverDashboardPageContent() {
             }
         } else {
             setRequestedRide(null);
-            if (get().status === 'requesting') {
+            if (useRideStore.getState().status === 'requesting') {
                 resetRide();
             }
         }
@@ -712,3 +719,5 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
+
+    

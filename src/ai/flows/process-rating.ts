@@ -68,7 +68,7 @@ const processRatingFlow = ai.defineFlow(
     const newAverageRating = await runTransaction(db, async (transaction) => {
         const userDoc = await transaction.get(userDocRef);
         if (!userDoc.exists()) {
-            throw new Error("El usuario no existe.");
+            throw new Error(`El documento con ID ${ratedUserId} no existe en la colección ${collectionName}.`);
         }
 
         const userData = userDoc.data();
@@ -94,3 +94,5 @@ const processRatingFlow = ai.defineFlow(
     };
   }
 );
+
+    

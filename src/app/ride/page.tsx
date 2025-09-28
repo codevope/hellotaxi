@@ -107,7 +107,7 @@ function RidePageContent() {
         }
 
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-        const previousStatus = currentRideState?.status;
+        const previousStatus = useRideStore.getState().activeRide?.status;
         setActiveRide(rideData);
 
         if (searchTimeoutRef.current) {
@@ -133,7 +133,7 @@ function RidePageContent() {
              const driverSnap = await getDoc(rideData.driver);
              if (driverSnap.exists()) {
                 const driverData = {id: driverSnap.id, ...driverSnap.data()} as Driver;
-                if (assignedDriver?.id !== driverData.id) {
+                if (useRideStore.getState().assignedDriver?.id !== driverData.id) {
                   assignDriver(driverData);
                 }
                 
@@ -591,3 +591,5 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
+
+    
