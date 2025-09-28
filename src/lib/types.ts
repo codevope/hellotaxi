@@ -11,6 +11,12 @@ export type UserRole = 'passenger' | 'driver';
 export type DocumentName = 'license' | 'insurance' | 'technicalReview' | 'backgroundCheck';
 export type DocumentStatus = 'pending' | 'approved' | 'rejected';
 
+export interface Location {
+  lat: number;
+  lng: number;
+  address?: string;
+}
+
 export interface Driver {
   id: string;
   name: string;
@@ -31,6 +37,7 @@ export interface Driver {
   serviceType: ServiceType;
   documentStatus?: Record<DocumentName, DocumentStatus>;
   totalRides?: number;
+  location?: Location;
 }
 
 export interface User {
@@ -197,12 +204,6 @@ export interface Settings {
     cancellationReasons: CancellationReason[];
     specialFareRules: SpecialFareRule[];
     peakTimeRules: PeakTimeRule[];
-}
-
-export interface Location {
-  lat: number;
-  lng: number;
-  address?: string;
 }
 
 export type Passenger = User;

@@ -1,10 +1,17 @@
 
 // This file contains the initial data to seed the Firestore database.
 
-import type { Driver, User, Ride, Claim, SOSAlert, Notification, Settings, ServiceTypeConfig, Coupon, SpecialFareRule, CancellationReason, PeakTimeRule } from '@/lib/types';
+import type { Driver, User, Ride, Claim, SOSAlert, Notification, Settings, ServiceTypeConfig, Coupon, SpecialFareRule, CancellationReason, PeakTimeRule, Location } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 const getImageUrl = (id: string) => PlaceHolderImages.find(img => img.id === id)?.imageUrl || '';
+
+const driverLocations: Record<string, Location> = {
+    "ABC-123": { lat: -12.085, lng: -77.030 }, // Juan Perez
+    "DEF-456": { lat: -12.105, lng: -77.035 }, // Maria Rodriguez
+    "GHI-789": { lat: -12.115, lng: -77.020 }, // Carlos Gomez
+    "JKL-012": { lat: -12.090, lng: -77.050 }, // Ana Torres
+};
 
 // ================================================================= //
 //                            DRIVERS                                //
@@ -32,7 +39,8 @@ export const drivers: Omit<Driver, 'id'>[] = [
         insurance: 'approved',
         technicalReview: 'approved',
         backgroundCheck: 'approved'
-    }
+    },
+    location: driverLocations['ABC-123']
   },
   {
     name: 'Maria Rodriguez',
@@ -56,7 +64,8 @@ export const drivers: Omit<Driver, 'id'>[] = [
         insurance: 'approved',
         technicalReview: 'approved',
         backgroundCheck: 'approved'
-    }
+    },
+    location: driverLocations['DEF-456']
   },
   {
     name: 'Carlos Gomez',
@@ -80,7 +89,8 @@ export const drivers: Omit<Driver, 'id'>[] = [
         insurance: 'pending',
         technicalReview: 'pending',
         backgroundCheck: 'pending'
-    }
+    },
+    location: driverLocations['GHI-789']
   },
    {
     name: 'Ana Torres',
@@ -104,7 +114,8 @@ export const drivers: Omit<Driver, 'id'>[] = [
         insurance: 'rejected',
         technicalReview: 'rejected',
         backgroundCheck: 'rejected'
-    }
+    },
+    location: driverLocations['JKL-012']
   },
 ];
 
@@ -362,8 +373,8 @@ export const settings: Omit<Settings, 'serviceTypes' | 'cancellationReasons' | '
     perMinuteFare: 0.20,
     negotiationRange: 15, // en porcentaje
     locationUpdateInterval: 15, // en segundos
-    mapCenterLat: -6.7713, // Chiclayo, Perú
-    mapCenterLng: -79.8442, // Chiclayo, Perú
+    mapCenterLat: -12.08, 
+    mapCenterLng: -77.05, 
     membershipFeeEconomy: 40,
     membershipFeeComfort: 50,
     membershipFeeExclusive: 60,

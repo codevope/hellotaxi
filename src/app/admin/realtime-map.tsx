@@ -1,22 +1,65 @@
+
 'use client';
 
+import { useEffect, useState } from 'react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { Driver, Location } from '@/lib/types';
+import MapView from '@/components/map-view';
 import { Loader2 } from 'lucide-react';
-import Image from 'next/image';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { getSettings } from '@/services/settings-service';
 
 export default function RealtimeMap() {
-    const mapImageUrl = PlaceHolderImages.find((img) => img.id === 'map')?.imageUrl || 'https://picsum.photos/seed/map/1200/800';
+    const [drivers, setDrivers] = useState<Driver[]>([]);
+    const [mapCenter, setMapCenter] = useState<Location>({ lat: -12.046374, lng: -77.042793 });
+    const [loading, setLoading] = useState(true);
 
-  return (
-      <div className="relative w-full h-full bg-gray-300 rounded-lg overflow-hidden">
-        <Image
-            src={mapImageUrl}
-            alt="Mapa de marcador de posición"
-            fill
-            className="object-cover"
-            data-ai-hint="city map"
-        />
-         <div className="absolute inset-0 bg-gradient-to-t from-background/20 to-transparent" />
-      </div>
-  );
+    useEffect(() => {
+        const fetchInitialCenter = async () => {
+            const settings = await getSettings();
+            setMapCenter({ lat: settings.mapCenterLat, lng: settings.mapCenterLng });
+        };
+        fetchInitialCenter();
+
+        const driversCol = collection(db, 'drivers');
+        const unsubscribe = onSnapshot(driversCol, (snapshot) => {
+            const fetchedDrivers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
+            setDrivers(fetchedDrivers);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-full bg-muted">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    return (
+        <div className="relative w-full h-full bg-gray-300 rounded-lg overflow-hidden">
+            <MapView 
+                pickupLocation={null}
+                dropoffLocation={null}
+                interactive={true}
+            >
+                {drivers.map(driver => (
+                    driver.location && (
+                        <MapView.Marker
+                            key={driver.id}
+                            position={driver.location}
+                            type="driver"
+                            title={`${driver.name} - ${driver.status}`}
+                        />
+                    )
+                ))}
+            </MapView>
+        </div>
+    );
 }
+
+// Add Marker as a static property to MapView for cleaner imports
+(RealtimeMap as any).Marker = MapView;
