@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -102,12 +103,7 @@ export default function DriverDetailsPage() {
   // State for editable fields
   const [paymentModel, setPaymentModel] = useState<PaymentModel>('commission');
   const [documentsStatus, setDocumentsStatus] = useState<Driver['documentsStatus']>('pending');
-  const [individualDocStatuses, setIndividualDocStatuses] = useState<Record<DocumentName, DocumentStatus>>({
-    license: 'pending',
-    insurance: 'pending',
-    backgroundCheck: 'pending',
-    technicalReview: 'pending',
-  });
+  const [individualDocStatuses, setIndividualDocStatuses] = useState<Partial<Record<DocumentName, DocumentStatus>>>({});
   const [vehicleBrand, setVehicleBrand] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
   const [licensePlate, setLicensePlate] = useState('');
@@ -199,7 +195,7 @@ export default function DriverDetailsPage() {
         vehicleBrand: vehicleBrand,
         vehicleModel: vehicleModel,
         licensePlate: licensePlate,
-        documentStatus: individualDocStatuses,
+        documentStatus: individualDocStatuses as Record<DocumentName, DocumentStatus>,
         documentsStatus: finalDocumentsStatus,
       };
 
@@ -256,7 +252,7 @@ export default function DriverDetailsPage() {
   };
   
   const getIndividualDocBadge = (docName: DocumentName) => {
-    const status = individualDocStatuses[docName];
+    const status = individualDocStatuses[docName] || 'pending';
     const config: Record<DocumentStatus, { label: string; variant: 'default' | 'outline' | 'destructive' }> = {
       approved: { label: 'Aprobado', variant: 'default' },
       pending: { label: 'Pendiente', variant: 'outline' },
