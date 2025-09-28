@@ -1,3 +1,4 @@
+
 'use client';
 
 import AppHeader from '@/components/app-header';
@@ -311,7 +312,7 @@ export default function ProfilePage() {
     return (
       <>
         <AppHeader />
-        <div className="flex flex-col items-center justify-center text-center flex-1 p-8">
+        <main className="flex flex-col items-center p-4 text-center py-16 md:py-24">
           <Card className="max-w-md p-8">
             <CardHeader>
               <CardTitle>Acceso Restringido</CardTitle>
@@ -325,7 +326,7 @@ export default function ProfilePage() {
               </Button>
             </CardContent>
           </Card>
-        </div>
+        </main>
       </>
     );
   }

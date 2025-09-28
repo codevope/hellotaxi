@@ -423,7 +423,7 @@ export default function DriverDashboardPage() {
         return (
              <>
                 <AppHeader />
-                <div className="flex flex-col items-center justify-center text-center flex-1 p-8">
+                <main className="flex flex-col items-center p-4 text-center py-16 md:py-24">
                     <Card className="max-w-md p-8">
                         <CardHeader>
                             <CardTitle>Acceso de Conductores</CardTitle>
@@ -435,7 +435,7 @@ export default function DriverDashboardPage() {
                             <Button onClick={signInWithGoogle} size="lg">Iniciar Sesión con Google</Button>
                         </CardContent>
                     </Card>
-                </div>
+                </main>
             </>
         )
     }
