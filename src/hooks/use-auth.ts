@@ -86,10 +86,19 @@ export function useAuth() {
             const credential = GoogleAuthProvider.credentialFromError(error);
             const methods = await fetchSignInMethodsForEmail(auth, email);
 
-            if (methods.includes('password') && auth.currentUser) {
-                // Si el usuario ya está autenticado (aunque sea anónimamente), podemos intentar vincular.
-                // Sin embargo, este flujo es más complejo. Por ahora, guiamos al usuario.
-                throw new Error('Ya tienes una cuenta con este correo. Inicia sesión con tu contraseña para vincular Google.');
+            if (methods.includes('password')) {
+               const password = prompt('Parece que ya tienes una cuenta con este correo. Por favor, introduce tu contraseña para vincular tu cuenta de Google.');
+                if (password) {
+                    try {
+                        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                        await linkWithCredential(userCredential.user, credential!);
+                        return;
+                    } catch (e) {
+                         throw new Error('La contraseña es incorrecta. No se pudo vincular la cuenta.');
+                    }
+                } else {
+                    throw new Error('Se requiere contraseña para vincular cuentas.');
+                }
             }
         }
       console.error('Error signing in with Google', error);
@@ -99,12 +108,17 @@ export function useAuth() {
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
-      if (auth.currentUser && auth.currentUser.email === email) {
+       if (auth.currentUser && auth.currentUser.email === email) {
         const credential = EmailAuthProvider.credential(email, password);
         await linkWithCredential(auth.currentUser, credential);
         return;
       }
-
+      
+      const methods = await fetchSignInMethodsForEmail(auth, email);
+      if (methods.length > 0) {
+        throw new Error('Este correo electrónico ya está en uso. Por favor, inicia sesión o utiliza otro correo.');
+      }
+      
       await createUserWithEmailAndPassword(auth, email, password);
 
     } catch (error: any) {
@@ -132,8 +146,12 @@ export function useAuth() {
     });
   };
 
-  const signInWithPhone = async (phoneNumber: string, recaptchaVerifier: RecaptchaVerifier) => {
-      return await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+  const signInWithPhone = async (phoneNumber: string, recaptchaVerifier?: RecaptchaVerifier) => {
+      const verifier = recaptchaVerifier || window.recaptchaVerifier;
+      if (!verifier) {
+          throw new Error('Recaptcha verifier not initialized.');
+      }
+      return await signInWithPhoneNumber(auth, phoneNumber, verifier);
   };
 
 
@@ -214,8 +232,12 @@ export function useAuth() {
     if (!firebaseUser) throw new Error('Usuario no autenticado.');
     const provider = new GoogleAuthProvider();
     try {
-      await linkWithCredential(firebaseUser, await signInWithPopup(auth, provider).then(result => GoogleAuthProvider.credentialFromResult(result)!));
-      await checkAndCompleteProfile();
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential) {
+         await linkWithCredential(firebaseUser, credential);
+         await checkAndCompleteProfile();
+      }
     } catch (error: any) {
       console.error("Error linking Google Account:", error);
       throw new Error("No se pudo vincular la cuenta de Google. Puede que ya esté en uso.");

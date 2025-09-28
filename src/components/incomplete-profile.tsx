@@ -23,7 +23,7 @@ export default function IncompleteProfile() {
   const [confirmPassword, setConfirmPassword] = useState('');
   
   useEffect(() => {
-    if (!window.recaptchaVerifier) {
+    if (typeof window !== 'undefined' && !window.recaptchaVerifier) {
       window.recaptchaVerifier = setupRecaptcha('recaptcha-container');
     }
   }, [setupRecaptcha]);
@@ -48,7 +48,7 @@ export default function IncompleteProfile() {
     setLoading('phone');
     try {
       const fullPhoneNumber = `+51${phone}`;
-      const result = await signInWithPhone(fullPhoneNumber, window.recaptchaVerifier);
+      const result = await signInWithPhone(fullPhoneNumber);
       setConfirmationResult(result);
       toast({ title: 'Código de verificación enviado', description: 'Revisa tus mensajes SMS.' });
     } catch (error: any) {
@@ -126,7 +126,7 @@ export default function IncompleteProfile() {
               <Label htmlFor="confirm-password">Confirmar Contraseña</Label>
               <Input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
               <Button onClick={handleSetPassword} disabled={loading === 'password'} className="mt-2">
-                {loading === 'password' ? <Loader2 className="animate-spin" /> : <Lock />}
+                {loading === 'password' ? <Loader2 className="animate-spin mr-2" /> : <Lock className="mr-2" />}
                 Establecer Contraseña
               </Button>
             </div>
@@ -138,7 +138,7 @@ export default function IncompleteProfile() {
           description: 'Conecta tu cuenta de Google para un inicio de sesión rápido y seguro.',
           button: (
             <Button onClick={handleLinkGoogle} disabled={loading === 'google'} className="mt-4">
-              {loading === 'google' ? <Loader2 className="animate-spin" /> : <GoogleIcon />}
+              {loading === 'google' ? <Loader2 className="animate-spin mr-2" /> : <GoogleIcon className="mr-2" />}
               Vincular con Google
             </Button>
           )
@@ -156,7 +156,7 @@ export default function IncompleteProfile() {
                     <Input type="tel" placeholder="987654321" value={phone} onChange={e => setPhone(e.target.value)} className="rounded-l-none" />
                   </div>
                   <Button onClick={handleSendOtp} disabled={loading === 'phone' || phone.length < 9}>
-                    {loading === 'phone' ? <Loader2 className="animate-spin" /> : <Phone />}
+                    {loading === 'phone' ? <Loader2 className="animate-spin mr-2" /> : <Phone className="mr-2" />}
                     Enviar Código
                   </Button>
                 </>
@@ -164,16 +164,16 @@ export default function IncompleteProfile() {
                 <>
                   <Input type="text" placeholder="Ingresa el código OTP" value={otp} onChange={e => setOtp(e.target.value)} />
                   <Button onClick={handleVerifyOtp} disabled={loading === 'phone' || otp.length < 6}>
-                     {loading === 'phone' ? <Loader2 className="animate-spin" /> : <CheckCircle />}
+                     {loading === 'phone' ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle className="mr-2" />}
                     Verificar
                   </Button>
                 </>
               )}
+               <div id="recaptcha-container"></div>
             </div>
           )
         })}
       </CardContent>
-      <div id="recaptcha-container"></div>
     </Card>
   );
 }
