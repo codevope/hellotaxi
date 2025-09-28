@@ -103,6 +103,7 @@ import ETADisplay from './eta-display';
 import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
 import { LocationPicker, type Location } from '@/components/maps';
 import { Label } from './ui/label';
+import Image from 'next/image';
 
 const formSchema = z.object({
   pickup: z.string().min(5, 'Por favor, introduce una ubicación de recojo válida.'),
@@ -117,37 +118,12 @@ type RideRequestFormProps = {
   setActiveRide: (ride: Ride | null) => void;
 };
 
-const yapeLogo = (
-  <svg width="40" height="20" viewBox="0 0 102 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path fillRule="evenodd" clipRule="evenodd" d="M63.8571 0.738281H101.341V8.58316H81.821V16.113H98.923V23.7121H81.821V32.1837H101.401V39.7828H63.8571V0.738281Z" fill="#752EDD"/>
-    <path fillRule="evenodd" clipRule="evenodd" d="M0.860107 0.738281H38.3441V8.58316H20.0811V16.113H35.8031V23.7121H20.0811V39.7828H12.2361V8.58316H0.860107V0.738281Z" fill="#752EDD"/>
-    <path d="M41.7773 39.7828L54.7733 0.738281H63.0293L50.0333 39.7828H41.7773Z" fill="#752EDD"/>
-  </svg>
-);
-
-const plinLogo = (
-  <svg width="40" height="24" viewBox="0 0 119 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M0 0.509766H16.1364V49.601H0V0.509766Z" fill="#00A3FF"/>
-    <path d="M24.2041 0.509766H40.3405V49.601H24.2041V0.509766Z" fill="#00A3FF"/>
-    <path d="M48.4082 17.0784H74.3174V33.0315H48.4082V17.0784Z" fill="#00A3FF"/>
-    <path d="M82.3857 0.509766H98.5221V49.601H82.3857V0.509766Z" fill="#00A3FF"/>
-    <path d="M102.66 0.509766H118.796V49.601H102.66V0.509766Z" fill="#00A3FF"/>
-  </svg>
-);
-
 
 const paymentMethodIcons: Record<Exclude<PaymentMethod, 'card'>, React.ReactNode> = {
-  cash: <Wallet className="h-8 w-8" />,
-  yape: yapeLogo,
-  plin: plinLogo,
+  cash: <Image src="/img/cash.png" alt="Efectivo" width={40} height={40} className="object-contain h-10" />,
+  yape: <Image src="/img/yape.png" alt="Yape" width={80} height={40} className="object-contain h-10" />,
+  plin: <Image src="/img/plin.png" alt="Plin" width={80} height={40} className="object-contain h-10" />,
 };
-
-const paymentMethodLabels: Record<Exclude<PaymentMethod, 'card'>, string> = {
-  cash: "Efectivo",
-  yape: "Yape",
-  plin: "Plin"
-}
-
 
 const serviceTypeIcons: Record<ServiceType, React.ReactNode> = {
     economy: <Car className="h-8 w-8" />,
@@ -667,6 +643,14 @@ export default function RideRequestForm({
         >
           {status === 'idle' || status === 'calculating' || status === 'calculated' ? (
             <>
+               {status === 'calculated' && routeInfo && (
+                <ETADisplay
+                  routeInfo={routeInfo}
+                  isCalculating={isCalculating}
+                  error={routeError}
+                />
+              )}
+
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Punto de Recojo</Label>
@@ -761,7 +745,7 @@ export default function RideRequestForm({
                         value={field.value}
                         className="grid grid-cols-3 gap-4"
                       >
-                         {(Object.keys(paymentMethodIcons) as Array<keyof typeof paymentMethodIcons>).map((method) => (
+                        {(Object.keys(paymentMethodIcons) as Array<keyof typeof paymentMethodIcons>).map((method) => (
                           <FormItem key={method}>
                             <FormControl>
                               <RadioGroupItem
@@ -770,7 +754,7 @@ export default function RideRequestForm({
                                 className="peer sr-only"
                               />
                             </FormControl>
-                            <FormLabel
+                             <FormLabel
                               htmlFor={`payment-${method}`}
                               className={cn(
                                 "flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all h-24",
@@ -778,7 +762,6 @@ export default function RideRequestForm({
                               )}
                             >
                               {paymentMethodIcons[method]}
-                              <span className="font-semibold mt-2 text-sm">{paymentMethodLabels[method]}</span>
                             </FormLabel>
                           </FormItem>
                         ))}
@@ -788,14 +771,6 @@ export default function RideRequestForm({
                 )}
               />
               
-              {status === 'calculated' && routeInfo && (
-                <ETADisplay
-                  routeInfo={routeInfo}
-                  isCalculating={isCalculating}
-                  error={routeError}
-                />
-              )}
-
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
                  {status === 'idle' && (
                   <Button
