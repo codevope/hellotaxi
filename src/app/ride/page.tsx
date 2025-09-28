@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -168,8 +169,85 @@ function RidePageContent() {
       <div className="flex flex-col h-screen bg-background">
         <AppHeader />
         <main className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 p-4 lg:p-8 min-h-0">
-            <div className="lg:col-span-2 flex flex-col min-h-0 rounded-xl overflow-hidden shadow-lg">
-            <MapView activeRide={activeRide} />
+            <div className="lg:col-span-2 flex flex-col min-h-0 rounded-xl overflow-hidden shadow-lg relative">
+              <MapView activeRide={activeRide} />
+
+              {/* Floating Action Buttons within the Map */}
+              <Sheet>
+                <SheetTrigger asChild>
+                    <Button
+                    variant="outline"
+                    size="icon"
+                    className="absolute top-4 left-4 h-14 w-14 rounded-full shadow-lg border-2 border-primary/50 bg-background"
+                  >
+                    <MessageSquare className="h-7 w-7 text-primary" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-full max-w-sm p-0">
+                    <SupportChat />
+                </SheetContent>
+              </Sheet>
+
+              {activeRide && (
+                <>
+                   <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-4 right-4 h-16 w-16 rounded-full shadow-2xl animate-pulse"
+                      >
+                        <Siren className="h-8 w-8" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          ¿Estás seguro de que quieres activar la alerta de pánico?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta acción notificará inmediatamente a nuestra central de
+                          seguridad con tu ubicación actual y los detalles de tu
+                          viaje. Úsalo solo en caso de una emergencia real.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive hover:bg-destructive/90"
+                          onClick={handleSosConfirm}
+                        >
+                          Sí, Activar Alerta
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                
+                  <Sheet open={isDriverChatOpen} onOpenChange={setIsDriverChatOpen}>
+                    <SheetTrigger asChild>
+                      <Button
+                        size="icon"
+                        className="absolute bottom-4 left-4 h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90"
+                      >
+                        <MessageCircle className="h-7 w-7" />
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="left" className="w-full max-w-sm p-0">
+                        <SheetHeader className="p-4 border-b text-left">
+                          <SheetTitle className="flex items-center gap-2">
+                              <MessageCircle className="h-5 w-5" />
+                              <span>Chat con el Conductor</span>
+                          </SheetTitle>
+                        </SheetHeader>
+                         <Chat
+                            messages={chatMessages}
+                            onSendMessage={handleSendMessage}
+                          />
+                    </SheetContent>
+                  </Sheet>
+                </>
+              )}
+
           </div>
    
         <Card className="shadow-lg">
@@ -260,85 +338,6 @@ function RidePageContent() {
             </Tabs>
           </CardContent>
         </Card>
-
-        {/* Floating Action Buttons */}
-        <div className="absolute bottom-4 right-4 z-20 flex flex-col gap-4">
-          {activeRide && (
-            <>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="h-16 w-16 rounded-full shadow-2xl animate-pulse"
-                  >
-                    <Siren className="h-8 w-8" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      ¿Estás seguro de que quieres activar la alerta de pánico?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción notificará inmediatamente a nuestra central de
-                      seguridad con tu ubicación actual y los detalles de tu
-                      viaje. Úsalo solo en caso de una emergencia real.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive hover:bg-destructive/90"
-                      onClick={handleSosConfirm}
-                    >
-                      Sí, Activar Alerta
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            
-              <Sheet open={isDriverChatOpen} onOpenChange={setIsDriverChatOpen}>
-                <SheetTrigger asChild>
-                  <Button
-                    size="icon"
-                    className="h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90"
-                  >
-                    <MessageCircle className="h-7 w-7" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-full max-w-sm p-0">
-                    <SheetHeader className="p-4 border-b text-left">
-                      <SheetTitle className="flex items-center gap-2">
-                          <MessageCircle className="h-5 w-5" />
-                          <span>Chat con el Conductor</span>
-                      </SheetTitle>
-                    </SheetHeader>
-                     <Chat
-                        messages={chatMessages}
-                        onSendMessage={handleSendMessage}
-                      />
-                </SheetContent>
-              </Sheet>
-            </>
-          )}
-
-          <Sheet>
-            <SheetTrigger asChild>
-                <Button
-                variant="outline"
-                size="icon"
-                className="h-14 w-14 rounded-full shadow-lg border-2 border-primary/50 bg-background"
-              >
-                <MessageSquare className="h-7 w-7 text-primary" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-full max-w-sm p-0">
-                <SupportChat />
-            </SheetContent>
-          </Sheet>
-        </div>
-
 
          <Dialog
           open={isCancelReasonDialogOpen}
