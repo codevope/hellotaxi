@@ -118,7 +118,7 @@ const formSchema = z.object({
 });
 
 type RideRequestFormProps = {
-  setActiveRide: (ride: Ride | null) => void;
+  onRideAssigned: (ride: Ride, driver: Driver) => void;
 };
 
 
@@ -135,7 +135,7 @@ const serviceTypeIcons: Record<ServiceType, React.ReactNode> = {
 }
 
 export default function RideRequestForm({
-  setActiveRide,
+  onRideAssigned,
 }: RideRequestFormProps) {
   const [status, setStatus] = useState<
     | 'idle'
@@ -143,19 +143,11 @@ export default function RideRequestForm({
     | 'calculated'
     | 'negotiating'
     | 'searching'
-    | 'assigned'
-    | 'completed'
-    | 'rating'
     | 'scheduling'
   >('idle');
-  const [assignedDriver, setAssignedDriver] = useState<Driver | null>(null);
+  
   const [finalFare, setFinalFare] = useState<number | null>(null);
-  const [currentRide, setCurrentRide] = useState<Ride | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [appSettings, setAppSettings] = useState<Settings | null>(null);
-  const [isCancelReasonDialogOpen, setIsCancelReasonDialogOpen] =
-    useState(false);
-  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [locationPickerFor, setLocationPickerFor] = useState<
     'pickup' | 'dropoff' | null
@@ -179,9 +171,6 @@ export default function RideRequestForm({
       couponCode: '',
     },
   });
-
-  const serviceType = form.watch('serviceType');
-  const paymentMethod = form.watch('paymentMethod');
 
   useEffect(() => {
     async function fetchSettings() {
@@ -297,7 +286,7 @@ export default function RideRequestForm({
           'No se pudo programar tu viaje. Por favor, inténtalo de nuevo.',
       });
     } finally {
-      resetRide();
+      resetForm();
     }
   }
 
@@ -308,12 +297,10 @@ export default function RideRequestForm({
     const serviceType = form.getValues('serviceType');
     setFinalFare(fare);
     setStatus('searching');
-    setActiveRide(null);
 
     const availableDriver = await findDriver(serviceType);
 
     if (availableDriver && user) {
-      setAssignedDriver(availableDriver);
       const passengerRef = doc(db, 'users', user.uid);
       const driverRef = doc(db, 'drivers', availableDriver.id);
 
@@ -343,17 +330,13 @@ export default function RideRequestForm({
 
         // Set component state with the newly created ride
         const createdRide: Ride = { id: rideDocRef.id, ...newRideData };
-        setCurrentRide(createdRide);
-        setActiveRide(createdRide);
-        setStatus('assigned');
-        setChatMessages([
-          { sender: availableDriver.name, text: '¡Hola! Ya estoy en camino.', timestamp: new Date().toISOString(), isDriver: true, },
-        ]);
+        onRideAssigned(createdRide, availableDriver);
+        resetForm();
 
       } catch (error) {
         console.error('Error creating ride and updating statuses:', error);
         toast({ variant: 'destructive', title: 'Error al crear el viaje', description: 'No se pudo registrar el viaje. Inténtalo de nuevo.' });
-        resetRide();
+        resetForm();
       }
     } else {
       toast({
@@ -361,102 +344,19 @@ export default function RideRequestForm({
         title: 'No se encontraron conductores',
         description: `No hay conductores disponibles para el servicio "${serviceType}" en este momento. Por favor, inténtalo más tarde.`,
       });
-      resetRide();
+      resetForm();
     }
   }
 
-  async function handleCancelRide(reason: CancellationReason) {
-    if (!currentRide || !user || !assignedDriver) return;
-
-    const rideRef = doc(db, 'rides', currentRide.id);
-    const driverRef = doc(db, 'drivers', assignedDriver.id);
-
-    try {
-      const batch = writeBatch(db);
-      batch.update(rideRef, {
-        status: 'cancelled',
-        cancellationReason: reason,
-        cancelledBy: 'passenger'
-      });
-      batch.update(driverRef, { status: 'available' });
-      await batch.commit();
-
-      toast({
-        title: 'Viaje Cancelado',
-        description: `Motivo: ${reason.reason}.`,
-      });
-      resetRide();
-    } catch (error) {
-      console.error('Error cancelling ride:', error);
-      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cancelar el viaje.' });
-    }
-  }
-
-  async function handleRatingSubmit(rating: number, comment: string) {
-    if (!currentRide) return;
-    setIsSubmittingRating(true);
-
-    try {
-      await processRating({
-        ratedUserId: assignedDriver!.id, // We are sure assignedDriver is not null here
-        isDriver: true,
-        rating,
-        comment,
-      });
-      toast({
-        title: '¡Gracias por tu calificación!',
-        description:
-          'Tu opinión ayuda a mantener la calidad de nuestra comunidad.',
-      });
-      resetRide();
-    } catch (error) {
-      console.error('Error submitting rating:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error al Calificar',
-        description:
-          'No se pudo guardar tu calificación. Por favor, intenta de nuevo.',
-      });
-    } finally {
-      setIsSubmittingRating(false);
-    }
-  }
-
-  function resetRide() {
+  function resetForm() {
     setStatus('idle');
-    setAssignedDriver(null);
-    setActiveRide(null);
-    setCurrentRide(null);
     setFinalFare(null);
-    setChatMessages([]);
-    setIsCancelReasonDialogOpen(false);
     setPickupLocation(null);
     setDropoffLocation(null);
     setRouteInfo(null);
     form.reset();
   }
 
-  function handleSendMessage(text: string) {
-    const newMessage: ChatMessage = {
-      sender: 'Tú',
-      text,
-      timestamp: new Date().toISOString(),
-      isDriver: false,
-    };
-    setChatMessages((prev) => [...prev, newMessage]);
-
-    if (assignedDriver) {
-      setTimeout(() => {
-        const reply: ChatMessage = {
-          sender: assignedDriver.name,
-          text: 'Entendido. Llego en 5 minutos.',
-          timestamp: new Date().toISOString(),
-          isDriver: true,
-        };
-        setChatMessages((prev) => [...prev, reply]);
-      }, 2000);
-    }
-  }
 
   if (status === 'negotiating' && routeInfo) {
     return (
@@ -482,137 +382,6 @@ export default function RideRequestForm({
       </Alert>
     );
   }
-
-  if (status === 'assigned' && assignedDriver && currentRide) {
-    return (
-      <div className="space-y-4 h-full flex flex-col">
-        <Card className="flex-1">
-          <CardHeader className="p-4">
-            <CardTitle>¡Tu conductor está en camino!</CardTitle>
-            <CardDescription>Llegada estimada: 5 minutos.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 space-y-4">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-12 w-12">
-                <AvatarImage
-                  src={assignedDriver.avatarUrl}
-                  alt={assignedDriver.name}
-                />
-                <AvatarFallback>
-                  {assignedDriver.name.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="font-bold text-md">{assignedDriver.name}</p>
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />{' '}
-                  {assignedDriver.rating}
-                </div>
-                <p className="text-xs">
-                  {assignedDriver.vehicleBrand} {assignedDriver.vehicleModel} -{' '}
-                  {assignedDriver.licensePlate}
-                </p>
-              </div>
-              <p className="font-bold text-lg text-right flex-1">
-                S/{finalFare?.toFixed(2)}
-              </p>
-            </div>
-
-            <Separator />
-
-            <Card className="flex-1 flex flex-col">
-              <CardHeader className="p-4 flex-row items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                <CardTitle className="text-xl">Chat con el Conductor</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0 flex-1 flex flex-col">
-                <Chat
-                  messages={chatMessages}
-                  onSendMessage={handleSendMessage}
-                />
-              </CardContent>
-            </Card>
-          </CardContent>
-        </Card>
-
-        <div className="space-y-2">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" className="w-full">
-                <X className="mr-2 h-4 w-4" /> Cancelar Viaje
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>¿Seguro que quieres cancelar?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta acción podría afectar negativamente tu calificación como pasajero. ¿Aún deseas cancelar?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>No, continuar viaje</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => setIsCancelReasonDialogOpen(true)}
-                >
-                  Sí, cancelar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-
-        <Dialog
-          open={isCancelReasonDialogOpen}
-          onOpenChange={setIsCancelReasonDialogOpen}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>¿Por qué estás cancelando?</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-2 py-4">
-              {appSettings?.cancellationReasons.map((reason) => (
-                <Button
-                  key={reason.code}
-                  variant="outline"
-                  className="w-full justify-start text-left h-auto py-3"
-                  onClick={() => handleCancelRide(reason)}
-                >
-                  {reason.reason}
-                </Button>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-    );
-  }
-
-  if (status === 'completed') {
-    // This state is now handled by the driver dashboard. When driver completes,
-    // passenger should go to rating state. We'll simulate this with a timeout.
-    setTimeout(() => setStatus('rating'), 1000);
-    return (
-      <Alert>
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <AlertTitle>Viaje Completado</AlertTitle>
-        <AlertDescription>
-          El conductor ha finalizado el viaje. Preparando la calificación...
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (status === 'rating' && assignedDriver) {
-    return (
-      <RatingForm
-        userToRate={assignedDriver}
-        isDriver={true}
-        onSubmit={handleRatingSubmit}
-        isSubmitting={isSubmittingRating}
-      />
-    );
-  }
-
 
   if (!appSettings) {
     return (

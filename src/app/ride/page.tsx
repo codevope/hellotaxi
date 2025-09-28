@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,8 +9,8 @@ import MapView from '@/components/map-view';
 import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
 import { MapProvider } from '@/contexts/map-context';
-import type { Ride } from '@/lib/types';
-import { CircleDollarSign, History, Car, Siren, LayoutDashboard } from 'lucide-react';
+import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
+import { History, Car, Siren, LayoutDashboard, MessageSquare as ChatIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -29,11 +29,34 @@ import SupportChat from '@/components/support-chat';
 import { Loader2, MessageSquare } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import Link from 'next/link';
+import { doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { getSettings } from '@/services/settings-service';
+import Chat from '@/components/chat';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Star, X } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import RatingForm from '@/components/rating-form';
+import { processRating } from '@/ai/flows/process-rating';
+
 
 function RidePageContent() {
+  const [activeTab, setActiveTab] = useState('book');
   const [activeRide, setActiveRide] = useState<Ride | null>(null);
+  const [assignedDriver, setAssignedDriver] = useState<Driver | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isCancelReasonDialogOpen, setIsCancelReasonDialogOpen] = useState(false);
+  const [appSettings, setAppSettings] = useState<Awaited<ReturnType<typeof getSettings>> | null>(null);
+  const [status, setStatus] = useState<'idle' | 'completed' | 'rating'>('idle');
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+
   const { toast } = useToast();
   
+  useEffect(() => {
+    getSettings().then(setAppSettings);
+  }, []);
+
   const handleSosConfirm = () => {
     toast({
       variant: 'destructive',
@@ -42,6 +65,103 @@ function RidePageContent() {
         'Se ha notificado a la central de seguridad. Mantén la calma, la ayuda está en camino.',
     });
   };
+
+  const handleRideAssigned = (ride: Ride, driver: Driver) => {
+    setActiveRide(ride);
+    setAssignedDriver(driver);
+    setChatMessages([
+        { sender: driver.name, text: '¡Hola! Ya estoy en camino.', timestamp: new Date().toISOString(), isDriver: true, },
+    ]);
+    setActiveTab('active-ride');
+  }
+
+  const resetRide = () => {
+    setActiveRide(null);
+    setAssignedDriver(null);
+    setChatMessages([]);
+    setActiveTab('book');
+    setStatus('idle');
+  }
+
+  const handleCancelRide = async (reason: CancellationReason) => {
+    if (!activeRide || !assignedDriver) return;
+
+    const rideRef = doc(db, 'rides', activeRide.id);
+    const driverRef = doc(db, 'drivers', assignedDriver.id);
+
+    try {
+      const batch = writeBatch(db);
+      batch.update(rideRef, {
+        status: 'cancelled',
+        cancellationReason: reason,
+        cancelledBy: 'passenger'
+      });
+      batch.update(driverRef, { status: 'available' });
+      await batch.commit();
+
+      toast({
+        title: 'Viaje Cancelado',
+        description: `Motivo: ${reason.reason}.`,
+      });
+      resetRide();
+    } catch (error) {
+      console.error('Error cancelling ride:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cancelar el viaje.' });
+    }
+  }
+
+  const handleSendMessage = (text: string) => {
+    const newMessage: ChatMessage = {
+      sender: 'Tú',
+      text,
+      timestamp: new Date().toISOString(),
+      isDriver: false,
+    };
+    setChatMessages((prev) => [...prev, newMessage]);
+
+    if (assignedDriver) {
+      setTimeout(() => {
+        const reply: ChatMessage = {
+          sender: assignedDriver.name,
+          text: 'Entendido. Llego en 5 minutos.',
+          timestamp: new Date().toISOString(),
+          isDriver: true,
+        };
+        setChatMessages((prev) => [...prev, reply]);
+      }, 2000);
+    }
+  }
+
+  const handleRatingSubmit = async (rating: number, comment: string) => {
+    if (!assignedDriver) return;
+    setIsSubmittingRating(true);
+
+    try {
+      await processRating({
+        ratedUserId: assignedDriver.id,
+        isDriver: true,
+        rating,
+        comment,
+      });
+      toast({
+        title: '¡Gracias por tu calificación!',
+        description:
+          'Tu opinión ayuda a mantener la calidad de nuestra comunidad.',
+      });
+      resetRide();
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error al Calificar',
+        description:
+          'No se pudo guardar tu calificación. Por favor, intenta de nuevo.',
+      });
+    } finally {
+      setIsSubmittingRating(false);
+    }
+  }
+
 
   return (
     <MapProvider>
@@ -54,26 +174,110 @@ function RidePageContent() {
    
         <Card className="shadow-lg">
           <CardContent className="p-0">
-            <Tabs defaultValue="book" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none">
-                <TabsTrigger value="book">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-3 rounded-t-lg rounded-b-none">
+                <TabsTrigger value="book" disabled={!!activeRide}>
                   <Car className="mr-2 h-4 w-4" /> Pedir Viaje
                 </TabsTrigger>
-                <TabsTrigger value="history">
+                <TabsTrigger value="history" disabled={!!activeRide}>
                   <History className="mr-2 h-4 w-4" /> Historial
                 </TabsTrigger>
+                <TabsTrigger value="active-ride" disabled={!activeRide}>
+                    <ChatIcon className="mr-2 h-4 w-4" /> Viaje en Curso
+                </TabsTrigger>
               </TabsList>
+
               <TabsContent value="book" className="p-6">
-                <RideRequestForm setActiveRide={setActiveRide} />
+                 {status !== 'rating' ? (
+                  <RideRequestForm onRideAssigned={handleRideAssigned} />
+                 ) : assignedDriver && (
+                  <RatingForm
+                    userToRate={assignedDriver}
+                    isDriver={true}
+                    onSubmit={handleRatingSubmit}
+                    isSubmitting={isSubmittingRating}
+                  />
+                 )}
               </TabsContent>
               <TabsContent value="history" className="p-6">
                 <RideHistory />
+              </TabsContent>
+              <TabsContent value="active-ride" className="p-0">
+                {assignedDriver && activeRide && (
+                   <div className="space-y-4 h-full flex flex-col p-4">
+                      <CardHeader className="p-2">
+                        <CardTitle>¡Tu conductor está en camino!</CardTitle>
+                        <CardDescription>Llegada estimada: 5 minutos.</CardDescription>
+                      </CardHeader>
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage
+                            src={assignedDriver.avatarUrl}
+                            alt={assignedDriver.name}
+                          />
+                          <AvatarFallback>
+                            {assignedDriver.name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-bold text-md">{assignedDriver.name}</p>
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />{' '}
+                            {assignedDriver.rating}
+                          </div>
+                          <p className="text-xs">
+                            {assignedDriver.vehicleBrand} {assignedDriver.vehicleModel} -{' '}
+                            {assignedDriver.licensePlate}
+                          </p>
+                        </div>
+                        <p className="font-bold text-lg text-right flex-1">
+                          S/{activeRide.fare.toFixed(2)}
+                        </p>
+                      </div>
+                      <Separator />
+                       <Card className="flex-1 flex flex-col">
+                        <CardHeader className="p-4 flex-row items-center gap-2">
+                            <MessageSquare className="h-5 w-5" />
+                            <CardTitle className="text-xl">Chat con el Conductor</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0 flex-1 flex flex-col">
+                            <Chat
+                            messages={chatMessages}
+                            onSendMessage={handleSendMessage}
+                            />
+                        </CardContent>
+                      </Card>
+                       <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" className="w-full">
+                              <X className="mr-2 h-4 w-4" /> Cancelar Viaje
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Seguro que quieres cancelar?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción podría afectar negativamente tu calificación como pasajero. ¿Aún deseas cancelar?
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>No, continuar viaje</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => setIsCancelReasonDialogOpen(true)}
+                              >
+                                Sí, cancelar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
 
-        {activeRide && activeRide.status === 'in-progress' && (
+        {activeRide && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
@@ -118,10 +322,33 @@ function RidePageContent() {
               <MessageSquare className="h-7 w-7 text-primary" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-full max-w-sm">
+          <SheetContent side="left" className="w-full max-w-sm p-0">
               <SupportChat />
           </SheetContent>
         </Sheet>
+
+         <Dialog
+          open={isCancelReasonDialogOpen}
+          onOpenChange={setIsCancelReasonDialogOpen}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>¿Por qué estás cancelando?</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2 py-4">
+              {appSettings?.cancellationReasons.map((reason) => (
+                <Button
+                  key={reason.code}
+                  variant="outline"
+                  className="w-full justify-start text-left h-auto py-3"
+                  onClick={() => handleCancelRide(reason)}
+                >
+                  {reason.reason}
+                </Button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
 
       </main>
       </div>
