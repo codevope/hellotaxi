@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -82,8 +83,8 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
       <Map
         mapId={mapId}
-        defaultCenter={center}
-        defaultZoom={zoom}
+        center={center}
+        zoom={zoom}
         gestureHandling="greedy"
         disableDefaultUI={false}
         onClick={handleClick}
@@ -104,3 +105,5 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
 };
 
 export default InteractiveMap;
+
+    

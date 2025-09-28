@@ -11,7 +11,7 @@ import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
 import { MapProvider } from '@/contexts/map-context';
 import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
-import { History, Car, Siren, LayoutDashboard, MessageCircle, MessageSquare } from 'lucide-react';
+import { History, Car, Siren, LayoutDashboard, MessageCircle, Bot, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
 import SupportChat from '@/components/support-chat';
 import { Loader2 } from 'lucide-react';
@@ -36,7 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { getSettings } from '@/services/settings-service';
 import Chat from '@/components/chat';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Star, X } from 'lucide-react';
+import { Star } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
@@ -51,7 +51,9 @@ function RidePageContent() {
   const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
   const [appSettings, setAppSettings] = useState<Awaited<ReturnType<typeof getSettings>> | null>(null);
   const [status, setStatus] = useState<'idle' | 'completed' | 'rating'>('idle');
-  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+  const [isRatingSubmitting, setIsSubmittingRating] = useState(false);
+  const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
+
 
   const { toast } = useToast();
   
@@ -172,16 +174,16 @@ function RidePageContent() {
             <div className="lg:col-span-2 flex flex-col min-h-0 rounded-xl overflow-hidden shadow-lg relative">
               <MapView activeRide={activeRide} />
 
-              {/* Floating Action Buttons within the Map */}
-              <Sheet>
+              {/* Floating Action Buttons */}
+              <Sheet open={isSupportChatOpen} onOpenChange={setIsSupportChatOpen}>
                 <SheetTrigger asChild>
                     <Button
-                    variant="outline"
-                    size="icon"
-                    className="absolute top-4 left-4 h-14 w-14 rounded-full shadow-lg border-2 border-primary/50 bg-background"
-                  >
-                    <MessageSquare className="h-7 w-7 text-primary" />
-                  </Button>
+                        variant="outline"
+                        size="icon"
+                        className="absolute top-4 left-4 h-14 w-14 rounded-full shadow-lg border-2 border-primary/50 bg-background"
+                    >
+                        <Bot className="h-7 w-7 text-primary" />
+                    </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-full max-w-sm p-0">
                     <SupportChat />
@@ -247,14 +249,13 @@ function RidePageContent() {
                   </Sheet>
                 </>
               )}
-
           </div>
    
         <Card className="shadow-lg">
           <CardContent className="p-0">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none">
-                <TabsTrigger value="book">
+                <TabsTrigger value="book" disabled={!!activeRide}>
                   <Car className="mr-2 h-4 w-4" /> Pedir Viaje
                 </TabsTrigger>
                 <TabsTrigger value="history">
@@ -263,7 +264,7 @@ function RidePageContent() {
               </TabsList>
 
               <TabsContent value="book" className="p-6">
-                {activeRide && assignedDriver ? (
+                 {activeRide && assignedDriver ? (
                   <Card className="border-0 shadow-none">
                     <CardHeader>
                       <CardTitle>¡Tu conductor está en camino!</CardTitle>
