@@ -276,6 +276,7 @@ export const notifications: Omit<Notification, 'id'>[] = [
         date: '2023-10-20T10:00:00Z',
         target: 'all-passengers',
         status: 'sent',
+        priority: 'normal'
     },
     {
         title: 'Actualización de App para Conductores',
@@ -283,6 +284,7 @@ export const notifications: Omit<Notification, 'id'>[] = [
         date: '2023-10-18T15:00:00Z',
         target: 'all-drivers',
         status: 'sent',
+        priority: 'high'
     }
 ];
 
@@ -324,12 +326,12 @@ export const coupons: Omit<Coupon, 'id'>[] = [
 
 
 // =.================================================================ //
-//                         SERVICE TYPES                             //
+//                         APP CONFIGURATION                         //
 // ================================================================= //
 export const serviceTypes: ServiceTypeConfig[] = [
-  { id: 'economy', name: 'Económico', description: 'Vehículos estándar para el día a día', multiplier: 1 },
-  { id: 'comfort', name: 'Confort', description: 'Vehículos más nuevos y espaciosos', multiplier: 1.5 },
-  { id: 'exclusive', name: 'Exclusivo', description: 'La mejor flota y los mejores conductores', multiplier: 2 },
+  { id: 'economy', name: 'Económico', description: 'Vehículos estándar para el día a día', multiplier: 1.0 },
+  { id: 'comfort', name: 'Confort', description: 'Vehículos más nuevos y espaciosos', multiplier: 1.3 },
+  { id: 'exclusive', name: 'Exclusivo', description: 'La mejor flota y los mejores conductores', multiplier: 1.8 },
 ];
 
 export const specialFareRules: Omit<SpecialFareRule, 'id'>[] = [

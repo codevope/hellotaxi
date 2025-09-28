@@ -12,7 +12,6 @@ import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
 import { doc, setDoc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import type { UserRole, User } from '@/lib/types';
-import { serviceTypes } from '@/lib/data';
 
 async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
   const userRef = doc(db, 'users', user.uid);
@@ -108,6 +107,12 @@ export function useAuth() {
           paymentModel: 'commission',
           membershipStatus: 'active',
           serviceType: 'economy',
+          documentStatus: {
+            license: 'pending',
+            insurance: 'pending',
+            technicalReview: 'pending',
+            backgroundCheck: 'pending'
+          }
         });
       }
       await batch.commit();

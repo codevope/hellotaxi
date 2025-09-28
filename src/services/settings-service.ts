@@ -1,8 +1,14 @@
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Settings, SpecialFareRule, PeakTimeRule, CancellationReason } from '@/lib/types';
+import type { Settings, SpecialFareRule, PeakTimeRule, CancellationReason, ServiceTypeConfig } from '@/lib/types';
 import { cache } from 'react';
-import { serviceTypes as defaultServiceTypes } from '@/lib/data';
+
+// Default service types as a fallback
+export const defaultServiceTypes: ServiceTypeConfig[] = [
+  { id: 'economy', name: 'Económico', description: 'Vehículos estándar para el día a día', multiplier: 1.0 },
+  { id: 'comfort', name: 'Confort', description: 'Vehículos más nuevos y espaciosos', multiplier: 1.3 },
+  { id: 'exclusive', name: 'Exclusivo', description: 'La mejor flota y los mejores conductores', multiplier: 1.8 },
+];
 
 // Default peak time rules as a fallback
 const defaultPeakTimeRules: PeakTimeRule[] = [
@@ -58,7 +64,8 @@ export const getSettings = cache(async (): Promise<Settings> => {
       return { 
           ...defaultSettings, 
           ...dbSettings, 
-          // Ensure peakTimeRules from DB overrides default if it exists
+          // Ensure nested arrays from DB override default if they exist
+          serviceTypes: dbSettings.serviceTypes || defaultSettings.serviceTypes,
           peakTimeRules: dbSettings.peakTimeRules || defaultSettings.peakTimeRules,
           cancellationReasons: dbSettings.cancellationReasons || defaultSettings.cancellationReasons,
           specialFareRules 
