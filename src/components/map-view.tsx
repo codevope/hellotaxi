@@ -4,16 +4,15 @@
 import React, { useState, useEffect } from 'react';
 import { useGeolocation } from '@/hooks/use-geolocation-improved';
 import type { Ride } from '@/lib/types';
-import { 
-  GoogleMapsProvider, 
-  InteractiveMap, 
+import {
+  GoogleMapsProvider,
+  InteractiveMap,
   MapMarker,
   RouteDisplay,
-  type Location 
+  type Location,
 } from './maps';
 import { GeocodingService } from '@/services/geocoding-service';
 import { useToast } from '@/hooks/use-toast';
-import { useMapStore } from '@/stores/map-store'; // Importando el store
 
 interface MapViewProps {
   onLocationSelect?: (location: Location, type: 'pickup' | 'dropoff') => void;
@@ -33,16 +32,9 @@ const MapView: React.FC<MapViewProps> = ({
   const { location: userLocation, requestLocation, loading } = useGeolocation();
   const { toast } = useToast();
   
-  // Usando el store de Zustand en lugar de estado local
-  const { 
-    pickupLocation,
-    dropoffLocation,
-    mapCenter,
-    setPickupLocation,
-    setDropoffLocation,
-    setUserLocation,
-  } = useMapStore();
-
+  const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
+  const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
+  const [mapCenter, setMapCenter] = useState<Location>({ lat: -12.046374, lng: -77.042793 }); // Default to Lima
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,12 +42,22 @@ const MapView: React.FC<MapViewProps> = ({
       requestLocation();
     }
     if (userLocation) {
-      setUserLocation({
-        coordinates: { lat: userLocation.latitude, lng: userLocation.longitude },
-        address: userLocation.address || 'Tu ubicación actual',
+      setMapCenter({
+        lat: userLocation.latitude,
+        lng: userLocation.longitude,
       });
     }
-  }, [userLocation, loading, requestLocation, setUserLocation]);
+  }, [userLocation, loading, requestLocation]);
+
+  useEffect(() => {
+    // When a location is selected, center the map on it
+    if(pickupLocation && !dropoffLocation) {
+        setMapCenter(pickupLocation);
+    } else if (dropoffLocation) {
+        setMapCenter(dropoffLocation);
+    }
+  }, [pickupLocation, dropoffLocation]);
+
 
   const userPos: Location | undefined = userLocation ? {
     lat: userLocation.latitude,
@@ -69,18 +71,22 @@ const MapView: React.FC<MapViewProps> = ({
     try {
         const geocoded = await GeocodingService.reverseGeocode(location.lat, location.lng);
         const mapLocation = {
-            coordinates: { lat: geocoded.lat, lng: geocoded.lng },
+            lat: geocoded.lat,
+            lng: geocoded.lng,
             address: geocoded.formattedAddress,
-            placeId: geocoded.placeId,
         };
 
         if (!pickupLocation) {
             setPickupLocation(mapLocation);
+            if(onLocationSelect) onLocationSelect(mapLocation, 'pickup');
+
         } else if (!dropoffLocation) {
             setDropoffLocation(mapLocation);
+            if(onLocationSelect) onLocationSelect(mapLocation, 'dropoff');
         } else {
              setDropoffLocation(null);
              setPickupLocation(mapLocation);
+             if(onLocationSelect) onLocationSelect(mapLocation, 'pickup');
         }
 
     } catch (error) {
@@ -92,7 +98,8 @@ const MapView: React.FC<MapViewProps> = ({
         });
         
         const fallbackLocation = {
-          coordinates: { lat: location.lat, lng: location.lng },
+          lat: location.lat,
+          lng: location.lng,
           address: `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`
         };
         if (!pickupLocation) {
@@ -107,10 +114,6 @@ const MapView: React.FC<MapViewProps> = ({
     setSelectedMarker(selectedMarker === type ? null : type);
   };
   
-  const pickupLocationForMarker: Location | undefined = pickupLocation ? { ...pickupLocation.coordinates, address: pickupLocation.address } : undefined;
-  const dropoffLocationForMarker: Location | undefined = dropoffLocation ? { ...dropoffLocation.coordinates, address: dropoffLocation.address } : undefined;
-
-
   return (
     <GoogleMapsProvider>
       <div className={`relative ${className}`} style={{ minHeight: height }}>
@@ -130,9 +133,9 @@ const MapView: React.FC<MapViewProps> = ({
             />
           )}
 
-          {pickupLocationForMarker && (
+          {pickupLocation && (
             <MapMarker
-              position={pickupLocationForMarker}
+              position={pickupLocation}
               type="pickup"
               showInfoWindow={selectedMarker === 'pickup'}
               onClick={() => handleMarkerClick('pickup')}
@@ -140,9 +143,9 @@ const MapView: React.FC<MapViewProps> = ({
             />
           )}
 
-          {dropoffLocationForMarker && (
+          {dropoffLocation && (
             <MapMarker
-              position={dropoffLocationForMarker}
+              position={dropoffLocation}
               type="dropoff"
               showInfoWindow={selectedMarker === 'dropoff'}
               onClick={() => handleMarkerClick('dropoff')}
@@ -150,10 +153,10 @@ const MapView: React.FC<MapViewProps> = ({
             />
           )}
 
-          {pickupLocationForMarker && dropoffLocationForMarker && (
+          {pickupLocation && dropoffLocation && (
             <RouteDisplay
-              origin={pickupLocationForMarker}
-              destination={dropoffLocationForMarker}
+              origin={pickupLocation}
+              destination={dropoffLocation}
               onRouteCalculated={(route) => {
                 
               }}

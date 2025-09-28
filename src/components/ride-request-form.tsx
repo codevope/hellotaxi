@@ -64,6 +64,7 @@ import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
 import { LocationPicker, type Location, InteractiveMap } from '@/components/maps';
 import { Label } from './ui/label';
 import Image from 'next/image';
+import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
   pickup: z.string().min(5, 'Por favor, introduce una ubicación de recojo válida.'),
