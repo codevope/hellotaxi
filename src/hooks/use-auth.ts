@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useContext, useEffect } from 'react';
@@ -14,6 +15,7 @@ import {
   updateProfile,
   fetchSignInMethodsForEmail,
   linkWithCredential,
+  EmailAuthProvider,
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
@@ -105,15 +107,26 @@ export function useAuth() {
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
-        await createUserWithEmailAndPassword(auth, email, password);
+      // Check if the user is already signed in with a different provider
+      if (auth.currentUser && auth.currentUser.email === email) {
+        // User is already signed in (e.g., with Google), so link the new credential
+        const credential = EmailAuthProvider.credential(email, password);
+        await linkWithCredential(auth.currentUser, credential);
+        return; // Early return on successful link
+      }
+
+      // If not signed in, or different email, attempt to create a new user
+      await createUserWithEmailAndPassword(auth, email, password);
+
     } catch (error: any) {
-        console.error('Error signing up with email', error);
-         if (error.code === 'auth/email-already-in-use') {
-            throw new Error('Este correo electrónico ya está en uso. Por favor, intenta iniciar sesión o utiliza otro correo.');
-        }
-        throw error;
+      console.error('Error signing up with email', error);
+      if (error.code === 'auth/email-already-in-use') {
+        throw new Error('Este correo electrónico ya está en uso. Por favor, intenta iniciar sesión o utiliza otro correo.');
+      }
+      throw error; // Rethrow other errors
     }
   };
+
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
