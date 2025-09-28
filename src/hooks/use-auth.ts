@@ -16,6 +16,8 @@ import {
   fetchSignInMethodsForEmail,
   linkWithCredential,
   EmailAuthProvider,
+  PhoneAuthProvider,
+  updatePassword,
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
@@ -33,24 +35,24 @@ async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
       name: name,
       email: user.email || '',
       avatarUrl: user.photoURL || '/img/avatar.png',
-      role: 'passenger', // Default role
+      role: 'passenger',
       signupDate: new Date().toISOString(),
       totalRides: 0,
-      rating: 5.0, // Initial rating for new users
+      rating: 5.0,
       phone: user.phoneNumber || '',
       address: '',
-      isAdmin: false, // Default to not admin
+      isAdmin: false,
+      status: 'incomplete', // Perfil incompleto hasta que se vinculen todos los métodos
     };
     await setDoc(userRef, newUser);
 
-    // Update Firebase Auth profile if display name is missing
     if (!user.displayName) {
         await updateProfile(user, { displayName: name });
     }
 
     return newUser;
   }
-  // If user exists, just return their data
+  
   return { id: userDoc.id, ...userDoc.data() } as User;
 }
 
@@ -79,25 +81,15 @@ export function useAuth() {
     try {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-        // Handle cases where the user's email is already associated with an email/password account.
         if (error.code === 'auth/account-exists-with-different-credential' && error.customData.email) {
             const email = error.customData.email;
             const credential = GoogleAuthProvider.credentialFromError(error);
-
-            // Get sign-in methods for this email.
             const methods = await fetchSignInMethodsForEmail(auth, email);
 
-            // If the user has a password account, you could prompt them to sign in with their password
-            // and then link the Google account. For a smoother experience, we can try to link automatically
-            // if the user is already signed in (which they won't be in this flow).
-            // For now, we'll guide the user.
-            if (methods.includes('password')) {
-                throw new Error('Ya tienes una cuenta con este correo. Por favor, inicia sesión con tu contraseña para vincular tu cuenta de Google.');
-            } else if (credential) {
-                // For other providers like phone, we can attempt to link if we have a current user.
-                // This part of the logic is complex and usually requires a signed-in user.
-                // For now, we provide a generic error.
-                throw new Error('Ocurrió un error al intentar vincular tu cuenta de Google. Intenta de nuevo.');
+            if (methods.includes('password') && auth.currentUser) {
+                // Si el usuario ya está autenticado (aunque sea anónimamente), podemos intentar vincular.
+                // Sin embargo, este flujo es más complejo. Por ahora, guiamos al usuario.
+                throw new Error('Ya tienes una cuenta con este correo. Inicia sesión con tu contraseña para vincular Google.');
             }
         }
       console.error('Error signing in with Google', error);
@@ -107,23 +99,20 @@ export function useAuth() {
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
-      // Check if the user is already signed in with a different provider
       if (auth.currentUser && auth.currentUser.email === email) {
-        // User is already signed in (e.g., with Google), so link the new credential
         const credential = EmailAuthProvider.credential(email, password);
         await linkWithCredential(auth.currentUser, credential);
-        return; // Early return on successful link
+        return;
       }
 
-      // If not signed in, or different email, attempt to create a new user
       await createUserWithEmailAndPassword(auth, email, password);
 
     } catch (error: any) {
       console.error('Error signing up with email', error);
       if (error.code === 'auth/email-already-in-use') {
-        throw new Error('Este correo electrónico ya está en uso. Por favor, intenta iniciar sesión o utiliza otro correo.');
+        throw new Error('Este correo electrónico ya está en uso. Por favor, inicia sesión o utiliza otro correo.');
       }
-      throw error; // Rethrow other errors
+      throw error;
     }
   };
 
@@ -137,16 +126,14 @@ export function useAuth() {
     }
   };
 
-  const signInWithPhone = async (phoneNumber: string) => {
-    try {
-      const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          'size': 'invisible',
-      });
+  const setupRecaptcha = (containerId: string) => {
+    return new RecaptchaVerifier(auth, containerId, {
+      'size': 'invisible',
+    });
+  };
+
+  const signInWithPhone = async (phoneNumber: string, recaptchaVerifier: RecaptchaVerifier) => {
       return await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
-    } catch (error) {
-      console.error('Error signing in with phone', error);
-      throw error;
-    }
   };
 
 
@@ -168,14 +155,12 @@ export function useAuth() {
       const driverDoc = await getDoc(driverRef);
       const batch = writeBatch(db);
 
-      // Update user role
       batch.update(userRef, { role: 'driver' });
       
-      // If driver profile doesn't exist, create it.
       if (!driverDoc.exists()) {
         batch.set(driverRef, {
           name: firebaseUser.displayName,
-          avatarUrl: firebaseUser.photoURL,
+          avatarUrl: firebaseUser.photoURL || '/img/avatar.png',
           rating: 0,
           vehicleBrand: 'Por Asignar',
           vehicleModel: 'Por Asignar',
@@ -203,11 +188,52 @@ export function useAuth() {
     } else if (newRole === 'passenger') {
       await updateDoc(userRef, { role: 'passenger' });
     }
-    // Re-fetch user profile to update context
     if(appUser){
         setAppUser({...appUser, role: newRole});
     }
   };
+
+  const checkAndCompleteProfile = async () => {
+    if (!firebaseUser) return;
+    
+    const providers = firebaseUser.providerData.map(p => p.providerId);
+    const hasGoogle = providers.includes('google.com');
+    const hasEmail = providers.includes('password');
+    const hasPhone = providers.includes('phone');
+
+    if (hasGoogle && hasEmail && hasPhone) {
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      await updateDoc(userRef, { status: 'active' });
+      if (appUser) {
+        setAppUser({ ...appUser, status: 'active' });
+      }
+    }
+  };
+
+  const linkGoogleAccount = async () => {
+    if (!firebaseUser) throw new Error('Usuario no autenticado.');
+    const provider = new GoogleAuthProvider();
+    try {
+      await linkWithCredential(firebaseUser, await signInWithPopup(auth, provider).then(result => GoogleAuthProvider.credentialFromResult(result)!));
+      await checkAndCompleteProfile();
+    } catch (error: any) {
+      console.error("Error linking Google Account:", error);
+      throw new Error("No se pudo vincular la cuenta de Google. Puede que ya esté en uso.");
+    }
+  };
+
+  const linkPhoneNumber = async (confirmationResult: any, otp: string) => {
+    if (!firebaseUser) throw new Error('Usuario no autenticado.');
+    const credential = PhoneAuthProvider.credential(confirmationResult.verificationId, otp);
+    await linkWithCredential(firebaseUser, credential);
+    await checkAndCompleteProfile();
+  };
+
+  const setPasswordForUser = async (newPassword: string) => {
+    if (!firebaseUser) throw new Error('Usuario no autenticado.');
+    await updatePassword(firebaseUser, newPassword);
+    await checkAndCompleteProfile();
+  }
 
 
   return { 
@@ -218,6 +244,10 @@ export function useAuth() {
       updateUserRole,
       signInWithEmail,
       signUpWithEmail,
-      signInWithPhone
+      signInWithPhone,
+      setupRecaptcha,
+      linkGoogleAccount,
+      linkPhoneNumber,
+      setPasswordForUser
     };
 }

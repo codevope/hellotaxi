@@ -1,0 +1,185 @@
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/use-auth';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
+import { Button } from './ui/button';
+import { GoogleIcon } from './google-icon';
+import { CheckCircle, Loader2, Mail, Phone, Lock } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+
+export default function IncompleteProfile() {
+  const { user, linkGoogleAccount, setupRecaptcha, signInWithPhone, linkPhoneNumber, setPasswordForUser } = useAuth();
+  const { toast } = useToast();
+  
+  const [loading, setLoading] = useState<'google' | 'phone' | 'password' | null>(null);
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState<any>(null);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  useEffect(() => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = setupRecaptcha('recaptcha-container');
+    }
+  }, [setupRecaptcha]);
+
+  const hasGoogle = user?.providerData.some(p => p.providerId === 'google.com');
+  const hasPhone = user?.providerData.some(p => p.providerId === 'phone');
+  const hasPassword = user?.providerData.some(p => p.providerId === 'password');
+
+  const handleLinkGoogle = async () => {
+    setLoading('google');
+    try {
+      await linkGoogleAccount();
+      toast({ title: '¡Cuenta de Google Vinculada!' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error al vincular Google', description: error.message });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleSendOtp = async () => {
+    setLoading('phone');
+    try {
+      const fullPhoneNumber = `+51${phone}`;
+      const result = await signInWithPhone(fullPhoneNumber, window.recaptchaVerifier);
+      setConfirmationResult(result);
+      toast({ title: 'Código de verificación enviado', description: 'Revisa tus mensajes SMS.' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error con el número', description: error.message });
+    } finally {
+      setLoading(null);
+    }
+  };
+  
+  const handleVerifyOtp = async () => {
+    if (!confirmationResult) return;
+    setLoading('phone');
+    try {
+      await linkPhoneNumber(confirmationResult, otp);
+      toast({ title: '¡Teléfono Verificado y Vinculado!' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error en la verificación', description: 'El código OTP no es válido.' });
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  const handleSetPassword = async () => {
+    if (password !== confirmPassword) {
+      toast({ variant: 'destructive', title: 'Las contraseñas no coinciden' });
+      return;
+    }
+    if (password.length < 6) {
+      toast({ variant: 'destructive', title: 'La contraseña debe tener al menos 6 caracteres' });
+      return;
+    }
+    setLoading('password');
+    try {
+      await setPasswordForUser(password);
+      toast({ title: '¡Contraseña establecida!' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error al establecer contraseña', description: error.message });
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  const renderStep = ({ completed, title, description, button, content }: { completed: boolean, title: string, description: string, button?: React.ReactNode, content?: React.ReactNode }) => (
+    <div className="flex gap-4">
+      <div>
+        {completed ? (
+          <CheckCircle className="h-8 w-8 text-green-500" />
+        ) : (
+          <div className="h-8 w-8 rounded-full border-2 border-dashed border-muted-foreground" />
+        )}
+      </div>
+      <div className="flex-1 pb-6 border-l-2 border-dashed ml-4 pl-8">
+        <h3 className="font-semibold">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+        {!completed && (button || content)}
+      </div>
+    </div>
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Completa tu Perfil de Autenticación</CardTitle>
+        <CardDescription>Para activar todas las funciones de tu cuenta, por favor completa los siguientes pasos.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {renderStep({
+          completed: !!hasPassword,
+          title: 'Establecer Contraseña',
+          description: 'Crea una contraseña para poder iniciar sesión con tu correo electrónico.',
+          content: (
+            <div className="space-y-2 mt-4">
+              <Label htmlFor="password">Nueva Contraseña</Label>
+              <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
+              <Label htmlFor="confirm-password">Confirmar Contraseña</Label>
+              <Input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
+              <Button onClick={handleSetPassword} disabled={loading === 'password'} className="mt-2">
+                {loading === 'password' ? <Loader2 className="animate-spin" /> : <Lock />}
+                Establecer Contraseña
+              </Button>
+            </div>
+          )
+        })}
+        {renderStep({
+          completed: !!hasGoogle,
+          title: 'Vincular Cuenta de Google',
+          description: 'Conecta tu cuenta de Google para un inicio de sesión rápido y seguro.',
+          button: (
+            <Button onClick={handleLinkGoogle} disabled={loading === 'google'} className="mt-4">
+              {loading === 'google' ? <Loader2 className="animate-spin" /> : <GoogleIcon />}
+              Vincular con Google
+            </Button>
+          )
+        })}
+         {renderStep({
+          completed: !!hasPhone,
+          title: 'Verificar Número de Teléfono',
+          description: 'Añade tu teléfono para una capa extra de seguridad y para que los conductores puedan contactarte.',
+          content: (
+            <div className="space-y-4 mt-4">
+              {!confirmationResult ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 border rounded-l-md bg-muted text-muted-foreground text-sm">+51</span>
+                    <Input type="tel" placeholder="987654321" value={phone} onChange={e => setPhone(e.target.value)} className="rounded-l-none" />
+                  </div>
+                  <Button onClick={handleSendOtp} disabled={loading === 'phone' || phone.length < 9}>
+                    {loading === 'phone' ? <Loader2 className="animate-spin" /> : <Phone />}
+                    Enviar Código
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Input type="text" placeholder="Ingresa el código OTP" value={otp} onChange={e => setOtp(e.target.value)} />
+                  <Button onClick={handleVerifyOtp} disabled={loading === 'phone' || otp.length < 6}>
+                     {loading === 'phone' ? <Loader2 className="animate-spin" /> : <CheckCircle />}
+                    Verificar
+                  </Button>
+                </>
+              )}
+            </div>
+          )
+        })}
+      </CardContent>
+      <div id="recaptcha-container"></div>
+    </Card>
+  );
+}
+
+declare global {
+    interface Window {
+        recaptchaVerifier: any;
+    }
+}

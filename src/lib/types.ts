@@ -51,7 +51,7 @@ export interface User {
   rating: number; // Passenger rating
   phone?: string;
   address?: string;
-  status?: 'active' | 'blocked';
+  status?: 'active' | 'blocked' | 'incomplete';
   isAdmin?: boolean;
 }
 

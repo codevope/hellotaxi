@@ -35,8 +35,8 @@ import { useEffect, useState } from 'react';
 import type { User as AppUser } from '@/lib/types';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { useRouter } from 'next/navigation';
-import { GoogleIcon } from '@/components/google-icon';
 import Link from 'next/link';
+import IncompleteProfile from '@/components/incomplete-profile';
 
 const profileSchema = z.object({
   displayName: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
@@ -47,13 +47,12 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 function ProfilePageContent() {
-  const { user, loading: authLoading, updateUserRole } = useAuth();
+  const { user, appUser, loading: authLoading, updateUserRole } = useAuth();
   const { isDriver } = useDriverAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [userData, setUserData] = useState<AppUser | null>(null);
-
+  
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -64,26 +63,17 @@ function ProfilePageContent() {
   });
 
   useEffect(() => {
-    if (user) {
-      const fetchUserData = async () => {
-        const userDocRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userDocRef);
-        if (userSnap.exists()) {
-          const fetchedData = userSnap.data() as AppUser;
-          setUserData(fetchedData);
-          form.reset({
-            displayName: fetchedData.name,
-            phone: fetchedData.phone || '',
-            address: fetchedData.address || '',
-          });
-        }
-      };
-      fetchUserData();
+    if (appUser) {
+      form.reset({
+        displayName: appUser.name,
+        phone: appUser.phone || '',
+        address: appUser.address || '',
+      });
     }
-  }, [user, form]);
+  }, [appUser, form]);
   
 
-  if (authLoading || !userData) {
+  if (authLoading || !appUser) {
      return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -103,7 +93,6 @@ function ProfilePageContent() {
 
     const userRef = doc(db, 'users', user.uid);
     try {
-      // Usamos setDoc con merge:true para actualizar o crear campos sin sobreescribir el documento entero.
       await setDoc(userRef, {
         name: data.displayName,
         phone: data.phone,
@@ -114,7 +103,7 @@ function ProfilePageContent() {
         title: '¡Perfil Actualizado!',
         description: 'Tu información ha sido guardada correctamente.',
       });
-      form.reset(data, { keepValues: true }); // Resetea el estado 'dirty'
+      form.reset(data, { keepValues: true });
     } catch (error) {
       console.error('Error updating profile:', error);
       toast({
@@ -135,7 +124,6 @@ function ProfilePageContent() {
         title: '¡Rol actualizado!',
         description: 'Has vuelto a ser un pasajero. Tus funciones de conductor están desactivadas.',
       });
-      // Forzar una recarga para que los hooks se actualicen.
       router.refresh();
     } catch (error) {
       console.error('Error reverting to passenger:', error);
@@ -153,147 +141,150 @@ function ProfilePageContent() {
     <div className="flex flex-col min-h-screen bg-secondary/30">
       <AppHeader />
       <main className="flex-1 p-4 sm:p-8">
-        <Form {...form}>
-          <div className="max-w-4xl mx-auto space-y-8">
-            <form onSubmit={form.handleSubmit(onSubmit)}>
-              <Card className="overflow-hidden shadow-lg">
-                <CardHeader className="bg-card p-6 border-b">
-                  <div className="flex items-center gap-6">
-                    <Avatar className="h-24 w-24 border-4 border-primary">
-                      <AvatarImage
-                        src={user.photoURL || ''}
-                        alt={user.displayName || ''}
+        <div className="max-w-4xl mx-auto space-y-8">
+          {appUser.status === 'incomplete' ? (
+            <IncompleteProfile />
+          ) : (
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)}>
+                <Card className="overflow-hidden shadow-lg">
+                  <CardHeader className="bg-card p-6 border-b">
+                    <div className="flex items-center gap-6">
+                      <Avatar className="h-24 w-24 border-4 border-primary">
+                        <AvatarImage
+                          src={user?.photoURL || ''}
+                          alt={user?.displayName || ''}
+                        />
+                        <AvatarFallback className="text-3xl">
+                          {form.watch('displayName')?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <CardTitle className="text-3xl font-bold font-headline">
+                          Mi Perfil
+                        </CardTitle>
+                        <CardDescription className="text-lg text-muted-foreground">
+                          Administra tu información personal y tus preferencias.
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-6 grid md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <h3 className="text-xl font-semibold flex items-center gap-2">
+                        <User className="text-primary" />
+                        <span>Información Personal</span>
+                      </h3>
+
+                      <FormField
+                        control={form.control}
+                        name="displayName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nombre Completo</FormLabel>
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                      <AvatarFallback className="text-3xl">
-                        {form.watch('displayName')?.charAt(0) || user.email?.charAt(0) || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <CardTitle className="text-3xl font-bold font-headline">
-                        Mi Perfil
-                      </CardTitle>
-                      <CardDescription className="text-lg text-muted-foreground">
-                        Administra tu información personal y tus preferencias.
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6 grid md:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <h3 className="text-xl font-semibold flex items-center gap-2">
-                      <User className="text-primary" />
-                      <span>Información Personal</span>
-                    </h3>
 
-                    <FormField
-                      control={form.control}
-                      name="displayName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nombre Completo</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Teléfono</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                  <Input {...field} placeholder="Ej: +51 987654321" className="pl-10" />
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                     <FormField
-                      control={form.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Teléfono</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input {...field} placeholder="Ej: +51 987654321" className="pl-10" />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={form.control}
+                        name="address"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Dirección</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                  <Home className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                  <Input {...field} placeholder="Ej: Av. Principal 123" className="pl-10"/>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={form.control}
-                      name="address"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Dirección</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                                <Home className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input {...field} placeholder="Ej: Av. Principal 123" className="pl-10"/>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="space-y-2 pt-4">
-                        <div className="flex items-center gap-3">
-                            <Mail className="h-5 w-5 text-muted-foreground" />
-                            <span>{user.email} (no se puede cambiar)</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Calendar className="h-5 w-5 text-muted-foreground" />
-                            <span>Miembro desde {registrationDate}</span>
-                        </div>
-                    </div>
-
-                  </div>
-                  <div className="space-y-4">
-                    <h3 className="text-xl font-semibold flex items-center gap-2">
-                      <BarChart className="text-primary" />
-                      <span>Estadísticas</span>
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 bg-muted rounded-lg text-center">
-                        <p className="text-4xl font-bold">{userData.totalRides || 0}</p>
-                        <p className="text-muted-foreground">Viajes Totales</p>
+                      <div className="space-y-2 pt-4">
+                          <div className="flex items-center gap-3">
+                              <Mail className="h-5 w-5 text-muted-foreground" />
+                              <span>{user?.email} (no se puede cambiar)</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                              <Calendar className="h-5 w-5 text-muted-foreground" />
+                              <span>Miembro desde {registrationDate}</span>
+                          </div>
                       </div>
-                      <div className="p-4 bg-muted rounded-lg text-center">
-                        <p className="text-4xl font-bold flex items-center justify-center gap-1">
-                            <Star className="h-8 w-8 text-yellow-400 fill-yellow-400" />
-                            {(userData.rating || 0).toFixed(1)}
-                        </p>
-                        <p className="text-muted-foreground">Tu Calificación</p>
+
+                    </div>
+                    <div className="space-y-4">
+                      <h3 className="text-xl font-semibold flex items-center gap-2">
+                        <BarChart className="text-primary" />
+                        <span>Estadísticas</span>
+                      </h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-muted rounded-lg text-center">
+                          <p className="text-4xl font-bold">{appUser.totalRides || 0}</p>
+                          <p className="text-muted-foreground">Viajes Totales</p>
+                        </div>
+                        <div className="p-4 bg-muted rounded-lg text-center">
+                          <p className="text-4xl font-bold flex items-center justify-center gap-1">
+                              <Star className="h-8 w-8 text-yellow-400 fill-yellow-400" />
+                              {(appUser.rating || 0).toFixed(1)}
+                          </p>
+                          <p className="text-muted-foreground">Tu Calificación</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-                 <CardFooter className="bg-card border-t p-6">
-                    <Button type="submit" disabled={isSubmitting || !form.formState.isDirty}>
-                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        <Save className="mr-2" />
-                        Guardar Cambios
-                    </Button>
-                 </CardFooter>
-              </Card>
-            </form>
+                  </CardContent>
+                  <CardFooter className="bg-card border-t p-6">
+                      <Button type="submit" disabled={isSubmitting || !form.formState.isDirty}>
+                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          <Save className="mr-2" />
+                          Guardar Cambios
+                      </Button>
+                  </CardFooter>
+                </Card>
+              </form>
+            </Form>
+          )}
 
-            {isDriver && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Gestión de Rol de Conductor</CardTitle>
-                  <CardDescription>
-                    Si ya no deseas conducir, puedes desactivar temporalmente tu rol de conductor. Tu información y verificaciones se mantendrán para cuando decidas volver.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button variant="outline" onClick={handleRevertToPassenger} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />}
-                    Volver a ser solo Pasajero
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-          </div>
-        </Form>
+          {isDriver && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Gestión de Rol de Conductor</CardTitle>
+                <CardDescription>
+                  Si ya no deseas conducir, puedes desactivar temporalmente tu rol de conductor. Tu información y verificaciones se mantendrán para cuando decidas volver.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="outline" onClick={handleRevertToPassenger} disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />}
+                  Volver a ser solo Pasajero
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </main>
     </div>
   );
