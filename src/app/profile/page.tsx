@@ -28,7 +28,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
@@ -36,6 +36,7 @@ import type { User as AppUser } from '@/lib/types';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import IncompleteProfile from '@/components/incomplete-profile';
 
 const profileSchema = z.object({
   displayName: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
@@ -46,7 +47,7 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 function ProfilePageContent() {
-  const { user, appUser, loading: authLoading, updateUserRole } = useAuth();
+  const { user, appUser, loading: authLoading, updateUserRole, setAppUser } = useAuth();
   const { isDriver } = useDriverAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -80,6 +81,17 @@ function ProfilePageContent() {
     );
   }
 
+  if (appUser.status === 'incomplete') {
+    return (
+        <div className="flex flex-col min-h-screen bg-secondary/30">
+            <AppHeader />
+            <main className="flex-1 p-4 sm:p-8">
+                <IncompleteProfile user={user!} appUser={appUser} setAppUser={setAppUser} />
+            </main>
+        </div>
+    )
+  }
+
   const registrationDate = user?.metadata.creationTime
     ? format(new Date(user.metadata.creationTime), "MMMM 'de' yyyy", {
         locale: es,
@@ -102,6 +114,8 @@ function ProfilePageContent() {
         title: '¡Perfil Actualizado!',
         description: 'Tu información ha sido guardada correctamente.',
       });
+      // Optimistically update local state
+      setAppUser(prev => prev ? {...prev, name: data.displayName, phone: data.phone, address: data.address} : null);
       form.reset(data, { keepValues: true });
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -325,3 +339,5 @@ export default function ProfilePage() {
 
   return <ProfilePageContent />;
 }
+
+    

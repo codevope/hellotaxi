@@ -16,6 +16,8 @@ import {
   fetchSignInMethodsForEmail,
   linkWithCredential,
   EmailAuthProvider,
+  PhoneAuthProvider,
+  ConfirmationResult,
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
@@ -40,12 +42,15 @@ async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
       phone: user.phoneNumber || '',
       address: '',
       isAdmin: false,
-      status: 'active',
+      status: 'incomplete', // Start as incomplete
     };
     await setDoc(userRef, newUser);
 
-    if (!user.displayName) {
-        await updateProfile(user, { displayName: name });
+    if (!user.displayName || !user.photoURL) {
+        await updateProfile(user, { 
+            displayName: name,
+            photoURL: user.photoURL || '/img/avatar.png' 
+        });
     }
 
     return newUser;
@@ -106,27 +111,27 @@ export function useAuth() {
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
-      const methods = await fetchSignInMethodsForEmail(auth, email);
-      
-      if (auth.currentUser && auth.currentUser.email === email) {
-        // User is already logged in with a different provider (e.g. Google), link the new one
-        const credential = EmailAuthProvider.credential(email, password);
-        await linkWithCredential(auth.currentUser, credential);
-        return;
-      }
-      
-      if (methods.length > 0) {
-        throw new Error('Este correo electrónico ya está en uso. Por favor, inicia sesión o utiliza otro correo.');
-      }
-      
       await createUserWithEmailAndPassword(auth, email, password);
-
     } catch (error: any) {
       console.error('Error signing up with email', error);
       if (error.code === 'auth/email-already-in-use') {
         throw new Error('Este correo electrónico ya está en uso. Por favor, inicia sesión o utiliza otro correo.');
       }
       throw error;
+    }
+  };
+
+  const setPasswordForUser = async (password: string) => {
+    if (!auth.currentUser) throw new Error("No hay un usuario autenticado.");
+    const credential = EmailAuthProvider.credential(auth.currentUser.email!, password);
+    try {
+        await linkWithCredential(auth.currentUser, credential);
+    } catch (error: any) {
+        console.error("Error setting password", error);
+        if (error.code === 'auth/credential-already-in-use') {
+            throw new Error("Esta cuenta ya tiene una contraseña o está vinculada a otro usuario.");
+        }
+        throw error;
     }
   };
 
@@ -140,28 +145,67 @@ export function useAuth() {
     }
   };
 
-  const setupRecaptcha = (containerId: string, callback: () => void) => {
+  const setupRecaptcha = (containerId: string) => {
     if (window.recaptchaVerifier) {
-      window.recaptchaVerifier.clear();
+        window.recaptchaVerifier.clear();
     }
     const verifier = new RecaptchaVerifier(auth, containerId, {
-      'size': 'normal', // Use normal, visible reCAPTCHA
-      'callback': callback, // Callback when reCAPTCHA is solved
+      'size': 'invisible',
     });
     window.recaptchaVerifier = verifier;
-    verifier.render(); // Render the reCAPTCHA widget
     return verifier;
   };
 
-  const signInWithPhone = async (phoneNumber: string) => {
+  const signInWithPhone = async (phoneNumber: string): Promise<ConfirmationResult> => {
       const verifier = window.recaptchaVerifier;
       if (!verifier) {
           throw new Error('Recaptcha verifier not initialized.');
       }
-      // The verification is now handled by the reCAPTCHA callback,
-      // this function just needs to be called after that.
       return await signInWithPhoneNumber(auth, phoneNumber, verifier);
   };
+  
+  const linkGoogleAccount = async () => {
+    if (!auth.currentUser) throw new Error("No hay un usuario autenticado.");
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      // This is a simplified flow. A real app would handle merging user data.
+      console.log("Google account linked!", result.user);
+    } catch (error: any) {
+      console.error("Error linking Google account", error);
+      if (error.code === 'auth/credential-already-in-use') {
+        throw new Error("Esta cuenta de Google ya está vinculada a otro usuario.");
+      }
+      throw error;
+    }
+  };
+
+  const linkPhoneNumber = async (phoneNumber: string, confirmationResult: ConfirmationResult, otp: string) => {
+    if (!auth.currentUser) throw new Error("No hay un usuario autenticado.");
+    const credential = PhoneAuthProvider.credential(confirmationResult.verificationId, otp);
+    await linkWithCredential(auth.currentUser, credential);
+    
+    // Also save the phone number to Firestore user profile
+    const userRef = doc(db, 'users', auth.currentUser.uid);
+    await updateDoc(userRef, { phone: phoneNumber });
+  };
+  
+  const checkAndCompleteProfile = async (uid: string) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    
+    const hasEmail = user.providerData.some(p => p.providerId === 'password');
+    const hasGoogle = user.providerData.some(p => p.providerId === 'google.com');
+    const hasPhone = user.providerData.some(p => p.providerId === 'phone');
+
+    if (hasEmail && hasGoogle && hasPhone) {
+        const userRef = doc(db, 'users', uid);
+        await updateDoc(userRef, { status: 'active' });
+        // Refresh appUser state
+        const updatedUserDoc = await getDoc(userRef);
+        setAppUser(updatedUserDoc.data() as User);
+    }
+  }
 
 
   const signOut = async () => {
@@ -230,6 +274,10 @@ export function useAuth() {
       signUpWithEmail,
       signInWithPhone,
       setupRecaptcha,
+      setPasswordForUser,
+      linkGoogleAccount,
+      linkPhoneNumber,
+      checkAndCompleteProfile
     };
 }
 
@@ -238,3 +286,5 @@ declare global {
         recaptchaVerifier?: RecaptchaVerifier;
     }
 }
+
+    

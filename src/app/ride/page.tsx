@@ -72,7 +72,7 @@ function RidePageContent() {
 
   // Listener for active ride changes
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) return;
     
     let unsubscribe: () => void;
 
@@ -104,7 +104,8 @@ function RidePageContent() {
                     }
                     setStatus('assigned');
                     
-                    const pLoc = pickupLocation || { lat: -12.05, lng: -77.05 };
+                    const pLoc = pickupLocation || { lat: -12.05, lng: -77.05, address: rideData.pickup };
+                    const dLoc = dropoffLocation || { lat: -12.10, lng: -77.03, address: rideData.dropoff };
                     const driverInitialPos = { lat: -12.045, lng: -77.03 };
 
                     if (rideData.status === 'accepted' && previousStatus !== 'accepted') {
@@ -112,9 +113,9 @@ function RidePageContent() {
                       startSimulation(driverInitialPos, pLoc);
                     } else if (rideData.status === 'arrived' && previousStatus !== 'arrived') {
                       toast({ title: '¡Tu conductor ha llegado!', description: 'Por favor, acércate al punto de recojo.'});
-                    } else if (rideData.status === 'in-progress' && pickupLocation && dropoffLocation) {
+                    } else if (rideData.status === 'in-progress') {
                        if(previousStatus !== 'in-progress') toast({ title: '¡Viaje iniciado!', description: 'Que tengas un buen viaje.'});
-                       startSimulation(pickupLocation, dropoffLocation);
+                       startSimulation(pLoc, dLoc);
                     }
                  }
             } else {
@@ -125,14 +126,13 @@ function RidePageContent() {
             const completedQuery = query(
                 collection(db, 'rides'),
                 where('passenger', '==', doc(db, 'users', user.uid)),
-                where('status', '==', 'completed')
+                where('status', '==', 'completed'),
+                where('isRatedByPassenger', '==', false)
             );
             const completedSnapshot = await getDocs(completedQuery);
-            // This is a simplified check. A real app would use a specific 'isRated' flag.
-            const unratedRides = completedSnapshot.docs.filter(d => !(d.data() as any).isRatedByPassenger);
 
-            if (unratedRides.length > 0) {
-                const rideToRateData = { id: unratedRides[0].id, ...unratedRides[0].data() } as Ride;
+            if (!completedSnapshot.empty) {
+                const rideToRateData = { id: completedSnapshot.docs[0].id, ...completedSnapshot.docs[0].data() } as Ride;
                 if (rideToRateData.driver) {
                     const driverSnap = await getDoc(rideToRateData.driver);
                     if (driverSnap.exists()) {
@@ -143,9 +143,9 @@ function RidePageContent() {
                     }
                 }
             } else {
-                 if (activeRide?.status === 'completed') {
-                    toast({ title: '¡Viaje finalizado!', description: 'Gracias por viajar con nosotros.' });
-                }
+                 if (activeRide?.status === 'completed' || activeRide?.status === 'cancelled') {
+                    toast({ title: activeRide.status === 'completed' ? '¡Viaje finalizado!' : 'Viaje Cancelado', description: 'Gracias por viajar con nosotros.' });
+                 }
                 resetRide();
             }
         }
@@ -157,7 +157,7 @@ function RidePageContent() {
           clearTimeout(searchTimeoutRef.current);
         }
     };
-  }, [user, assignedDriver?.id, pickupLocation, dropoffLocation, startSimulation, stopSimulation, toast, activeRide?.status]);
+  }, [user?.uid]); // Only depend on user.uid
 
 
   // Listener for chat messages
@@ -220,11 +220,6 @@ function RidePageContent() {
         const currentRideSnap = await getDoc(rideRef);
         if (currentRideSnap.exists() && currentRideSnap.data().status === 'searching') {
             await handleCancelRide({ code: 'NO_DRIVERS', reason: 'No se encontraron conductores' }, true);
-            toast({
-                variant: 'destructive',
-                title: 'Búsqueda de Conductor Expirada',
-                description: 'No hemos encontrado conductores disponibles. Intenta ofrecer una tarifa más alta o prueba más tarde.',
-            });
         }
     }, 60000); // 60 seconds
   }
@@ -252,8 +247,14 @@ function RidePageContent() {
             cancelledBy: isAutomatic ? 'system' : 'passenger'
         });
         
-        if(!isAutomatic) {
-            toast({
+        if(isAutomatic) {
+             toast({
+                variant: 'destructive',
+                title: 'Búsqueda de Conductor Expirada',
+                description: 'No hemos encontrado conductores disponibles. Intenta ofrecer una tarifa más alta o prueba más tarde.',
+            });
+        } else {
+             toast({
                 title: 'Viaje Cancelado',
                 description: `Motivo: ${reason.reason}.`,
             });
@@ -488,7 +489,7 @@ function RidePageContent() {
                                     onReset={resetRide}
                                 />
                             )}
-                            {status === 'rating' && assignedDriver && (
+                            {status === 'rating' && assignedDriver && activeRide && (
                             <RatingForm
                                 userToRate={assignedDriver}
                                 isDriver={true}
@@ -599,3 +600,5 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
+
+    
