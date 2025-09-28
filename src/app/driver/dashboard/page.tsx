@@ -13,7 +13,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import type { Ride, User, Driver, Location } from '@/lib/types';
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, doc, getDoc, writeBatch, onSnapshot, Unsubscribe, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, writeBatch, onSnapshot, Unsubscribe, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -70,10 +70,13 @@ function DriverDashboardPageContent() {
   const [allRides, setAllRides] = useState<EnrichedRide[]>([]);
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
   const [activeRide, setActiveRide] = useState<EnrichedRide | null>(null);
+  const [completedRideForRating, setCompletedRideForRating] = useState<EnrichedRide | null>(null);
   const [isCompletingRide, setIsCompletingRide] = useState(false);
   const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'in-progress' | 'rating'>('idle');
+
 
   useEffect(() => {
     if (!driver) return;
@@ -95,11 +98,17 @@ function DriverDashboardPageContent() {
             const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
             const passengerSnap = await getDoc(rideData.passenger);
             const passengerData = passengerSnap.data() as User;
-            setActiveRide({ ...rideData, driver, passenger: passengerData });
+            const rideWithPassenger = { ...rideData, driver, passenger: passengerData };
+            setActiveRide(rideWithPassenger);
+            setStatus('in-progress');
         } else {
-            setActiveRide(null);
-            setPickupLocation(null);
-            setDropoffLocation(null);
+            // Si no hay viaje activo, pero SÍ hay un viaje para calificar
+            if (status !== 'rating') {
+                setActiveRide(null);
+                setPickupLocation(null);
+                setDropoffLocation(null);
+                setStatus('idle');
+            }
         }
     });
 
@@ -123,7 +132,7 @@ function DriverDashboardPageContent() {
         if(unsubscribeAllRides) unsubscribeAllRides();
     }
 
-  }, [driver]);
+  }, [driver, status]);
 
   const handleAvailabilityChange = async (isAvailable: boolean) => {
     if (!driver) return;
@@ -159,6 +168,9 @@ function DriverDashboardPageContent() {
         title: 'Pasajero Calificado',
         description: `Has calificado a ${passenger.name} con ${rating} estrellas.`,
       });
+      // Resetear estado para volver al panel principal
+      setCompletedRideForRating(null);
+      setStatus('idle');
     } catch (error) {
       console.error('Error submitting passenger rating:', error);
       toast({
@@ -182,12 +194,21 @@ function DriverDashboardPageContent() {
         const batch = writeBatch(db);
         batch.update(rideRef, { status: 'completed' });
         batch.update(driverRef, { status: 'available' });
+        
+        // Incrementar el contador de viajes del conductor
+        batch.update(driverRef, { totalRides: increment(1) });
+        
         await batch.commit();
 
         toast({
             title: '¡Viaje Finalizado!',
-            description: 'Has completado el viaje exitosamente. Ahora estás disponible.',
+            description: 'Ahora califica al pasajero para completar el proceso.',
         });
+        
+        setCompletedRideForRating(activeRide);
+        setActiveRide(null);
+        setStatus('rating');
+        
     } catch (error) {
         console.error('Error completing ride:', error);
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudo finalizar el viaje.'});
@@ -205,6 +226,77 @@ function DriverDashboardPageContent() {
   }
 
   const isApproved = driver.documentsStatus === 'approved';
+
+  const renderDashboardContent = () => {
+    switch (status) {
+        case 'in-progress':
+            if (!activeRide) return null;
+            return (
+                 <Card className="border-primary border-2 animate-pulse">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-primary">
+                            <Car className="h-6 w-6" />
+                            <span>¡Viaje en Progreso!</span>
+                        </CardTitle>
+                        <CardDescription>Estás llevando a un pasajero a su destino.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <Avatar className="h-12 w-12">
+                                    <AvatarImage src={activeRide.passenger.avatarUrl} alt={activeRide.passenger.name} />
+                                    <AvatarFallback>{activeRide.passenger.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="font-semibold">{activeRide.passenger.name}</p>
+                                    <p className="text-sm text-muted-foreground">Destino: <span className="font-medium truncate">{activeRide.dropoff}</span></p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm text-muted-foreground">Tarifa</p>
+                                <p className="font-bold text-lg">S/{activeRide.fare.toFixed(2)}</p>
+                            </div>
+                        </div>
+                        <Button className="w-full" onClick={handleCompleteRide} disabled={isCompletingRide}>
+                            {isCompletingRide ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : null}
+                            Finalizar Viaje
+                        </Button>
+                    </CardContent>
+                </Card>
+            );
+        case 'rating':
+            if (!completedRideForRating) return null;
+            return (
+                 <RatingForm
+                    userToRate={completedRideForRating.passenger}
+                    isDriver={false}
+                    onSubmit={(rating, comment) => handleRatingSubmit(completedRideForRating.passenger, rating, comment)}
+                    isSubmitting={isRatingSubmitting}
+                />
+            );
+        case 'idle':
+        default:
+             return (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Car className="h-6 w-6 text-primary" />
+                            <span>Solicitudes de Viaje</span>
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Alert>
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>No hay solicitudes pendientes</AlertTitle>
+                            <AlertDescription>
+                                Cuando un pasajero solicite un viaje cerca de ti, aparecerá aquí.
+                            </AlertDescription>
+                        </Alert>
+                    </CardContent>
+                </Card>
+             );
+    }
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -266,57 +358,7 @@ function DriverDashboardPageContent() {
                         </CardContent>
                     </Card>
 
-                    {activeRide ? (
-                        <Card className="border-primary border-2 animate-pulse">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2 text-primary">
-                                    <Car className="h-6 w-6" />
-                                    <span>¡Viaje en Progreso!</span>
-                                </CardTitle>
-                                <CardDescription>Estás llevando a un pasajero a su destino.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
-                                    <div className="flex items-center gap-4">
-                                        <Avatar className="h-12 w-12">
-                                            <AvatarImage src={activeRide.passenger.avatarUrl} alt={activeRide.passenger.name} />
-                                            <AvatarFallback>{activeRide.passenger.name.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                            <p className="font-semibold">{activeRide.passenger.name}</p>
-                                            <p className="text-sm text-muted-foreground">Destino: <span className="font-medium truncate">{activeRide.dropoff}</span></p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-sm text-muted-foreground">Tarifa</p>
-                                        <p className="font-bold text-lg">S/{activeRide.fare.toFixed(2)}</p>
-                                    </div>
-                                </div>
-                                <Button className="w-full" onClick={handleCompleteRide} disabled={isCompletingRide}>
-                                    {isCompletingRide ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : null}
-                                    Finalizar Viaje
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Car className="h-6 w-6 text-primary" />
-                                <span>Solicitudes de Viaje</span>
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <Alert>
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>No hay solicitudes pendientes</AlertTitle>
-                                <AlertDescription>
-                                    Cuando un pasajero solicite un viaje cerca de ti, aparecerá aquí.
-                                </AlertDescription>
-                            </Alert>
-                        </CardContent>
-                        </Card>
-                    )}
+                    {renderDashboardContent()}
 
                  </div>
              </div>
