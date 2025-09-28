@@ -1,4 +1,5 @@
 
+
 import type { DocumentReference } from 'firebase/firestore';
 
 export type ServiceType = 'economy' | 'comfort' | 'exclusive';
@@ -29,6 +30,7 @@ export interface Driver {
   membershipStatus: MembershipStatus;
   serviceType: ServiceType;
   documentStatus?: Record<DocumentName, DocumentStatus>;
+  totalRides?: number;
 }
 
 export interface User {
