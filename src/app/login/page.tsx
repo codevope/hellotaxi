@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AppHeader from '@/components/app-header';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { Loader2, Mail, Phone, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from '@/components/ui/input-otp';
+import { RecaptchaVerifier } from 'firebase/auth';
 
 export default function LoginPage() {
   const { 
@@ -38,11 +39,25 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
-  // This will be called when the reCAPTCHA is successfully solved
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+
+  useEffect(() => {
+    // This ensures the container exists before initializing reCAPTCHA
+    if (document.getElementById('recaptcha-container')) {
+      if (!recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current = setupRecaptcha('recaptcha-container');
+      }
+    }
+  }, [setupRecaptcha]);
+  
   const handlePhoneSignIn = async () => {
+    if (!recaptchaVerifierRef.current) {
+      toast({ variant: 'destructive', title: 'Error', description: 'reCAPTCHA no está listo.' });
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const result = await signInWithPhone(`+51${phone}`);
+      const result = await signInWithPhone(`+51${phone}`, recaptchaVerifierRef.current);
       setConfirmationResult(result);
       toast({ title: 'Código de verificación enviado', description: 'Revisa tus mensajes SMS.' });
     } catch (error: any) {
@@ -55,11 +70,6 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
-
-  useEffect(() => {
-    // We only set up the reCAPTCHA verifier. It won't render until we tell it to.
-    setupRecaptcha('recaptcha-container', handlePhoneSignIn);
-  }, [setupRecaptcha, phone]);
 
 
   if (loading) {
@@ -178,6 +188,7 @@ export default function LoginPage() {
                  </form>
               </TabsContent>
               <TabsContent value="phone-login" className="space-y-4 pt-4">
+                 <div id="recaptcha-container"></div>
                 {!confirmationResult ? (
                   <div className="space-y-4">
                      <div className="space-y-2">
@@ -187,10 +198,10 @@ export default function LoginPage() {
                             <Input id="phone" type="tel" placeholder="987654321" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-l-none" disabled={isSubmitting} />
                         </div>
                      </div>
-                     <div id="recaptcha-container" className="flex justify-center my-4"></div>
-                     <p className="text-xs text-center text-muted-foreground">
-                        Completa el reCAPTCHA para que podamos enviar tu código de verificación.
-                     </p>
+                     <Button onClick={handlePhoneSignIn} className="w-full" disabled={isSubmitting || !phone}>
+                       {isSubmitting && <Loader2 className="mr-2 animate-spin" />}
+                       Enviar Código de Verificación
+                    </Button>
                   </div>
                 ) : (
                    <div className="space-y-4 flex flex-col items-center">

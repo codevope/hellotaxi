@@ -28,6 +28,15 @@ async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
   const userRef = doc(db, 'users', user.uid);
   const userDoc = await getDoc(userRef);
 
+  const providerIds = user.providerData.map((p) => p.providerId);
+  const hasPassword = providerIds.includes('password');
+  const hasGoogle = providerIds.includes('google.com');
+  const hasPhone = providerIds.includes('phone');
+
+  // If the user has all 3, they are active. Otherwise, incomplete.
+  const status = hasPassword && hasGoogle && hasPhone ? 'active' : 'incomplete';
+
+
   if (!userDoc.exists()) {
     const name = user.displayName || user.email?.split('@')[0] || 'Usuario Anónimo';
     const newUser: User = {
@@ -42,7 +51,7 @@ async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
       phone: user.phoneNumber || '',
       address: '',
       isAdmin: false,
-      status: 'active', // All users start as active
+      status: status, 
     };
     await setDoc(userRef, newUser);
 
@@ -56,7 +65,14 @@ async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
     return newUser;
   }
   
-  return { id: userDoc.id, ...userDoc.data() } as User;
+  // If the doc exists, check if we need to update the status
+  const existingUser = { id: userDoc.id, ...userDoc.data() } as User;
+  if (existingUser.status !== status) {
+    await updateDoc(userRef, { status: status });
+    return { ...existingUser, status: status };
+  }
+  
+  return existingUser;
 }
 
 export function useAuth() {
@@ -147,28 +163,21 @@ export function useAuth() {
     }
   };
 
-  const setupRecaptcha = (containerId: string, callback: () => void) => {
-    if (window.recaptchaVerifier) {
-      window.recaptchaVerifier.clear();
-    }
-    window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
-      size: 'normal',
-      callback: (response) => {
-        console.log('reCAPTCHA solved');
-        callback();
+  const setupRecaptcha = (containerId: string): RecaptchaVerifier => {
+    return new RecaptchaVerifier(auth, containerId, {
+      'size': 'invisible',
+      'callback': (response: any) => {
+        // reCAPTCHA solved, you can proceed with phone sign-in
+        console.log("reCAPTCHA solved");
       },
       'expired-callback': () => {
-        console.log('reCAPTCHA expired');
-      },
+        // Response expired. Ask user to solve reCAPTCHA again.
+        console.log("reCAPTCHA expired");
+      }
     });
-    window.recaptchaVerifier.render();
   };
 
-  const signInWithPhone = async (phoneNumber: string): Promise<ConfirmationResult> => {
-      const verifier = window.recaptchaVerifier;
-      if (!verifier) {
-          throw new Error('Recaptcha verifier not initialized.');
-      }
+  const signInWithPhone = async (phoneNumber: string, verifier: RecaptchaVerifier): Promise<ConfirmationResult> => {
       console.log("Calling signInWithPhoneNumber");
       return await signInWithPhoneNumber(auth, phoneNumber, verifier);
   };
@@ -178,6 +187,7 @@ export function useAuth() {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
+      await checkAndCompleteProfile(auth.currentUser.uid);
       console.log("Google account linked!", result.user);
     } catch (error: any) {
       console.error("Error linking Google account", error);
@@ -197,6 +207,23 @@ export function useAuth() {
     await updateDoc(userRef, { phone: phoneNumber });
   };
   
+  const checkAndCompleteProfile = async (userId: string) => {
+    if (!auth.currentUser) return;
+    const user = auth.currentUser;
+    const providerIds = user.providerData.map((p) => p.providerId);
+    const hasPassword = providerIds.includes('password');
+    const hasGoogle = providerIds.includes('google.com');
+    const hasPhone = providerIds.includes('phone');
+
+    if (hasPassword && hasGoogle && hasPhone) {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, { status: 'active' });
+        const userSnap = await getDoc(userRef);
+        if(userSnap.exists()){
+            setAppUser({ id: userSnap.id, ...userSnap.data() } as User);
+        }
+    }
+  };
 
   const signOut = async () => {
     try {
@@ -267,13 +294,6 @@ export function useAuth() {
       setPasswordForUser,
       linkGoogleAccount,
       linkPhoneNumber,
+      checkAndCompleteProfile,
     };
 }
-
-declare global {
-    interface Window {
-        recaptchaVerifier?: RecaptchaVerifier;
-    }
-}
-
-    

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -17,7 +17,7 @@ import { Loader2, Mail, Phone, Lock, CheckCircle, AlertCircle } from 'lucide-rea
 import { GoogleIcon } from './google-icon';
 import { Input } from './ui/input';
 import { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './ui/input-otp';
-import { ConfirmationResult } from 'firebase/auth';
+import { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
 
 interface IncompleteProfileProps {
   user: FirebaseUser;
@@ -44,16 +44,22 @@ export default function IncompleteProfile({ user, appUser, setAppUser }: Incompl
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+
   const providerIds = user.providerData.map((p) => p.providerId);
   const hasGoogle = providerIds.includes('google.com');
   const hasPassword = providerIds.includes('password');
   const hasPhone = providerIds.includes('phone');
 
   useEffect(() => {
-    if (!window.recaptchaVerifier) {
-      setupRecaptcha('recaptcha-container');
-    }
+    // This ensures the container exists before initializing reCAPTCHA
+    setTimeout(() => {
+      if (!recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current = setupRecaptcha('recaptcha-container');
+      }
+    }, 100);
   }, [setupRecaptcha]);
+
 
   const handleLinkGoogle = async () => {
     setIsLoading('google');
@@ -73,14 +79,24 @@ export default function IncompleteProfile({ user, appUser, setAppUser }: Incompl
         toast({ variant: 'destructive', title: 'Error', description: 'Por favor, introduce un número de teléfono.' });
         return;
     }
+    if (!recaptchaVerifierRef.current) {
+        toast({ variant: 'destructive', title: 'Error', description: 'reCAPTCHA no está listo. Por favor, espera un momento.' });
+        return;
+    }
     setIsLoading('phone');
     try {
         const fullPhoneNumber = `+51${phone}`; // Asumiendo código de Perú
-        const result = await signInWithPhone(fullPhoneNumber);
+        const result = await signInWithPhone(fullPhoneNumber, recaptchaVerifierRef.current);
         setConfirmationResult(result);
         toast({ title: 'Código de verificación enviado', description: `Revisa tus mensajes SMS en ${fullPhoneNumber}.` });
     } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error al enviar código', description: error.message });
+        let description = 'Ocurrió un error al enviar el código. Inténtalo de nuevo más tarde.';
+        if (error.code === 'auth/too-many-requests') {
+          description = 'Has enviado demasiadas solicitudes. Por favor, intenta de nuevo más tarde.';
+        } else if (error.message) {
+          description = error.message;
+        }
+        toast({ variant: 'destructive', title: 'Error al enviar código', description: description });
     } finally {
         setIsLoading(null);
     }
@@ -157,6 +173,7 @@ export default function IncompleteProfile({ user, appUser, setAppUser }: Incompl
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div id="recaptcha-container"></div>
         {renderStep(
             hasGoogle,
             <GoogleIcon className="h-6 w-6"/>,
@@ -198,7 +215,6 @@ export default function IncompleteProfile({ user, appUser, setAppUser }: Incompl
                         {isLoading === 'phone' && <Loader2 className="mr-2 animate-spin" />}
                         Enviar Código OTP
                     </Button>
-                    <div id="recaptcha-container"></div>
                 </div>
             ) : (
                 <div className="space-y-4">
