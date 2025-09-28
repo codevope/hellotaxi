@@ -14,7 +14,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import type { Ride, User, Driver, ChatMessage } from '@/lib/types';
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, doc, writeBatch, onSnapshot, Unsubscribe, updateDoc, increment, getDoc, limit, addDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, onSnapshot, Unsubscribe, updateDoc, increment, getDoc, limit, addDoc, orderBy, runTransaction, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import RatingForm from '@/components/rating-form';
@@ -138,31 +138,33 @@ function DriverDashboardPageContent() {
   useEffect(() => {
     if (!driver || driver.status !== 'available' || activeRide) return;
 
-    const q = query(
+    let q = query(
         collection(db, 'rides'),
         where('status', '==', 'searching'),
         where('serviceType', '==', driver.serviceType),
         limit(10) // Fetch more than 1 to have fallback if some are rejected
     );
-
+    
+    // This is a client-side filter because Firestore doesn't support 'not-in' with other range/inequality filters
     const unsubscribe = onSnapshot(q, async (snapshot) => {
         if (!snapshot.empty) {
-            // Find the first ride that has not been rejected by this driver
-            const rideDoc = snapshot.docs.find(doc => !rejectedRideIds.includes(doc.id));
-            if (!rideDoc) {
+            const potentialRides = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as Ride))
+                .filter(ride => !(ride.rejectedBy || []).some(ref => ref.id === driver.id));
+
+            if (potentialRides.length > 0) {
+                const rideData = potentialRides[0]; // Take the first available one
+                const passengerSnap = await getDoc(rideData.passenger);
+                if (passengerSnap.exists()) {
+                    const passengerData = passengerSnap.data() as User;
+                    setRequestedRide({ ...rideData, passenger: passengerData });
+                    startRequesting();
+                }
+            } else {
                  setRequestedRide(null);
                  if (useRideStore.getState().status === 'requesting') {
                     resetRide();
                  }
-                return;
-            }
-
-            const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-            const passengerSnap = await getDoc(rideData.passenger);
-            if (passengerSnap.exists()) {
-                const passengerData = passengerSnap.data() as User;
-                setRequestedRide({ ...rideData, passenger: passengerData });
-                startRequesting();
             }
         } else {
             setRequestedRide(null);
@@ -174,7 +176,7 @@ function DriverDashboardPageContent() {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver?.status, activeRide, rejectedRideIds]);
+  }, [driver?.status, activeRide, driver?.id]);
 
     // Listener for chat messages
   useEffect(() => {
@@ -215,24 +217,35 @@ function DriverDashboardPageContent() {
   const handleRideRequestResponse = async (accepted: boolean) => {
     if (!requestedRide || !driver) return;
     const rideId = requestedRide.id;
+    const rideRef = doc(db, 'rides', rideId);
     setRequestedRide(null); // Clear request immediately from UI
+    resetRide();
 
     if (accepted) {
-        const rideRef = doc(db, 'rides', rideId);
         try {
-            await updateDoc(rideRef, {
-                status: 'accepted',
-                driver: doc(db, 'drivers', driver.id)
+            await runTransaction(db, async (transaction) => {
+                const rideDoc = await transaction.get(rideRef);
+                if (!rideDoc.exists() || rideDoc.data().status !== 'searching') {
+                    throw new Error("El viaje ya no está disponible.");
+                }
+                
+                transaction.update(rideRef, {
+                    status: 'accepted',
+                    driver: doc(db, 'drivers', driver.id)
+                });
+                transaction.update(doc(db, 'drivers', driver.id), { status: 'on-ride' });
             });
-            await updateDoc(doc(db, 'drivers', driver.id), { status: 'on-ride' });
+            
             setDriverAsOnRide();
-        } catch (e) {
+        } catch (e: any) {
             console.error("Error accepting ride:", e);
+            toast({ variant: 'destructive', title: 'Error', description: e.message || "No se pudo aceptar el viaje."});
         }
     } else {
-        // Add to rejected list to avoid seeing it again
-        setRejectedRideIds(prev => [...prev, rideId]);
-        resetRide();
+        // Add to rejected list in Firestore
+        await updateDoc(rideRef, {
+            rejectedBy: arrayUnion(doc(db, 'drivers', driver.id))
+        });
     }
   };
 

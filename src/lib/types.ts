@@ -51,7 +51,7 @@ export interface User {
   rating: number; // Passenger rating
   phone?: string;
   address?: string;
-  status?: 'active' | 'blocked' | 'incomplete';
+  status?: 'active' | 'blocked';
   isAdmin?: boolean;
 }
 
@@ -92,6 +92,7 @@ export interface Ride {
   peakTime?: boolean;
   couponCode?: string;
   fareBreakdown?: FareBreakdown;
+  rejectedBy?: DocumentReference[];
 }
 
 export interface Review {

@@ -125,7 +125,7 @@ function RidePageContent() {
                     completeRideForRating(driverData);
                  }
             } else {
-                if (currentRideState.status === 'assigned') { // If it was assigned and now it's completed but rated
+                if (currentRideState.status === 'assigned' || currentRideState.status === 'rating') { 
                    resetRide();
                 }
             }
@@ -160,7 +160,9 @@ function RidePageContent() {
              }
         } else if(rideData.status === 'searching') {
           // If we receive a document that is still searching, ensure the state is correct.
-          startSearch();
+          if(currentRideState.status !== 'searching') {
+             startSearch();
+          }
         }
     });
 
