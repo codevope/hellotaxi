@@ -4,7 +4,7 @@
 import AppHeader from '@/components/app-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Car, ShieldCheck, ShieldAlert, ShieldX, FileText, Star, AlertCircle, User as UserIcon, History, UserCog, Wallet } from 'lucide-react';
+import { Loader2, Car, ShieldCheck, ShieldAlert, FileText, Star, UserCog, Wallet, History } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -13,7 +13,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import type { Ride, User, Driver, Location } from '@/lib/types';
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, doc, getDoc, writeBatch, onSnapshot, Unsubscribe, updateDoc, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, onSnapshot, Unsubscribe, updateDoc, increment, getDoc, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -28,27 +28,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const overallDocStatusConfig = {
-  approved: { 
-    label: 'Aprobados',
-    variant: 'default' as const,
-    icon: <ShieldCheck className="h-4 w-4" />,
-    description: '¡Todo en orden! Ya puedes activarte para recibir viajes.'
-  },
-  pending: { 
-    label: 'Pendientes',
-    variant: 'outline' as const,
-    icon: <ShieldAlert className="h-4 w-4" />,
-    description: 'Nuestro equipo está revisando tus documentos.'
-  },
-  rejected: { 
-    label: 'Rechazados',
-    variant: 'destructive' as const,
-    icon: <ShieldX className="h-4 w-4" />,
-    description: 'Hay un problema con tus documentos.'
-  },
-};
-
 const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
     available: { label: 'Disponible', variant: 'default' },
     unavailable: { label: 'No Disponible', variant: 'secondary' },
@@ -56,13 +35,17 @@ const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: str
 }
 
 const rideStatusConfig: Record<Ride['status'], { label: string; variant: 'secondary' | 'default' | 'destructive' }> = {
-  completed: { label: 'Completado', variant: 'secondary' },
+  searching: { label: 'Buscando', variant: 'default' },
+  accepted: { label: 'Aceptado', variant: 'default' },
+  arrived: { label: 'Ha llegado', variant: 'default' },
   'in-progress': { label: 'En Progreso', variant: 'default' },
+  completed: { label: 'Completado', variant: 'secondary' },
   cancelled: { label: 'Cancelado', variant: 'destructive' },
 };
 
-
 type EnrichedRide = Omit<Ride, 'passenger' | 'driver'> & { passenger: User, driver: Driver };
+
+type DriverStatus = 'idle' | 'requesting' | 'in-progress' | 'rating';
 
 function DriverDashboardPageContent() {
   const { driver, setDriver, loading } = useDriverAuth();
@@ -70,69 +53,79 @@ function DriverDashboardPageContent() {
   const [allRides, setAllRides] = useState<EnrichedRide[]>([]);
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
   const [activeRide, setActiveRide] = useState<EnrichedRide | null>(null);
+  const [requestedRide, setRequestedRide] = useState<(Ride & {passenger: User}) | null>(null);
   const [completedRideForRating, setCompletedRideForRating] = useState<EnrichedRide | null>(null);
   const [isCompletingRide, setIsCompletingRide] = useState(false);
   const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'in-progress' | 'rating'>('idle');
+  const [status, setStatus] = useState<DriverStatus>('idle');
 
 
+  // Listener for driver's active ride
   useEffect(() => {
-    if (!driver) return;
-    
-    let unsubscribeActiveRide: Unsubscribe | null = null;
-    let unsubscribeAllRides: Unsubscribe | null = null;
-
+    if (!driver || status === 'requesting') return;
     const driverRef = doc(db, 'drivers', driver.id);
 
-    // Listener for active ride
-    const activeRideQuery = query(
-        collection(db, 'rides'),
-        where('driver', '==', driverRef),
-        where('status', '==', 'in-progress')
+    const q = query(
+      collection(db, 'rides'),
+      where('driver', '==', driverRef),
+      where('status', 'in', ['accepted', 'arrived', 'in-progress'])
     );
-    unsubscribeActiveRide = onSnapshot(activeRideQuery, async (snapshot) => {
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      if (!snapshot.empty) {
+        const rideDoc = snapshot.docs[0];
+        const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
+        const passengerSnap = await getDoc(rideData.passenger);
+        if (passengerSnap.exists()) {
+            const passengerData = passengerSnap.data() as User;
+            setActiveRide({ ...rideData, driver, passenger: passengerData });
+            setStatus('in-progress');
+        }
+      } else {
+         if (status !== 'rating') {
+            setActiveRide(null);
+            setStatus('idle');
+         }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [driver, status]);
+
+  // Listener for new ride requests
+  useEffect(() => {
+    if (!driver || driver.status !== 'available' || activeRide) return;
+
+    const q = query(
+        collection(db, 'rides'),
+        where('status', '==', 'searching'),
+        where('serviceType', '==', driver.serviceType),
+        limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
         if (!snapshot.empty) {
             const rideDoc = snapshot.docs[0];
             const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
             const passengerSnap = await getDoc(rideData.passenger);
-            const passengerData = passengerSnap.data() as User;
-            const rideWithPassenger = { ...rideData, driver, passenger: passengerData };
-            setActiveRide(rideWithPassenger);
-            setStatus('in-progress');
+            if (passengerSnap.exists()) {
+                const passengerData = passengerSnap.data() as User;
+                setRequestedRide({ ...rideData, passenger: passengerData });
+                setStatus('requesting');
+            }
         } else {
-            // Si no hay viaje activo, pero SÍ hay un viaje para calificar
-            if (status !== 'rating') {
-                setActiveRide(null);
-                setPickupLocation(null);
-                setDropoffLocation(null);
+            setRequestedRide(null);
+            if (status === 'requesting') {
                 setStatus('idle');
             }
         }
     });
 
-    // Listener for all driver's rides (for history)
-    const allRidesQuery = query(
-        collection(db, 'rides'),
-        where('driver', '==', driverRef)
-    );
-     unsubscribeAllRides = onSnapshot(allRidesQuery, async (snapshot) => {
-        const ridesPromises = snapshot.docs.map(async (rideDoc) => {
-            const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-            const passengerSnap = await getDoc(rideData.passenger);
-            return { ...rideData, driver, passenger: passengerSnap.data() as User };
-        });
-        const results = await Promise.all(ridesPromises);
-        setAllRides(results.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-    });
-    
-    return () => {
-        if(unsubscribeActiveRide) unsubscribeActiveRide();
-        if(unsubscribeAllRides) unsubscribeAllRides();
-    }
+    return () => unsubscribe();
+  }, [driver, driver?.status, activeRide, status]);
 
-  }, [driver, status]);
 
   const handleAvailabilityChange = async (isAvailable: boolean) => {
     if (!driver) return;
@@ -155,6 +148,64 @@ function DriverDashboardPageContent() {
     }
   };
 
+  const handleRideRequestResponse = async (accepted: boolean) => {
+    if (!requestedRide || !driver) return;
+
+    const rideRef = doc(db, 'rides', requestedRide.id);
+
+    if (accepted) {
+        try {
+            await updateDoc(rideRef, {
+                status: 'accepted',
+                driver: doc(db, 'drivers', driver.id)
+            });
+            await updateDoc(doc(db, 'drivers', driver.id), { status: 'on-ride' });
+            setActiveRide({ ...requestedRide, driver });
+            setStatus('in-progress');
+            setRequestedRide(null);
+        } catch (e) {
+            console.error("Error accepting ride:", e);
+        }
+    } else {
+        // Here you could add logic to "blacklist" this ride for this driver for a few minutes
+        setRequestedRide(null);
+        setStatus('idle');
+    }
+  };
+
+  const handleUpdateRideStatus = async (newStatus: 'arrived' | 'in-progress' | 'completed') => {
+    if (!activeRide) return;
+    setIsCompletingRide(true);
+
+    const rideRef = doc(db, 'rides', activeRide.id);
+    const driverRef = doc(db, 'drivers', activeRide.driver.id);
+    
+    try {
+        if (newStatus === 'completed') {
+            const batch = writeBatch(db);
+            batch.update(rideRef, { status: 'completed' });
+            batch.update(driverRef, { status: 'available' });
+            batch.update(driverRef, { totalRides: increment(1) });
+            await batch.commit();
+
+            toast({ title: '¡Viaje Finalizado!', description: 'Ahora califica al pasajero.' });
+            
+            setCompletedRideForRating(activeRide);
+            setActiveRide(null);
+            setStatus('rating');
+        } else {
+            await updateDoc(rideRef, { status: newStatus });
+            // The onSnapshot listener will handle the UI update
+        }
+    } catch (error) {
+        console.error('Error updating ride status:', error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar el estado del viaje.'});
+    } finally {
+        setIsCompletingRide(false);
+    }
+  };
+
+
   const handleRatingSubmit = async (passenger: User, rating: number, comment: string) => {
     setIsRatingSubmitting(true);
     try {
@@ -168,7 +219,6 @@ function DriverDashboardPageContent() {
         title: 'Pasajero Calificado',
         description: `Has calificado a ${passenger.name} con ${rating} estrellas.`,
       });
-      // Resetear estado para volver al panel principal
       setCompletedRideForRating(null);
       setStatus('idle');
     } catch (error) {
@@ -183,39 +233,6 @@ function DriverDashboardPageContent() {
     }
   }
 
-  const handleCompleteRide = async () => {
-    if (!activeRide) return;
-    setIsCompletingRide(true);
-
-    const rideRef = doc(db, 'rides', activeRide.id);
-    const driverRef = doc(db, 'drivers', activeRide.driver.id);
-    
-    try {
-        const batch = writeBatch(db);
-        batch.update(rideRef, { status: 'completed' });
-        batch.update(driverRef, { status: 'available' });
-        
-        // Incrementar el contador de viajes del conductor
-        batch.update(driverRef, { totalRides: increment(1) });
-        
-        await batch.commit();
-
-        toast({
-            title: '¡Viaje Finalizado!',
-            description: 'Ahora califica al pasajero para completar el proceso.',
-        });
-        
-        setCompletedRideForRating(activeRide);
-        setActiveRide(null);
-        setStatus('rating');
-        
-    } catch (error) {
-        console.error('Error completing ride:', error);
-        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo finalizar el viaje.'});
-    } finally {
-        setIsCompletingRide(false);
-    }
-  }
   
   if (loading || !driver) {
     return (
@@ -229,16 +246,45 @@ function DriverDashboardPageContent() {
 
   const renderDashboardContent = () => {
     switch (status) {
+        case 'requesting':
+             if (!requestedRide) return null;
+             return (
+                 <Card className="border-primary border-2 animate-pulse">
+                    <CardHeader>
+                        <CardTitle>¡Nueva Solicitud de Viaje!</CardTitle>
+                        <CardDescription>Tienes 30 segundos para responder.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="p-4 bg-muted rounded-lg">
+                           <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="text-sm">De: <span className="font-medium">{requestedRide.pickup}</span></p>
+                                    <p className="text-sm">A: <span className="font-medium">{requestedRide.dropoff}</span></p>
+                                </div>
+                                <p className="font-bold text-lg">S/{requestedRide.fare.toFixed(2)}</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                             <Button className="w-full" onClick={() => handleRideRequestResponse(true)}>Aceptar</Button>
+                             <Button className="w-full" variant="destructive" onClick={() => handleRideRequestResponse(false)}>Rechazar</Button>
+                        </div>
+                    </CardContent>
+                </Card>
+             );
         case 'in-progress':
             if (!activeRide) return null;
             return (
-                 <Card className="border-primary border-2 animate-pulse">
+                 <Card className="border-primary border-2">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-primary">
                             <Car className="h-6 w-6" />
-                            <span>¡Viaje en Progreso!</span>
+                            <span>Viaje Activo</span>
                         </CardTitle>
-                        <CardDescription>Estás llevando a un pasajero a su destino.</CardDescription>
+                        <CardDescription>
+                            {activeRide.status === 'accepted' && 'Dirígete al punto de recojo del pasajero.'}
+                            {activeRide.status === 'arrived' && 'Esperando al pasajero.'}
+                            {activeRide.status === 'in-progress' && 'Llevando al pasajero a su destino.'}
+                        </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
@@ -257,10 +303,9 @@ function DriverDashboardPageContent() {
                                 <p className="font-bold text-lg">S/{activeRide.fare.toFixed(2)}</p>
                             </div>
                         </div>
-                        <Button className="w-full" onClick={handleCompleteRide} disabled={isCompletingRide}>
-                            {isCompletingRide ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : null}
-                            Finalizar Viaje
-                        </Button>
+                        {activeRide.status === 'accepted' && <Button className="w-full" onClick={() => handleUpdateRideStatus('arrived')} disabled={isCompletingRide}>He Llegado</Button>}
+                        {activeRide.status === 'arrived' && <Button className="w-full" onClick={() => handleUpdateRideStatus('in-progress')} disabled={isCompletingRide}>Iniciar Viaje</Button>}
+                        {activeRide.status === 'in-progress' && <Button className="w-full" onClick={() => handleUpdateRideStatus('completed')} disabled={isCompletingRide}>Finalizar Viaje</Button>}
                     </CardContent>
                 </Card>
             );
@@ -281,15 +326,14 @@ function DriverDashboardPageContent() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Car className="h-6 w-6 text-primary" />
-                            <span>Solicitudes de Viaje</span>
+                            <span>Esperando Solicitudes</span>
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <Alert>
-                            <AlertCircle className="h-4 w-4" />
                             <AlertTitle>No hay solicitudes pendientes</AlertTitle>
                             <AlertDescription>
-                                Cuando un pasajero solicite un viaje cerca de ti, aparecerá aquí.
+                                Cuando un pasajero solicite un viaje, aparecerá aquí.
                             </AlertDescription>
                         </Alert>
                     </CardContent>
@@ -392,7 +436,7 @@ function DriverDashboardPageContent() {
                                     <TableCell className="max-w-xs truncate">{ride.pickup} &rarr; {ride.dropoff}</TableCell>
                                     <TableCell>{format(new Date(ride.date), "dd/MM/yy HH:mm", {locale: es})}</TableCell>
                                     <TableCell className="text-right font-semibold">S/{ride.fare.toFixed(2)}</TableCell>
-                                    <TableCell><Badge variant={rideStatusConfig[ride.status].variant}>{rideStatusConfig[ride.status].label}</Badge></TableCell>
+                                    <TableCell><Badge variant={rideStatusConfig[ride.status]?.variant || 'secondary'}>{rideStatusConfig[ride.status]?.label || ride.status}</Badge></TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -505,3 +549,5 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
+
+    

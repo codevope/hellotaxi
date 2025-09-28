@@ -40,13 +40,8 @@ import FareNegotiation from './fare-negotiation';
 import { useToast } from '@/hooks/use-toast';
 import {
   collection,
-  getDocs,
-  query,
-  where,
-  limit,
   doc,
   addDoc,
-  updateDoc,
   increment,
   writeBatch,
 } from 'firebase/firestore';
@@ -77,7 +72,7 @@ const formSchema = z.object({
 });
 
 type RideRequestFormProps = {
-  onRideAssigned: (ride: Ride, driver: Driver) => void;
+  onRideCreated: (ride: Ride) => void;
   pickupLocation: Location | null;
   dropoffLocation: Location | null;
   onLocationSelect: (location: Location, type: 'pickup' | 'dropoff') => void;
@@ -98,7 +93,7 @@ const serviceTypeIcons: Record<ServiceType, React.ReactNode> = {
 }
 
 export default function RideRequestForm({
-  onRideAssigned,
+  onRideCreated,
   pickupLocation,
   dropoffLocation,
   onLocationSelect,
@@ -109,11 +104,9 @@ export default function RideRequestForm({
     | 'calculating'
     | 'calculated'
     | 'negotiating'
-    | 'searching'
     | 'scheduling'
   >('idle');
   
-  const [finalFare, setFinalFare] = useState<number | null>(null);
   const [appSettings, setAppSettings] = useState<Settings | null>(null);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [locationPickerFor, setLocationPickerFor] = useState<
@@ -179,131 +172,50 @@ export default function RideRequestForm({
     }
   };
 
-
-  async function findDriver(serviceType: ServiceType): Promise<Driver | null> {
-    const driversRef = collection(db, 'drivers');
-    
-    // La consulta busca un conductor que cumpla TODAS estas condiciones:
-    // 1. El tipo de servicio coincide con el solicitado ('economy', 'comfort', etc.).
-    // 2. Sus documentos están aprobados por un administrador.
-    // 3. Su estado es 'available', lo que garantiza que no está 'on-ride' (en otro viaje) ni 'unavailable' (desconectado).
-    const q = query(
-      driversRef,
-      where('serviceType', '==', serviceType),
-      where('documentsStatus', '==', 'approved'),
-      where('status', '==', 'available'),
-      limit(1)
-    );
-
-    // Simula un pequeño retraso para la búsqueda
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-      const driverDoc = querySnapshot.docs[0];
-      return { id: driverDoc.id, ...driverDoc.data() } as Driver;
-    }
-
-    return null; // No se encontró ningún conductor que cumpla los criterios.
-  }
-
-  async function handleSchedule() {
-    if (!form.getValues('scheduledTime') || !user) return;
-
-    setStatus('scheduling');
-    const values = form.getValues();
-
-    try {
-      await addDoc(collection(db, 'scheduledRides'), {
-        pickup: values.pickup,
-        dropoff: values.dropoff,
-        scheduledTime: values.scheduledTime!.toISOString(),
-        passenger: doc(db, 'users', user.uid),
-        status: 'pending',
-        serviceType: values.serviceType,
-        paymentMethod: values.paymentMethod,
-        createdAt: new Date().toISOString(),
-      });
-
-      toast({
-        title: '¡Viaje Agendado!',
-        description: `Tu viaje ha sido programado para el ${form.getValues('scheduledTime')!}.`,
-      });
-    } catch (error) {
-      console.error('Error scheduling ride: ', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error al Agendar',
-        description:
-          'No se pudo programar tu viaje. Por favor, inténtalo de nuevo.',
-      });
-    } finally {
-      resetForm();
-    }
-  }
-
   async function handleNegotiationComplete(
     fare: number,
     breakdown: FareBreakdown
   ) {
-    const serviceType = form.getValues('serviceType');
-    setFinalFare(fare);
-    setStatus('searching');
+    if (!user) return;
+    
+    const passengerRef = doc(db, 'users', user.uid);
+    
+    try {
+      const newRideData = {
+        pickup: form.getValues('pickup'),
+        dropoff: form.getValues('dropoff'),
+        date: new Date().toISOString(),
+        fare: fare,
+        driver: null, // Driver not assigned yet
+        passenger: passengerRef,
+        serviceType: form.getValues('serviceType'),
+        paymentMethod: form.getValues('paymentMethod'),
+        couponCode: form.getValues('couponCode') || '',
+        fareBreakdown: breakdown,
+        status: 'searching' as const,
+      };
 
-    const availableDriver = await findDriver(serviceType);
+      // Create ride document in 'searching' state
+      const rideDocRef = await addDoc(collection(db, 'rides'), newRideData);
 
-    if (availableDriver && user) {
-      const passengerRef = doc(db, 'users', user.uid);
-      const driverRef = doc(db, 'drivers', availableDriver.id);
+      // Increment passenger's total rides
+      await updateDoc(passengerRef, { totalRides: increment(1) });
+      
+      // Pass the newly created ride to parent
+      const createdRide: Ride = { id: rideDocRef.id, ...newRideData, driver: doc(db, 'drivers/placeholder') };
+      onRideCreated(createdRide);
 
-      try {
-        // Create the ride document
-        const newRideData = {
-          pickup: form.getValues('pickup'),
-          dropoff: form.getValues('dropoff'),
-          date: new Date().toISOString(),
-          fare: fare,
-          driver: driverRef,
-          passenger: passengerRef,
-          serviceType: form.getValues('serviceType'),
-          paymentMethod: form.getValues('paymentMethod'),
-          couponCode: form.getValues('couponCode') || '',
-          assignmentTimestamp: new Date().toISOString(),
-          fareBreakdown: breakdown,
-          status: 'in-progress' as const,
-        };
-        const rideDocRef = await addDoc(collection(db, 'rides'), newRideData);
+      resetForm();
 
-        // Update driver and passenger in a batch
-        const batch = writeBatch(db);
-        batch.update(driverRef, { status: 'on-ride' });
-        batch.update(passengerRef, { totalRides: increment(1) });
-        await batch.commit();
-
-        // Set component state with the newly created ride
-        const createdRide: Ride = { id: rideDocRef.id, ...newRideData };
-        onRideAssigned(createdRide, availableDriver);
-        resetForm();
-
-      } catch (error) {
-        console.error('Error creating ride and updating statuses:', error);
-        toast({ variant: 'destructive', title: 'Error al crear el viaje', description: 'No se pudo registrar el viaje. Inténtalo de nuevo.' });
-        resetForm();
-      }
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'No se encontraron conductores',
-        description: `No hay conductores disponibles para el servicio "${serviceType}" en este momento. Por favor, inténtalo más tarde.`,
-      });
+    } catch (error) {
+      console.error('Error creating ride:', error);
+      toast({ variant: 'destructive', title: 'Error al crear el viaje', description: 'No se pudo registrar el viaje. Inténtalo de nuevo.' });
       resetForm();
     }
   }
 
   function resetForm() {
     setStatus('idle');
-    setFinalFare(null);
     onReset();
     setRouteInfo(null);
     form.reset();
@@ -319,19 +231,6 @@ export default function RideRequestForm({
           setStatus('calculated');
         }}
       />
-    );
-  }
-
-  if (status === 'searching') {
-    return (
-      <Alert>
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <AlertTitle>Buscando tu viaje...</AlertTitle>
-        <AlertDescription>
-          Hemos acordado una tarifa de S/{finalFare?.toFixed(2)}. Ahora, estamos
-          asignando un conductor para el servicio "{form.getValues('serviceType')}".
-        </AlertDescription>
-      </Alert>
     );
   }
 
@@ -555,3 +454,5 @@ export default function RideRequestForm({
     </>
   );
 }
+
+    

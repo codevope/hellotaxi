@@ -1,3 +1,4 @@
+
 # 🗄️ Documentación de Base de Datos - HiTaxi
 
 ## 📋 Información General
@@ -106,19 +107,21 @@ interface Driver {
 **Descripción:** Registro completo de todos los viajes solicitados, en progreso y completados.
 
 ```typescript
+type RideStatus = 'searching' | 'accepted' | 'arrived' | 'in-progress' | 'completed' | 'cancelled';
+
 interface Ride {
   id: string;                    // ID único del viaje
   pickup: string;                // Dirección de recojo
   dropoff: string;               // Dirección de destino
   date: string;                  // Fecha/hora del viaje (ISO)
   fare: number;                  // Tarifa final acordada
-  driver: DocumentReference;     // Referencia al documento driver
+  driver: DocumentReference | null; // Referencia al conductor (null si está buscando)
   passenger: DocumentReference;  // Referencia al documento user
-  status: RideStatus;            // 'completed' | 'in-progress' | 'cancelled'
+  status: RideStatus;            // 'searching' | 'accepted' | 'arrived' | 'in-progress' | 'completed' | 'cancelled'
   serviceType: ServiceType;      // Tipo de servicio solicitado
   paymentMethod: PaymentMethod;  // 'cash' | 'yape' | 'plin'
   cancellationReason?: CancellationReason; // Razón de cancelación
-  cancelledBy?: 'passenger' | 'driver';    // Quién canceló
+  cancelledBy?: 'passenger' | 'driver' | 'system';    // Quién canceló
   assignmentTimestamp?: string;  // Cuando se asignó el conductor
   peakTime?: boolean;            // Si fue en hora punta
   couponCode?: string;           // Cupón aplicado
@@ -334,15 +337,13 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.uid == driverId;
     }
     
-    // Viajes pueden ser leídos por participantes
+    // Viajes pueden ser leídos por participantes y actualizados por ellos
     match /rides/{rideId} {
       allow read: if request.auth != null && 
-        (request.auth.uid == resource.data.passenger.id || 
-         request.auth.uid == resource.data.driver.id);
-      allow create: if request.auth != null && request.auth.uid == resource.data.passenger.id;
-      allow update: if request.auth != null && 
-        (request.auth.uid == resource.data.passenger.id || 
-         request.auth.uid == resource.data.driver.id);
+        (resource.data.passenger == /databases/$(database)/documents/users/$(request.auth.uid) || 
+         resource.data.driver == /databases/$(database)/documents/drivers/$(request.auth.uid));
+      allow create: if request.auth != null; // Cualquiera autenticado puede crear un viaje
+      allow update: if request.auth != null; // Cualquiera autenticado puede actualizar (debe ser refinado)
     }
     
     // Configuraciones solo para admins
@@ -440,3 +441,5 @@ firebase firestore:import gs://your-bucket/backup-folder
 **Última Actualización:** 27 de septiembre de 2025  
 **Versión de la Base de Datos:** 1.0  
 **Mantenido por:** Equipo de Desarrollo HiTaxi
+
+    

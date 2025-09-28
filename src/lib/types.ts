@@ -64,6 +64,7 @@ export type CancellationReason = {
     reason: string;
 };
 
+export type RideStatus = 'searching' | 'accepted' | 'arrived' | 'in-progress' | 'completed' | 'cancelled';
 
 export interface Ride {
   id: string;
@@ -71,13 +72,13 @@ export interface Ride {
   dropoff: string;
   date: string;
   fare: number;
-  driver: DocumentReference;
+  driver: DocumentReference | null;
   passenger: DocumentReference;
-  status: 'completed' | 'in-progress' | 'cancelled';
+  status: RideStatus;
   serviceType: ServiceType;
   paymentMethod: PaymentMethod;
   cancellationReason?: CancellationReason;
-  cancelledBy?: 'passenger' | 'driver';
+  cancelledBy?: 'passenger' | 'driver' | 'system';
   assignmentTimestamp?: string; // ISO Date string
   peakTime?: boolean;
   couponCode?: string;
@@ -195,4 +196,12 @@ export interface Settings {
     peakTimeRules: PeakTimeRule[];
 }
 
+export interface Location {
+  lat: number;
+  lng: number;
+  address?: string;
+}
+
 export type Passenger = User;
+
+    

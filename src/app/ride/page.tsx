@@ -28,7 +28,7 @@ import SupportChat from '@/components/support-chat';
 import { Loader2 } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import Link from 'next/link';
-import { doc, writeBatch, onSnapshot, Unsubscribe, getDoc, collection, query, where } from 'firebase/firestore';
+import { doc, writeBatch, onSnapshot, Unsubscribe, getDoc, collection, query, where, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getSettings } from '@/services/settings-service';
@@ -40,6 +40,7 @@ import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
 import { GoogleIcon } from '@/components/google-icon';
 
+type PassengerStatus = 'idle' | 'searching' | 'assigned' | 'rating';
 
 function RidePageContent() {
   const [activeTab, setActiveTab] = useState('book');
@@ -49,7 +50,7 @@ function RidePageContent() {
   const [isCancelReasonDialogOpen, setIsCancelReasonDialogOpen] = useState(false);
   const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
   const [appSettings, setAppSettings] = useState<Awaited<ReturnType<typeof getSettings>> | null>(null);
-  const [status, setStatus] = useState<'idle' | 'completed' | 'rating'>('idle');
+  const [status, setStatus] = useState<PassengerStatus>('idle');
   const [isRatingSubmitting, setIsSubmittingRating] = useState(false);
   const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
   const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
@@ -65,39 +66,39 @@ function RidePageContent() {
 
   // Listener for active ride changes
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeRide) return;
 
-    const passengerRef = doc(db, 'users', user.uid);
-    const q = query(collection(db, 'rides'), where('passenger', '==', passengerRef), where('status', 'in', ['in-progress', 'completed']));
+    const rideRef = doc(db, 'rides', activeRide.id);
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-        if (!snapshot.empty) {
-            const rideDoc = snapshot.docs[0];
-            const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-            
-            const driverSnap = await getDoc(rideData.driver);
-            const driverData = { id: driverSnap.id, ...driverSnap.data()} as Driver;
+    const unsubscribe = onSnapshot(rideRef, async (rideSnap) => {
+        if (!rideSnap.exists()) {
+             resetRide(); // Ride was cancelled or deleted
+             return;
+        }
 
-            setAssignedDriver(driverData);
+        const rideData = rideSnap.data() as Ride;
 
-            if (rideData.status === 'in-progress') {
-                setActiveRide(rideData);
-                setStatus('idle'); // Back to main view, but with active ride info
-            } else if (rideData.status === 'completed' && status !== 'rating') {
-                // The driver just completed the ride, switch to rating view
-                setActiveRide(rideData); // Keep ride data for rating
-                setStatus('rating');
-            }
+        if (rideData.status === 'completed' && status !== 'rating') {
+            setActiveRide(rideData);
+            setStatus('rating');
+        } else if (rideData.status === 'cancelled') {
+            toast({ title: 'Viaje Cancelado', description: 'El conductor ha cancelado el viaje.'});
+            resetRide();
         } else {
-            // No active or recently completed rides found
-            if (status !== 'rating') { // Don't reset if we are in the middle of rating
-                 resetRide();
-            }
+             setActiveRide(rideData);
+        }
+
+        if (rideData.driver && !assignedDriver) {
+             const driverSnap = await getDoc(rideData.driver);
+             if (driverSnap.exists()) {
+                setAssignedDriver(driverSnap.data() as Driver);
+                setStatus('assigned');
+             }
         }
     });
 
     return () => unsubscribe();
-  }, [user, status]);
+  }, [user, activeRide, status, toast, assignedDriver]);
 
 
   const handleLocationSelect = (location: Location, type: 'pickup' | 'dropoff') => {
@@ -118,11 +119,11 @@ function RidePageContent() {
     });
   };
 
-  const handleRideAssigned = (ride: Ride, driver: Driver) => {
+  const handleRideCreated = (ride: Ride) => {
     setActiveRide(ride);
-    setAssignedDriver(driver);
+    setStatus('searching');
     setChatMessages([
-        { sender: driver.name, text: '¡Hola! Ya estoy en camino.', timestamp: new Date().toISOString(), isDriver: true, },
+        { sender: 'Sistema', text: 'Buscando el conductor más cercano para ti...', timestamp: new Date().toISOString(), isDriver: true, },
     ]);
   }
 
@@ -137,20 +138,18 @@ function RidePageContent() {
   }
 
   const handleCancelRide = async (reason: CancellationReason) => {
-    if (!activeRide || !assignedDriver) return;
+    if (!activeRide) return;
 
     const rideRef = doc(db, 'rides', activeRide.id);
-    const driverRef = doc(db, 'drivers', assignedDriver.id);
-
+    
     try {
-      const batch = writeBatch(db);
-      batch.update(rideRef, {
+      const updateData: any = {
         status: 'cancelled',
         cancellationReason: reason,
         cancelledBy: 'passenger'
-      });
-      batch.update(driverRef, { status: 'available' });
-      await batch.commit();
+      };
+
+      await writeBatch(db).update(rideRef, updateData).commit();
 
       toast({
         title: 'Viaje Cancelado',
@@ -245,7 +244,7 @@ function RidePageContent() {
                         </SheetContent>
                     </Sheet>
 
-                    {activeRide && (
+                    {status === 'assigned' && (
                         <>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -310,7 +309,7 @@ function RidePageContent() {
                     <CardContent className="p-0">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none">
-                            <TabsTrigger value="book" disabled={!!activeRide}>
+                            <TabsTrigger value="book" disabled={status !== 'idle'}>
                             <Car className="mr-2 h-4 w-4" /> Pedir Viaje
                             </TabsTrigger>
                             <TabsTrigger value="history">
@@ -319,22 +318,28 @@ function RidePageContent() {
                         </TabsList>
 
                         <TabsContent value="book" className="p-6">
-                            {activeRide && assignedDriver && status !== 'rating' ? (
+                            {status === 'searching' && (
+                                <div className="flex flex-col items-center justify-center text-center space-y-4 p-8">
+                                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                                    <p className="font-semibold text-lg">Buscando conductor...</p>
+                                    <p className="text-muted-foreground">Estamos encontrando el mejor conductor para ti.</p>
+                                </div>
+                            )}
+                            {status === 'assigned' && activeRide && assignedDriver && (
                             <Card className="border-0 shadow-none">
                                 <CardHeader>
                                 <CardTitle>¡Tu conductor está en camino!</CardTitle>
-                                <CardDescription>Llegada estimada: 5 minutos.</CardDescription>
+                                <CardDescription>
+                                    {activeRide.status === 'accepted' && 'Llegada estimada: 5 minutos.'}
+                                    {activeRide.status === 'arrived' && 'Tu conductor ha llegado al punto de recojo.'}
+                                    {activeRide.status === 'in-progress' && 'Viaje en progreso hacia tu destino.'}
+                                </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                 <div className="flex items-center gap-4">
                                     <Avatar className="h-12 w-12">
-                                    <AvatarImage
-                                        src={assignedDriver.avatarUrl}
-                                        alt={assignedDriver.name}
-                                    />
-                                    <AvatarFallback>
-                                        {assignedDriver.name.charAt(0)}
-                                    </AvatarFallback>
+                                    <AvatarImage src={assignedDriver.avatarUrl} alt={assignedDriver.name}/>
+                                    <AvatarFallback>{assignedDriver.name.charAt(0)}</AvatarFallback>
                                     </Avatar>
                                     <div>
                                     <p className="font-bold text-md">{assignedDriver.name}</p>
@@ -377,18 +382,20 @@ function RidePageContent() {
                                     </AlertDialog>
                                 </CardContent>
                             </Card>
-                            ) : status !== 'rating' ? (
-                            <RideRequestForm 
-                                onRideAssigned={handleRideAssigned}
-                                pickupLocation={pickupLocation}
-                                dropoffLocation={dropoffLocation}
-                                onLocationSelect={handleLocationSelect}
-                                onReset={() => {
-                                setPickupLocation(null);
-                                setDropoffLocation(null);
-                                }}
-                            />
-                            ) : assignedDriver && (
+                            )}
+                            {status === 'idle' && (
+                                <RideRequestForm 
+                                    onRideCreated={handleRideCreated}
+                                    pickupLocation={pickupLocation}
+                                    dropoffLocation={dropoffLocation}
+                                    onLocationSelect={handleLocationSelect}
+                                    onReset={() => {
+                                    setPickupLocation(null);
+                                    setDropoffLocation(null);
+                                    }}
+                                />
+                            )}
+                            {status === 'rating' && assignedDriver && (
                             <RatingForm
                                 userToRate={assignedDriver}
                                 isDriver={true}
@@ -449,7 +456,7 @@ export default function RidePage() {
         return (
             <>
             <AppHeader />
-            <main className="flex flex-col items-center justify-center text-center p-4 py-16 md:py-24">
+            <main className="flex flex-col items-center p-4 py-16 text-center md:py-24">
                 <Card className="max-w-md p-8">
                     <CardHeader>
                         <CardTitle>Inicia sesión para viajar</CardTitle>
@@ -473,7 +480,7 @@ export default function RidePage() {
         return (
              <>
                 <AppHeader />
-                <main className="flex flex-col items-center justify-center text-center p-8 py-16 md:py-24">
+                <main className="flex flex-col items-center justify-center p-8 text-center md:py-24">
                     <Card className="max-w-md p-8">
                         <CardHeader>
                             <CardTitle>Función solo para Pasajeros</CardTitle>
@@ -497,3 +504,5 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
+
+    
