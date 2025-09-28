@@ -25,6 +25,7 @@ import {
   Sparkles,
   ChevronRight,
   Bot,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import type {
   Ride,
@@ -34,6 +35,7 @@ import type {
   Settings,
   FareBreakdown,
   Location,
+  ScheduledRide,
 } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import FareNegotiation from './fare-negotiation';
@@ -61,6 +63,9 @@ import { LocationPicker } from '@/components/maps';
 import { Label } from './ui/label';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { Calendar } from './ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { format } from 'date-fns';
 
 const formSchema = z.object({
   pickup: z.string().min(5, 'Por favor, introduce una ubicación de recojo válida.'),
@@ -112,6 +117,7 @@ export default function RideRequestForm({
   const [locationPickerFor, setLocationPickerFor] = useState<
     'pickup' | 'dropoff' | null
   >(null);
+  const [isScheduling, setIsScheduling] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const { calculateRoute, isCalculating, error: routeError } = useETACalculator();
@@ -153,8 +159,38 @@ export default function RideRequestForm({
   };
 
 
-  const handleCalculateFare = async () => {
-    if (!pickupLocation || !dropoffLocation) return;
+  const onSubmit = async () => {
+    if (!pickupLocation || !dropoffLocation || !user) return;
+    
+    // If scheduling, handle it separately
+    if(isScheduling && form.getValues('scheduledTime')) {
+        const scheduledTime = form.getValues('scheduledTime');
+        const newScheduledRide: Omit<ScheduledRide, 'id'> = {
+            pickup: form.getValues('pickup'),
+            dropoff: form.getValues('dropoff'),
+            scheduledTime: scheduledTime!.toISOString(),
+            passenger: doc(db, 'users', user.uid),
+            status: 'pending',
+            serviceType: form.getValues('serviceType'),
+            paymentMethod: form.getValues('paymentMethod'),
+            createdAt: new Date().toISOString(),
+        };
+
+        try {
+            await addDoc(collection(db, 'scheduledRides'), newScheduledRide);
+            toast({
+                title: '¡Viaje Agendado!',
+                description: `Tu viaje ha sido programado para el ${format(scheduledTime!, "dd/MM/yyyy 'a las' HH:mm")}.`,
+            });
+            resetForm();
+        } catch (error) {
+            console.error("Error creating scheduled ride:", error);
+            toast({ variant: 'destructive', title: 'Error al Agendar', description: 'No se pudo guardar el viaje agendado.' });
+        }
+        return;
+    }
+
+
     setStatus('calculating');
     const route = await calculateRoute(
       pickupLocation,
@@ -168,7 +204,7 @@ export default function RideRequestForm({
       setRouteInfo(route);
       setStatus('calculated');
     } else {
-      setStatus('idle'); // O mostrar un error
+      setStatus('idle');
     }
   };
 
@@ -186,7 +222,7 @@ export default function RideRequestForm({
         dropoff: form.getValues('dropoff'),
         date: new Date().toISOString(),
         fare: fare,
-        driver: null, // Driver not assigned yet
+        driver: null,
         passenger: passengerRef,
         serviceType: form.getValues('serviceType'),
         paymentMethod: form.getValues('paymentMethod'),
@@ -195,13 +231,10 @@ export default function RideRequestForm({
         status: 'searching' as const,
       };
 
-      // Create ride document in 'searching' state
       const rideDocRef = await addDoc(collection(db, 'rides'), newRideData);
 
-      // Increment passenger's total rides
       await updateDoc(passengerRef, { totalRides: increment(1) });
       
-      // Pass the newly created ride to parent
       const createdRide: Ride = { id: rideDocRef.id, ...newRideData, driver: doc(db, 'drivers/placeholder') };
       onRideCreated(createdRide);
 
@@ -218,6 +251,7 @@ export default function RideRequestForm({
     setStatus('idle');
     onReset();
     setRouteInfo(null);
+    setIsScheduling(false);
     form.reset();
   }
 
@@ -270,7 +304,7 @@ export default function RideRequestForm({
 
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit(handleCalculateFare)}
+          onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-6"
         >
           {(status === 'idle' || status === 'calculating' || status === 'calculated') && (
@@ -318,6 +352,59 @@ export default function RideRequestForm({
                   </FormMessage>
                 </div>
               </div>
+              
+              {isScheduling && (
+                  <FormField
+                    control={form.control}
+                    name="scheduledTime"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col rounded-lg border p-4">
+                        <FormLabel>Fecha y Hora del Agendamiento</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP HH:mm")
+                                ) : (
+                                  <span>Elige fecha y hora</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                            />
+                            <div className="p-2 border-t">
+                               <Input 
+                                type="time"
+                                value={field.value ? format(field.value, 'HH:mm') : ''}
+                                onChange={(e) => {
+                                    const time = e.target.value.split(':');
+                                    const newDate = new Date(field.value || new Date());
+                                    newDate.setHours(parseInt(time[0]), parseInt(time[1]));
+                                    field.onChange(newDate);
+                                }}
+                               />
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+              )}
 
               <FormField
                 control={form.control}
@@ -411,18 +498,31 @@ export default function RideRequestForm({
 
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
                 {status === 'idle' && (
+                  <>
                   <Button
                     type="submit"
                     className="w-full"
                     disabled={isCalculating || !pickupLocation || !dropoffLocation}
+                    onClick={() => setIsScheduling(false)}
                   >
-                    {isCalculating ? (
+                    {isCalculating && !isScheduling ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
                       <Sparkles className="mr-2 h-4 w-4" />
                     )}
-                    {isCalculating ? 'Calculando...' : 'Calcular Tarifa'}
+                    {isCalculating && !isScheduling ? 'Calculando...' : 'Pedir Ahora'}
                   </Button>
+                   <Button
+                    type={isScheduling ? 'submit' : 'button'}
+                    variant="outline"
+                    className="w-full"
+                    disabled={isCalculating || !pickupLocation || !dropoffLocation}
+                    onClick={() => setIsScheduling(prev => !prev)}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {isScheduling ? 'Agendar Viaje' : 'Agendar para más tarde'}
+                  </Button>
+                  </>
                 )}
               </div>
 
@@ -454,5 +554,3 @@ export default function RideRequestForm({
     </>
   );
 }
-
-    
