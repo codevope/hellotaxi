@@ -16,7 +16,7 @@ export default function RealtimeMap() {
     const [isInitialLoading, setIsInitialLoading] = useState(true);
 
     useEffect(() => {
-        // Fetch the initial map center configuration
+        // Step 1: Fetch the initial map center configuration
         const fetchInitialCenter = async () => {
             try {
                 const settings = await getSettings();
@@ -34,18 +34,18 @@ export default function RealtimeMap() {
     }, []);
 
     useEffect(() => {
-        // Once the map center is loaded, subscribe to driver locations
-        if (!isInitialLoading) {
-            const driversCol = collection(db, 'drivers');
-            const unsubscribe = onSnapshot(driversCol, (snapshot) => {
-                const fetchedDrivers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
-                setDrivers(fetchedDrivers);
-            }, (error) => {
-                console.error("Error fetching drivers for map:", error);
-            });
+        // Step 2: Once the map center is loaded (and only then), subscribe to driver locations
+        if (isInitialLoading) return;
 
-            return () => unsubscribe();
-        }
+        const driversCol = collection(db, 'drivers');
+        const unsubscribe = onSnapshot(driversCol, (snapshot) => {
+            const fetchedDrivers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
+            setDrivers(fetchedDrivers);
+        }, (error) => {
+            console.error("Error fetching drivers for map:", error);
+        });
+
+        return () => unsubscribe();
     }, [isInitialLoading]);
 
     if (isInitialLoading) {
