@@ -707,7 +707,10 @@ export default function RideRequestForm({
                         </FormControl>
                         <FormLabel
                           htmlFor={`service-${service.id}`}
-                          className="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 [&:has([data-state=checked])]:border-primary"
+                          className={cn(
+                            'flex flex-col items-center justify-center gap-2 rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer',
+                            '[:has(:checked)]:border-primary [:has(:checked)]:bg-primary/10'
+                          )}
                         >
                           {serviceTypeIcons[service.id]}
                           <span className="font-semibold">{service.name}</span>
@@ -739,9 +742,12 @@ export default function RideRequestForm({
                           <FormControl>
                             <RadioGroupItem value={method} id={`payment-${method}`} className="sr-only" />
                           </FormControl>
-                          <FormLabel
+                           <FormLabel
                             htmlFor={`payment-${method}`}
-                            className="flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 [&:has([data-state=checked])]:border-primary"
+                            className={cn(
+                              'flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground cursor-pointer',
+                              '[:has(:checked)]:border-primary [:has(:checked)]:bg-primary/10'
+                            )}
                           >
                             {paymentMethodIcons[method]}
                             <span className="font-semibold text-xs capitalize">
