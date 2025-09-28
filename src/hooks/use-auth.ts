@@ -16,8 +16,6 @@ import {
   fetchSignInMethodsForEmail,
   linkWithCredential,
   EmailAuthProvider,
-  PhoneAuthProvider,
-  updatePassword,
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
@@ -42,7 +40,7 @@ async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
       phone: user.phoneNumber || '',
       address: '',
       isAdmin: false,
-      status: 'incomplete', // Perfil incompleto hasta que se vinculen todos los métodos
+      status: 'active',
     };
     await setDoc(userRef, newUser);
 
@@ -108,15 +106,15 @@ export function useAuth() {
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
-       // Si el usuario ya está logueado (ej. con Google) y usa el mismo email, vinculamos la contraseña
+      const methods = await fetchSignInMethodsForEmail(auth, email);
+      
       if (auth.currentUser && auth.currentUser.email === email) {
+        // User is already logged in with a different provider (e.g. Google), link the new one
         const credential = EmailAuthProvider.credential(email, password);
         await linkWithCredential(auth.currentUser, credential);
-        await checkAndCompleteProfile(); // Chequeamos si el perfil ya se completó
         return;
       }
       
-      const methods = await fetchSignInMethodsForEmail(auth, email);
       if (methods.length > 0) {
         throw new Error('Este correo electrónico ya está en uso. Por favor, inicia sesión o utiliza otro correo.');
       }
@@ -142,22 +140,26 @@ export function useAuth() {
     }
   };
 
-  const setupRecaptcha = (containerId: string) => {
+  const setupRecaptcha = (containerId: string, callback: () => void) => {
     if (window.recaptchaVerifier) {
       window.recaptchaVerifier.clear();
     }
     const verifier = new RecaptchaVerifier(auth, containerId, {
-      'size': 'invisible',
+      'size': 'normal', // Use normal, visible reCAPTCHA
+      'callback': callback, // Callback when reCAPTCHA is solved
     });
     window.recaptchaVerifier = verifier;
+    verifier.render(); // Render the reCAPTCHA widget
     return verifier;
   };
 
-  const signInWithPhone = async (phoneNumber: string, recaptchaVerifier?: RecaptchaVerifier) => {
-      const verifier = recaptchaVerifier || window.recaptchaVerifier;
+  const signInWithPhone = async (phoneNumber: string) => {
+      const verifier = window.recaptchaVerifier;
       if (!verifier) {
           throw new Error('Recaptcha verifier not initialized.');
       }
+      // The verification is now handled by the reCAPTCHA callback,
+      // this function just needs to be called after that.
       return await signInWithPhoneNumber(auth, phoneNumber, verifier);
   };
 
@@ -218,73 +220,6 @@ export function useAuth() {
     }
   };
 
-  const checkAndCompleteProfile = async () => {
-    if (!firebaseUser) return;
-    
-    const providers = firebaseUser.providerData.map(p => p.providerId);
-    const hasGoogle = providers.includes('google.com');
-    const hasEmail = providers.includes('password');
-    const hasPhone = providers.includes('phone');
-
-    if (hasGoogle && hasEmail && hasPhone) {
-      const userRef = doc(db, 'users', firebaseUser.uid);
-      await updateDoc(userRef, { status: 'active' });
-      if (appUser) {
-        setAppUser({ ...appUser, status: 'active' });
-      }
-    }
-  };
-
-  const linkGoogleAccount = async () => {
-    if (!firebaseUser) throw new Error('Usuario no autenticado.');
-    const provider = new GoogleAuthProvider();
-    try {
-      // Forzamos la selección de cuenta
-      provider.setCustomParameters({ prompt: 'select_account' });
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      if (credential) {
-         await linkWithCredential(auth.currentUser!, credential);
-         await checkAndCompleteProfile();
-      }
-    } catch (error: any) {
-      console.error("Error linking Google Account:", error);
-      throw new Error("No se pudo vincular la cuenta de Google. Puede que ya esté en uso.");
-    }
-  };
-
-  const linkPhoneNumber = async (confirmationResult: any, otp: string, phone: string) => {
-    if (!firebaseUser) throw new Error('Usuario no autenticado.');
-    const credential = PhoneAuthProvider.credential(confirmationResult.verificationId, otp);
-    await linkWithCredential(firebaseUser, credential);
-    
-    // Guardar el número de teléfono en Firestore
-    const userRef = doc(db, 'users', firebaseUser.uid);
-    await updateDoc(userRef, { phone });
-    if(appUser) {
-        setAppUser({...appUser, phone});
-    }
-
-    await checkAndCompleteProfile();
-  };
-
-  const setPasswordForUser = async (newPassword: string) => {
-    if (!firebaseUser) throw new Error('Usuario no autenticado.');
-    
-    // Si el usuario se registró con Google y no tiene contraseña, este método no funciona directamente.
-    // Necesitamos vincular una credencial de email/password.
-    const email = firebaseUser.email;
-    if (email) {
-        const credential = EmailAuthProvider.credential(email, newPassword);
-        await linkWithCredential(firebaseUser, credential);
-    } else {
-        throw new Error('No hay un correo electrónico asociado a esta cuenta para establecer una contraseña.');
-    }
-    
-    await checkAndCompleteProfile();
-  }
-
-
   return { 
       ...context, 
       user: firebaseUser, 
@@ -295,9 +230,6 @@ export function useAuth() {
       signUpWithEmail,
       signInWithPhone,
       setupRecaptcha,
-      linkGoogleAccount,
-      linkPhoneNumber,
-      setPasswordForUser
     };
 }
 

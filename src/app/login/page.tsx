@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppHeader from '@/components/app-header';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ export default function LoginPage() {
     signInWithEmail, 
     signUpWithEmail, 
     signInWithPhone, 
+    setupRecaptcha,
     loading 
   } = useAuth();
   const router = useRouter();
@@ -36,6 +37,19 @@ export default function LoginPage() {
   const [confirmationResult, setConfirmationResult] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isRecaptchaVerified, setIsRecaptchaVerified] = useState(false);
+
+  useEffect(() => {
+    // This effect now only runs when the tab 'phone-login' is active
+    // and reCAPTCHA hasn't been verified yet.
+    if (!isRecaptchaVerified && !window.recaptchaVerifier) {
+      setupRecaptcha('recaptcha-container', () => {
+        setIsRecaptchaVerified(true);
+        handlePhoneSignIn();
+      });
+    }
+  }, [isRecaptchaVerified, setupRecaptcha]);
+
 
   if (loading) {
     return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -171,13 +185,11 @@ export default function LoginPage() {
                         <Label htmlFor="phone">Número de Teléfono</Label>
                         <div className="flex items-center">
                             <span className="p-2 border rounded-l-md bg-muted text-muted-foreground text-sm">+51</span>
-                            <Input id="phone" type="tel" placeholder="987654321" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-l-none" />
+                            <Input id="phone" type="tel" placeholder="987654321" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-l-none" disabled={isSubmitting} />
                         </div>
                      </div>
-                     <Button onClick={handlePhoneSignIn} className="w-full" disabled={isSubmitting || phone.length < 9}>
-                      {isSubmitting && <Loader2 className="mr-2 animate-spin" />}
-                      <Phone className="mr-2" /> Enviar Código
-                    </Button>
+                     <div id="recaptcha-container" className="flex justify-center"></div>
+                     {isSubmitting && <p className="text-sm text-muted-foreground text-center">Enviando código...</p>}
                   </div>
                 ) : (
                    <div className="space-y-4 flex flex-col items-center">
@@ -202,7 +214,6 @@ export default function LoginPage() {
                     <Button variant="link" onClick={() => setConfirmationResult(null)}>Usar otro número</Button>
                   </div>
                 )}
-                 <div id="recaptcha-container"></div>
               </TabsContent>
             </Tabs>
              <div className="relative my-4">
