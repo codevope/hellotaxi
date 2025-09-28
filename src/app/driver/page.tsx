@@ -84,7 +84,7 @@ export default function DriverPage() {
 
          {/* Requirements Section */}
         <section className="py-16 md:py-24">
-            <div className="container grid md:grid-cols-2 gap-12 items-center">
+            <div className="container grid md:grid-cols-2 gap-12 items-center p-8">
                  <div>
                     <h2 className="text-3xl font-bold font-headline mb-4">Requisitos para Unirte</h2>
                     <p className="text-muted-foreground text-lg mb-6">
@@ -118,7 +118,7 @@ export default function DriverPage() {
                     </ul>
                 </div>
                 <div className="flex items-center justify-center">
-                    <img src="https://images.unsplash.com/photo-1616422285435-d41c5a95394a?w=800" alt="Conductor sonriendo" className="rounded-lg shadow-xl" data-ai-hint="driver smiling" />
+                    <img src="/img/sedan.png" alt="Sedan moderno" className="rounded-lg shadow-xl" />
                 </div>
             </div>
         </section>
@@ -187,7 +187,7 @@ export default function DriverPage() {
                     <AccordionItem value="item-4">
                         <AccordionTrigger className="text-lg">¿Puedo conducir para diferentes tipos de servicio?</AccordionTrigger>
                         <AccordionContent className="text-base">
-                        Sí, dependiendo de las características de tu vehículo (modelo, año, estado), podrías calificar para conducir en las categorías 'Confort' o 'Exclusivo', lo que te permite acceder a tarifas más altas.
+                        Dependiendo de las características de tu vehículo (modelo, año, estado), podrías calificar para conducir en las categorías 'Confort' o 'Exclusivo', lo que te permite acceder a tarifas más altas.
                         </AccordionContent>
                     </AccordionItem>
                 </Accordion>
