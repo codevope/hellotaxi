@@ -441,5 +441,3 @@ firebase firestore:import gs://your-bucket/backup-folder
 **Última Actualización:** 27 de septiembre de 2025  
 **Versión de la Base de Datos:** 1.0  
 **Mantenido por:** Equipo de Desarrollo HiTaxi
-
-    

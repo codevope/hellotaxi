@@ -109,11 +109,12 @@ export interface ScheduledRide {
 }
 
 export interface ChatMessage {
-  sender: string;
+  id?: string;
+  userId: string;
   text: string;
-  timestamp: string;
-  isDriver: boolean;
+  timestamp: string; // ISO Date string
 }
+
 
 export interface Claim {
   id: string;
@@ -205,5 +206,3 @@ export interface Location {
 }
 
 export type Passenger = User;
-
-    

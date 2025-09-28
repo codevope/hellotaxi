@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -28,7 +29,7 @@ import SupportChat from '@/components/support-chat';
 import { Loader2 } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import Link from 'next/link';
-import { doc, onSnapshot, getDoc, collection, query, where, addDoc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, collection, query, where, addDoc, updateDoc, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getSettings } from '@/services/settings-service';
@@ -40,7 +41,7 @@ import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
 import { GoogleIcon } from '@/components/google-icon';
 import { useRouteSimulator } from '@/hooks/use-route-simulator';
-import type { Location } from '@/components/maps';
+import type { Location } from '@/lib/types';
 
 type PassengerStatus = 'idle' | 'searching' | 'assigned' | 'rating';
 
@@ -86,17 +87,21 @@ function RidePageContent() {
             const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
             setActiveRide(rideData);
 
-            if (rideData.driver && !assignedDriver) {
+            if (rideData.driver) {
                  const driverSnap = await getDoc(rideData.driver);
                  if (driverSnap.exists()) {
                     const driverData = driverSnap.data() as Driver;
-                    setAssignedDriver(driverData);
+                    if (assignedDriver?.id !== driverData.id) {
+                      setAssignedDriver(driverData);
+                    }
                     setStatus('assigned');
                     
                     const pLoc = pickupLocation || { lat: -12.05, lng: -77.05 };
                     const driverInitialPos = { lat: -12.045, lng: -77.03 };
                     startSimulation(driverInitialPos, pLoc);
                  }
+            } else {
+              setStatus('searching');
             }
              if (rideData.status === 'in-progress' && pickupLocation && dropoffLocation) {
                 startSimulation(pickupLocation, dropoffLocation);
@@ -131,7 +136,21 @@ function RidePageContent() {
     return () => {
         if(unsubscribe) unsubscribe();
     };
-  }, [user, status]);
+  }, [user, status, assignedDriver, pickupLocation, dropoffLocation, startSimulation, stopSimulation]);
+
+
+  // Listener for chat messages
+  useEffect(() => {
+    if (!activeRide || status !== 'assigned') return;
+
+    const chatQuery = query(collection(db, 'rides', activeRide.id, 'chatMessages'), orderBy('timestamp', 'asc'));
+    const unsubscribe = onSnapshot(chatQuery, (querySnapshot) => {
+        const messages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
+        setChatMessages(messages);
+    });
+
+    return () => unsubscribe();
+  }, [activeRide, status]);
 
 
   const handleLocationSelect = (location: Location, type: 'pickup' | 'dropoff') => {
@@ -173,9 +192,6 @@ function RidePageContent() {
   const handleRideCreated = (ride: Ride) => {
     setActiveRide(ride);
     setStatus('searching');
-    setChatMessages([
-        { sender: 'Sistema', text: 'Buscando el conductor más cercano para ti...', timestamp: new Date().toISOString(), isDriver: true, },
-    ]);
   }
 
   const resetRide = () => {
@@ -212,26 +228,15 @@ function RidePageContent() {
     }
   }
 
-  const handleSendMessage = (text: string) => {
-    const newMessage: ChatMessage = {
-      sender: 'Tú',
+  const handleSendMessage = async (text: string) => {
+    if (!user || !activeRide) return;
+    
+    const chatMessagesRef = collection(db, 'rides', activeRide.id, 'chatMessages');
+    await addDoc(chatMessagesRef, {
+      userId: user.uid,
       text,
-      timestamp: new Date().toISOString(),
-      isDriver: false,
-    };
-    setChatMessages((prev) => [...prev, newMessage]);
-
-    if (assignedDriver) {
-      setTimeout(() => {
-        const reply: ChatMessage = {
-          sender: assignedDriver.name,
-          text: 'Entendido. Llego en 5 minutos.',
-          timestamp: new Date().toISOString(),
-          isDriver: true,
-        };
-        setChatMessages((prev) => [...prev, reply]);
-      }, 2000);
-    }
+      timestamp: new Date().toISOString()
+    });
   }
 
   const handleRatingSubmit = async (rating: number, comment: string) => {
@@ -245,6 +250,11 @@ function RidePageContent() {
         rating,
         comment,
       });
+      
+      // Also mark the ride as fully "dealt with" by the user
+      // In a real app, you might add a flag like `isRatedByPassenger: true`
+      // For now, we just reset.
+
       toast({
         title: '¡Gracias por tu calificación!',
         description:
@@ -343,7 +353,7 @@ function RidePageContent() {
                                 <SheetHeader className="p-4 border-b text-left">
                                 <SheetTitle className="flex items-center gap-2">
                                     <MessageCircle className="h-5 w-5" />
-                                    <span>Chat con el Conductor</span>
+                                    <span>Chat con {assignedDriver?.name}</span>
                                 </SheetTitle>
                                 </SheetHeader>
                                 <Chat
@@ -552,5 +562,3 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
-
-    

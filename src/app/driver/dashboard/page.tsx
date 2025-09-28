@@ -1,19 +1,20 @@
 
+
 'use client';
 
 import AppHeader from '@/components/app-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Car, ShieldAlert, FileText, Star, UserCog, Wallet, History } from 'lucide-react';
+import { Loader2, Car, ShieldAlert, FileText, Star, UserCog, Wallet, History, MessageCircle } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import type { Ride, User, Driver, Location } from '@/lib/types';
+import type { Ride, User, Driver, Location, ChatMessage } from '@/lib/types';
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, doc, writeBatch, onSnapshot, Unsubscribe, updateDoc, increment, getDoc, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, onSnapshot, Unsubscribe, updateDoc, increment, getDoc, limit, addDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import RatingForm from '@/components/rating-form';
@@ -26,6 +27,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useRouteSimulator } from '@/hooks/use-route-simulator';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import Chat from '@/components/chat';
 
 const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
     available: { label: 'Disponible', variant: 'default' },
@@ -47,7 +50,7 @@ type EnrichedRide = Omit<Ride, 'passenger' | 'driver'> & { passenger: User, driv
 type DriverStatus = 'idle' | 'requesting' | 'in-progress' | 'rating';
 
 function DriverDashboardPageContent() {
-  const { driver, setDriver, loading } = useDriverAuth();
+  const { user, driver, setDriver, loading } = useDriverAuth();
   const { toast } = useToast();
   const [allRides, setAllRides] = useState<EnrichedRide[]>([]);
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
@@ -60,6 +63,9 @@ function DriverDashboardPageContent() {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [status, setStatus] = useState<DriverStatus>('idle');
   const { startSimulation, stopSimulation, simulatedLocation: driverLocation } = useRouteSimulator();
+  const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+
 
 
   // Listener for driver's active ride
@@ -143,6 +149,19 @@ setDropoffLocation(dropoff);
 
     return () => unsubscribe();
   }, [driver, driver?.status, activeRide, status]);
+
+    // Listener for chat messages
+  useEffect(() => {
+    if (!activeRide || status !== 'in-progress') return;
+
+    const chatQuery = query(collection(db, 'rides', activeRide.id, 'chatMessages'), orderBy('timestamp', 'asc'));
+    const unsubscribe = onSnapshot(chatQuery, (querySnapshot) => {
+        const messages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
+        setChatMessages(messages);
+    });
+
+    return () => unsubscribe();
+  }, [activeRide, status]);
 
 
   const handleAvailabilityChange = async (isAvailable: boolean) => {
@@ -254,6 +273,18 @@ setDropoffLocation(dropoff);
       setIsRatingSubmitting(false);
     }
   }
+
+  const handleSendMessage = async (text: string) => {
+    if (!user || !activeRide) return;
+    
+    const chatMessagesRef = collection(db, 'rides', activeRide.id, 'chatMessages');
+    await addDoc(chatMessagesRef, {
+      userId: user.uid,
+      text,
+      timestamp: new Date().toISOString()
+    });
+  }
+
 
   
   if (loading || !driver) {
@@ -379,13 +410,37 @@ setDropoffLocation(dropoff);
           <TabsContent value="dashboard" className="mt-6">
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 flex flex-col min-h-[60vh] rounded-xl overflow-hidden shadow-lg relative">
-                    <MapView 
+                     <MapView 
                         pickupLocation={pickupLocation}
                         dropoffLocation={dropoffLocation}
                         driverLocation={driverLocation}
                         activeRide={activeRide} 
                         interactive={false}
                     />
+                    {status === 'in-progress' && (
+                        <Sheet open={isDriverChatOpen} onOpenChange={setIsDriverChatOpen}>
+                            <SheetTrigger asChild>
+                            <Button
+                                size="icon"
+                                className="absolute bottom-4 left-4 h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90"
+                            >
+                                <MessageCircle className="h-7 w-7" />
+                            </Button>
+                            </SheetTrigger>
+                            <SheetContent side="left" className="w-full max-w-sm p-0">
+                                <SheetHeader className="p-4 border-b text-left">
+                                <SheetTitle className="flex items-center gap-2">
+                                    <MessageCircle className="h-5 w-5" />
+                                    <span>Chat con {activeRide?.passenger.name}</span>
+                                </SheetTitle>
+                                </SheetHeader>
+                                <Chat
+                                    messages={chatMessages}
+                                    onSendMessage={handleSendMessage}
+                                />
+                            </SheetContent>
+                        </Sheet>
+                    )}
                 </div>
                  <div className="flex flex-col gap-8">
                    <Card>
@@ -572,5 +627,3 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
-
-    
