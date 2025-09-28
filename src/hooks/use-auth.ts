@@ -113,12 +113,6 @@ export function useAuth() {
     try {
         const methods = await fetchSignInMethodsForEmail(auth, email);
         if (methods.length > 0) {
-            // User exists, check if they are logged in with a social account
-            if (auth.currentUser && auth.currentUser.email === email) {
-                const credential = EmailAuthProvider.credential(email, password);
-                await linkWithCredential(auth.currentUser, credential);
-                return; // Exit after linking
-            }
              throw new Error('Este correo electrónico ya está en uso. Por favor, inicia sesión o utiliza otro correo.');
         }
         await createUserWithEmailAndPassword(auth, email, password);
@@ -153,24 +147,21 @@ export function useAuth() {
     }
   };
 
-  const setupRecaptcha = (containerId: string, callback?: () => void) => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
-        size: 'normal', // Use normal, visible reCAPTCHA
-        callback: (response) => {
-          // reCAPTCHA solved, allow signInWithPhoneNumber.
-          console.log('reCAPTCHA solved');
-          if (callback) {
-            callback();
-          }
-        },
-        'expired-callback': () => {
-          // Response expired. Ask user to solve reCAPTCHA again.
-          console.log('reCAPTCHA expired');
-        },
-      });
-      window.recaptchaVerifier.render();
+  const setupRecaptcha = (containerId: string, callback: () => void) => {
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
     }
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+      size: 'normal',
+      callback: (response) => {
+        console.log('reCAPTCHA solved');
+        callback();
+      },
+      'expired-callback': () => {
+        console.log('reCAPTCHA expired');
+      },
+    });
+    window.recaptchaVerifier.render();
   };
 
   const signInWithPhone = async (phoneNumber: string): Promise<ConfirmationResult> => {
@@ -178,6 +169,7 @@ export function useAuth() {
       if (!verifier) {
           throw new Error('Recaptcha verifier not initialized.');
       }
+      console.log("Calling signInWithPhoneNumber");
       return await signInWithPhoneNumber(auth, phoneNumber, verifier);
   };
   
@@ -186,7 +178,6 @@ export function useAuth() {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      // This is a simplified flow. A real app would handle merging user data.
       console.log("Google account linked!", result.user);
     } catch (error: any) {
       console.error("Error linking Google account", error);

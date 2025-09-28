@@ -121,7 +121,11 @@ function DriverDashboardPageContent() {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+        if(unsubscribe){
+            unsubscribe();
+        }
+    };
   }, [driver, status, startSimulation, stopSimulation]);
 
   // Listener for new ride requests

@@ -39,14 +39,27 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   
   // This will be called when the reCAPTCHA is successfully solved
-  const onRecaptchaResolved = () => {
-    handlePhoneSignIn();
+  const handlePhoneSignIn = async () => {
+    setIsSubmitting(true);
+    try {
+      const result = await signInWithPhone(`+51${phone}`);
+      setConfirmationResult(result);
+      toast({ title: 'Código de verificación enviado', description: 'Revisa tus mensajes SMS.' });
+    } catch (error: any) {
+       let description = error.message;
+       if (error.code === 'auth/too-many-requests') {
+           description = 'Has intentado demasiadas veces. Por favor, intenta de nuevo más tarde.';
+       }
+      toast({ variant: 'destructive', title: 'Error al enviar código', description: description });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   useEffect(() => {
     // We only set up the reCAPTCHA verifier. It won't render until we tell it to.
-    setupRecaptcha('recaptcha-container', onRecaptchaResolved);
-  }, [setupRecaptcha]);
+    setupRecaptcha('recaptcha-container', handlePhoneSignIn);
+  }, [setupRecaptcha, phone]);
 
 
   if (loading) {
@@ -76,23 +89,6 @@ export default function LoginPage() {
       router.push('/');
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error en el registro', description: error.message });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handlePhoneSignIn = async () => {
-    setIsSubmitting(true);
-    try {
-      const result = await signInWithPhone(`+51${phone}`);
-      setConfirmationResult(result);
-      toast({ title: 'Código de verificación enviado', description: 'Revisa tus mensajes SMS.' });
-    } catch (error: any) {
-       let description = error.message;
-       if (error.code === 'auth/too-many-requests') {
-           description = 'Has intentado demasiadas veces. Por favor, intenta de nuevo más tarde.';
-       }
-      toast({ variant: 'destructive', title: 'Error al enviar código', description: description });
     } finally {
       setIsSubmitting(false);
     }
