@@ -237,6 +237,7 @@ export default function RideRequestForm({
       driversRef,
       where('serviceType', '==', serviceType),
       where('documentsStatus', '==', 'approved'),
+      where('status', '==', 'available'),
       limit(1)
     );
 
