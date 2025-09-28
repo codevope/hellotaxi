@@ -8,6 +8,7 @@ import type { Driver, Location } from '@/lib/types';
 import MapView from '@/components/map-view';
 import { Loader2 } from 'lucide-react';
 import { getSettings } from '@/services/settings-service';
+import { GoogleMapsProvider } from '../maps';
 
 export default function RealtimeMap() {
     const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -40,23 +41,25 @@ export default function RealtimeMap() {
     }
 
     return (
-        <div className="relative w-full h-full bg-gray-300 rounded-lg overflow-hidden">
-            <MapView 
-                pickupLocation={null}
-                dropoffLocation={null}
-                interactive={true}
-            >
-                {drivers.map(driver => (
-                    driver.location && (
-                        <MapView.Marker
-                            key={driver.id}
-                            position={driver.location}
-                            type="driver"
-                            title={`${driver.name} - ${driver.status}`}
-                        />
-                    )
-                ))}
-            </MapView>
-        </div>
+        <GoogleMapsProvider>
+            <div className="relative w-full h-full bg-gray-300 rounded-lg overflow-hidden">
+                <MapView 
+                    pickupLocation={null}
+                    dropoffLocation={null}
+                    interactive={true}
+                >
+                    {drivers.map(driver => (
+                        driver.location && (
+                            <MapView.Marker
+                                key={driver.id}
+                                position={driver.location}
+                                type="driver"
+                                title={`${driver.name} - ${driver.status}`}
+                            />
+                        )
+                    ))}
+                </MapView>
+            </div>
+        </GoogleMapsProvider>
     );
 }
