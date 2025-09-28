@@ -89,10 +89,7 @@ export interface Review {
     rating: number;
     comment: string;
     sentiment: 'positive' | 'negative' | 'neutral';
-    createdAt: string; // ISO Date string
-    rideId: string; // ID del viaje calificado
-    authorId: string; // ID de quien califica
-    targetId: string; // ID de quien es calificado
+    createdAt: string; // ISO Date string;
 }
 
 

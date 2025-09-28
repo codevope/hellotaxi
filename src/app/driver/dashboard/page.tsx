@@ -13,7 +13,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { getDocumentStatus } from '@/lib/document-status';
-import type { DocumentName, DocumentStatus, Ride, User } from '@/lib/types';
+import type { DocumentName, DocumentStatus, Ride, User, Driver } from '@/lib/types';
 import { format } from 'date-fns';
 import { useEffect, useState } from 'react';
 import { collection, query, where, getDocs, doc, getDoc, writeBatch, onSnapshot, Unsubscribe } from 'firebase/firestore';
@@ -30,19 +30,19 @@ import { GoogleIcon } from '@/components/google-icon';
 const overallDocStatusConfig = {
   approved: { 
     label: 'Aprobados',
-    variant: 'default',
+    variant: 'default' as const,
     icon: <ShieldCheck className="h-4 w-4" />,
     description: '¡Todo en orden! Ya puedes activarte para recibir viajes.'
   },
   pending: { 
     label: 'Pendientes de Revisión',
-    variant: 'outline',
+    variant: 'outline' as const,
     icon: <ShieldAlert className="h-4 w-4" />,
     description: 'Nuestro equipo está revisando tus documentos. Te notificaremos pronto.'
   },
   rejected: { 
     label: 'Rechazados',
-    variant: 'destructive',
+    variant: 'destructive' as const,
     icon: <ShieldX className="h-4 w-4" />,
     description: 'Hemos encontrado un problema con tus documentos. Revisa los detalles y vuelve a subirlos.'
   },
