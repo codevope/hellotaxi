@@ -2,9 +2,8 @@
 // This file contains the initial data to seed the Firestore database.
 
 import type { Driver, User, Ride, Claim, SOSAlert, Notification, Settings, ServiceTypeConfig, Coupon, SpecialFareRule, CancellationReason, PeakTimeRule, Location } from '@/lib/types';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 
-const getImageUrl = (id: string) => PlaceHolderImages.find(img => img.id === id)?.imageUrl || '';
+const defaultAvatar = '/img/avatar.png';
 
 const driverLocations: Record<string, Location> = {
     "ABC-123": { lat: -12.085, lng: -77.030 }, // Juan Perez
@@ -19,7 +18,7 @@ const driverLocations: Record<string, Location> = {
 export const drivers: Omit<Driver, 'id'>[] = [
   {
     name: 'Juan Perez',
-    avatarUrl: getImageUrl('driver1'),
+    avatarUrl: defaultAvatar,
     rating: 4.8,
     vehicleBrand: 'Toyota',
     vehicleModel: 'Yaris',
@@ -44,7 +43,7 @@ export const drivers: Omit<Driver, 'id'>[] = [
   },
   {
     name: 'Maria Rodriguez',
-    avatarUrl: getImageUrl('driver2'),
+    avatarUrl: defaultAvatar,
     rating: 4.9,
     vehicleBrand: 'Kia',
     vehicleModel: 'Sportage',
@@ -69,7 +68,7 @@ export const drivers: Omit<Driver, 'id'>[] = [
   },
   {
     name: 'Carlos Gomez',
-    avatarUrl: getImageUrl('driver3'),
+    avatarUrl: defaultAvatar,
     rating: 4.7,
     vehicleBrand: 'Hyundai',
     vehicleModel: 'Accent',
@@ -94,7 +93,7 @@ export const drivers: Omit<Driver, 'id'>[] = [
   },
    {
     name: 'Ana Torres',
-    avatarUrl: getImageUrl('driver4'),
+    avatarUrl: defaultAvatar,
     rating: 5.0,
     vehicleBrand: 'Audi',
     vehicleModel: 'A4',
@@ -127,7 +126,7 @@ export const users: (Omit<User, 'id'>)[] = [
     {
         name: 'Lucia Fernandez',
         email: 'lucia.f@example.com',
-        avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
+        avatarUrl: defaultAvatar,
         role: 'passenger',
         signupDate: '2023-01-15T10:00:00Z',
         totalRides: 25,
@@ -138,7 +137,7 @@ export const users: (Omit<User, 'id'>)[] = [
     {
         name: 'Miguel Castro',
         email: 'miguel.c@example.com',
-        avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400',
+        avatarUrl: defaultAvatar,
         role: 'passenger',
         signupDate: '2023-03-20T14:30:00Z',
         totalRides: 12,
@@ -149,7 +148,7 @@ export const users: (Omit<User, 'id'>)[] = [
      {
         name: 'Sofia Vargas',
         email: 'sofia.v@example.com',
-        avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400',
+        avatarUrl: defaultAvatar,
         role: 'passenger',
         signupDate: '2023-05-10T09:00:00Z',
         totalRides: 5,

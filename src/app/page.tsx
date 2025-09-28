@@ -11,12 +11,9 @@ import {
   MessagesSquare,
   Car,
 } from 'lucide-react';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function HomePage() {
-  const mapImageUrl =
-    PlaceHolderImages.find((img) => img.id === 'map')?.imageUrl ||
-    'https://picsum.photos/seed/map/1200/800';
+  const mapImageUrl = 'https://picsum.photos/seed/map/1200/800';
 
   return (
     <div className="flex flex-col min-h-screen bg-background">

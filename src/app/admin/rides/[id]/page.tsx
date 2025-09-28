@@ -40,15 +40,17 @@ import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Image from 'next/image';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Separator } from '@/components/ui/separator';
 
 type EnrichedRide = Omit<Ride, 'driver' | 'passenger'> & { driver: Driver; passenger: User };
 
 const rideStatusConfig = {
-  completed: { label: 'Completado', variant: 'secondary' },
-  'in-progress': { label: 'En Progreso', variant: 'default' },
-  cancelled: { label: 'Cancelado', variant: 'destructive' },
+  completed: { label: 'Completado', variant: 'secondary' as const },
+  'in-progress': { label: 'En Progreso', variant: 'default' as const },
+  cancelled: { label: 'Cancelado', variant: 'destructive' as const },
+  searching: { label: 'Buscando', variant: 'default' as const },
+  accepted: { label: 'Aceptado', variant: 'default' as const },
+  arrived: { label: 'Ha llegado', variant: 'default' as const },
 };
 
 const sentimentConfig = {
@@ -66,7 +68,7 @@ export default function RideDetailsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   
-  const mapImageUrl = PlaceHolderImages.find((img) => img.id === 'map')?.imageUrl || 'https://picsum.photos/seed/map/1200/800';
+  const mapImageUrl = 'https://picsum.photos/seed/map/1200/800';
 
 
   useEffect(() => {
@@ -80,21 +82,29 @@ export default function RideDetailsPage() {
         if (rideSnap.exists()) {
             const rideData = { id: rideSnap.id, ...rideSnap.data() } as Ride;
             
-            const driverSnap = await getDoc(rideData.driver);
+            const driverSnap = rideData.driver ? await getDoc(rideData.driver) : null;
             const passengerSnap = await getDoc(rideData.passenger);
 
-            if (driverSnap.exists() && passengerSnap.exists()) {
-                const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
+            if (passengerSnap.exists()) {
+                const driverData = driverSnap?.exists() ? { id: driverSnap.id, ...driverSnap.data() } as Driver : null;
                 const passengerData = { id: passengerSnap.id, ...passengerSnap.data() } as User;
-                const enrichedRide = { ...rideData, driver: driverData, passenger: passengerData };
+                
+                // The ride might not have a driver if it was cancelled during 'searching'
+                const enrichedRide = { 
+                    ...rideData, 
+                    driver: driverData, 
+                    passenger: passengerData 
+                } as EnrichedRide; // Type assertion needed because driver can be null
+                
                 setRide(enrichedRide);
 
-
-                // Fetch driver reviews
-                const reviewsQuery = query(collection(db, 'drivers', driverData.id, 'reviews'), orderBy('createdAt', 'desc'));
-                const reviewsSnapshot = await getDocs(reviewsQuery);
-                const driverReviews = reviewsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review));
-                setReviews(driverReviews);
+                if(driverData) {
+                    // Fetch driver reviews
+                    const reviewsQuery = query(collection(db, 'drivers', driverData.id, 'reviews'), orderBy('createdAt', 'desc'));
+                    const reviewsSnapshot = await getDocs(reviewsQuery);
+                    const driverReviews = reviewsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review));
+                    setReviews(driverReviews);
+                }
             }
         } else {
           console.error("No such ride!");
@@ -254,37 +264,39 @@ export default function RideDetailsPage() {
             )}
 
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Comentarios sobre el Conductor</CardTitle>
-                    <CardDescription>Calificaciones y comentarios que ha recibido {driver.name} en otros viajes.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {reviews.length > 0 ? (
-                        <ul className="space-y-4">
-                            {reviews.map(review => (
-                                <li key={review.id} className="p-4 bg-muted rounded-lg">
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex items-center gap-2">
-                                            {[...Array(5)].map((_, i) => (
-                                                <Star key={i} className={cn("h-5 w-5", i < review.rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300")} />
-                                            ))}
+            {driver && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Comentarios sobre el Conductor</CardTitle>
+                        <CardDescription>Calificaciones y comentarios que ha recibido {driver.name} en otros viajes.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {reviews.length > 0 ? (
+                            <ul className="space-y-4">
+                                {reviews.map(review => (
+                                    <li key={review.id} className="p-4 bg-muted rounded-lg">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex items-center gap-2">
+                                                {[...Array(5)].map((_, i) => (
+                                                    <Star key={i} className={cn("h-5 w-5", i < review.rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300")} />
+                                                ))}
+                                            </div>
+                                            <div className={cn("flex items-center text-sm font-medium", sentimentConfig[review.sentiment].color)}>
+                                                {sentimentConfig[review.sentiment].icon}
+                                                <span>{sentimentConfig[review.sentiment].label}</span>
+                                            </div>
                                         </div>
-                                        <div className={cn("flex items-center text-sm font-medium", sentimentConfig[review.sentiment].color)}>
-                                            {sentimentConfig[review.sentiment].icon}
-                                            <span>{sentimentConfig[review.sentiment].label}</span>
-                                        </div>
-                                    </div>
-                                    <p className="text-muted-foreground mt-2 italic">"{review.comment}"</p>
-                                    <p className="text-xs text-right text-muted-foreground mt-2">{format(new Date(review.createdAt), "dd/MM/yyyy")}</p>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="text-center text-muted-foreground py-4">Este conductor aún no ha recibido ningún comentario.</p>
-                    )}
-                </CardContent>
-            </Card>
+                                        <p className="text-muted-foreground mt-2 italic">"{review.comment}"</p>
+                                        <p className="text-xs text-right text-muted-foreground mt-2">{format(new Date(review.createdAt), "dd/MM/yyyy")}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-center text-muted-foreground py-4">Este conductor aún no ha recibido ningún comentario.</p>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
         </div>
 
         <div className="lg:col-span-1 space-y-8">
@@ -308,27 +320,29 @@ export default function RideDetailsPage() {
             </CardContent>
           </Card>
 
-          <Card>
-             <CardHeader>
-                <div className="flex items-center gap-2">
-                    <Car className="h-6 w-6 text-primary" />
-                    <CardTitle>Conductor</CardTitle>
-                </div>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center text-center">
-                 <Avatar className="h-20 w-20 mb-4">
-                    <AvatarImage src={driver.avatarUrl} alt={driver.name} />
-                    <AvatarFallback>{driver.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <p className="font-semibold">{driver.name}</p>
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span>{driver.rating.toFixed(1)} de calificación</span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">{driver.vehicleBrand} {driver.vehicleModel}</p>
-                <p className="text-sm font-mono bg-muted px-2 py-1 rounded-md mt-1">{driver.licensePlate}</p>
-            </CardContent>
-          </Card>
+          {driver && (
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <Car className="h-6 w-6 text-primary" />
+                        <CardTitle>Conductor</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center text-center">
+                    <Avatar className="h-20 w-20 mb-4">
+                        <AvatarImage src={driver.avatarUrl} alt={driver.name} />
+                        <AvatarFallback>{driver.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <p className="font-semibold">{driver.name}</p>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span>{driver.rating.toFixed(1)} de calificación</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">{driver.vehicleBrand} {driver.vehicleModel}</p>
+                    <p className="text-sm font-mono bg-muted px-2 py-1 rounded-md mt-1">{driver.licensePlate}</p>
+                </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
