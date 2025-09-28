@@ -26,12 +26,11 @@ export default function HomePage() {
         {/* Hero Section */}
         <section className="relative h-[70vh] flex items-center justify-center text-center text-white">
           <Image
-            src="https://images.unsplash.com/photo-1533106418989-88406e7c8ca1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxjaXR5JTIwc3RyZWV0JTIwZnJvbSUyMGNhciUyMHdpbmRvd3xlbnwwfHx8fDE3NTk1MjY5OTV8MA&ixlib=rb-4.1.0&q=80&w=1080"
+            src="/img/bg-hero.jpg"
             alt="Vista de la ciudad desde un coche"
             fill
             className="absolute inset-0 z-0 object-cover"
             priority
-            data-ai-hint="city street car window"
           />
           <div className="absolute inset-0 bg-black/50 z-10"></div>
           <div className="relative z-20 p-4 flex flex-col items-center">
