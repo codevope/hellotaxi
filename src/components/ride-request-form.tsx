@@ -34,6 +34,8 @@ import {
   CreditCard,
   MapPin,
   Tag,
+  Rocket,
+  CarFront,
 } from 'lucide-react';
 import type {
   Ride,
@@ -120,6 +122,12 @@ const paymentMethodIcons: Record<PaymentMethod, React.ReactNode> = {
   plin: <span className="font-bold text-lg">P</span>,
   card: <CreditCard className="h-6 w-6" />,
 };
+
+const serviceTypeIcons: Record<ServiceType, React.ReactNode> = {
+    economy: <Car className="h-8 w-8" />,
+    comfort: <CarFront className="h-8 w-8" />,
+    exclusive: <Rocket className="h-8 w-8" />,
+}
 
 export default function RideRequestForm({
   setActiveRide,
@@ -557,18 +565,21 @@ export default function RideRequestForm({
   }
 
   if (status === 'completed') {
+    // This state is now handled by the driver dashboard. When driver completes,
+    // passenger should go to rating state. We'll simulate this with a timeout.
+    setTimeout(() => setStatus('rating'), 1000);
     return (
       <Alert>
         <Loader2 className="h-4 w-4 animate-spin" />
         <AlertTitle>Viaje Completado</AlertTitle>
         <AlertDescription>
-          El conductor ha finalizado el viaje.
+          El conductor ha finalizado el viaje. Preparando la calificación...
         </AlertDescription>
       </Alert>
     );
   }
 
-  if (status === 'rating' && currentRide && assignedDriver) {
+  if (status === 'rating' && assignedDriver) {
     return (
       <RatingForm
         userToRate={assignedDriver}
@@ -694,11 +705,12 @@ export default function RideRequestForm({
                             className="sr-only"
                           />
                         </FormControl>
-                        <FormLabel htmlFor={`service-${service.id}`} className="group flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                        <FormLabel
+                          htmlFor={`service-${service.id}`}
+                          className="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 [&:has([data-state=checked])]:border-primary"
+                        >
+                          {serviceTypeIcons[service.id]}
                           <span className="font-semibold">{service.name}</span>
-                          <span className="text-xs text-muted-foreground text-center group-hover:text-accent-foreground">
-                            {service.description}
-                          </span>
                         </FormLabel>
                       </FormItem>
                     ))}
@@ -727,7 +739,10 @@ export default function RideRequestForm({
                           <FormControl>
                             <RadioGroupItem value={method} id={`payment-${method}`} className="sr-only" />
                           </FormControl>
-                          <FormLabel htmlFor={`payment-${method}`} className="flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                          <FormLabel
+                            htmlFor={`payment-${method}`}
+                            className="flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 [&:has([data-state=checked])]:border-primary"
+                          >
                             {paymentMethodIcons[method]}
                             <span className="font-semibold text-xs capitalize">
                               {method === 'cash' ? 'Efectivo' : method}
