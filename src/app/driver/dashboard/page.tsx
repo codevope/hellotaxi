@@ -141,19 +141,17 @@ function DriverDashboardPageContent() {
     let q = query(
         collection(db, 'rides'),
         where('status', '==', 'searching'),
-        where('serviceType', '==', driver.serviceType),
-        limit(10) // Fetch more than 1 to have fallback if some are rejected
+        where('serviceType', '==', driver.serviceType)
     );
     
-    // This is a client-side filter because Firestore doesn't support 'not-in' with other range/inequality filters
     const unsubscribe = onSnapshot(q, async (snapshot) => {
         if (!snapshot.empty) {
             const potentialRides = snapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as Ride))
-                .filter(ride => !(ride.rejectedBy || []).some(ref => ref.id === driver.id));
+                .filter(ride => !(ride.rejectedBy || []).some(ref => ref.id === driver.id) && !rejectedRideIds.includes(ride.id));
 
             if (potentialRides.length > 0) {
-                const rideData = potentialRides[0]; // Take the first available one
+                const rideData = potentialRides[0];
                 const passengerSnap = await getDoc(rideData.passenger);
                 if (passengerSnap.exists()) {
                     const passengerData = passengerSnap.data() as User;
@@ -176,7 +174,7 @@ function DriverDashboardPageContent() {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver?.status, activeRide, driver?.id]);
+  }, [driver?.status, activeRide, driver?.id, rejectedRideIds]);
 
     // Listener for chat messages
   useEffect(() => {
@@ -242,7 +240,8 @@ function DriverDashboardPageContent() {
             toast({ variant: 'destructive', title: 'Error', description: e.message || "No se pudo aceptar el viaje."});
         }
     } else {
-        // Add to rejected list in Firestore
+        // Add to rejected list locally and in Firestore
+        setRejectedRideIds(prev => [...prev, rideId]);
         await updateDoc(rideRef, {
             rejectedBy: arrayUnion(doc(db, 'drivers', driver.id))
         });
@@ -733,4 +732,5 @@ export default function DriverDashboardPage() {
     return <DriverDashboardPageContent />;
 }
 
+    
     

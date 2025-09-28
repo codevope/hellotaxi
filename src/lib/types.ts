@@ -93,6 +93,7 @@ export interface Ride {
   couponCode?: string;
   fareBreakdown?: FareBreakdown;
   rejectedBy?: DocumentReference[];
+  isRatedByPassenger?: boolean;
 }
 
 export interface Review {
@@ -208,3 +209,5 @@ export interface Settings {
 }
 
 export type Passenger = User;
+
+    
