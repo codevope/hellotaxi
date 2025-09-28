@@ -91,7 +91,7 @@ function RidePageContent() {
             if (rideData.driver) {
                  const driverSnap = await getDoc(rideData.driver);
                  if (driverSnap.exists()) {
-                    const driverData = driverSnap.data() as Driver;
+                    const driverData = {id: driverSnap.id, ...driverSnap.data()} as Driver;
                     if (assignedDriver?.id !== driverData.id) {
                       setAssignedDriver(driverData);
                     }
@@ -122,7 +122,7 @@ function RidePageContent() {
                 if(status !== 'rating') {
                      const driverSnap = await getDoc(rideToRate.driver!);
                      if(driverSnap.exists()){
-                        setAssignedDriver(driverSnap.data() as Driver);
+                        setAssignedDriver({id: driverSnap.id, ...driverSnap.data()} as Driver);
                         setActiveRide(rideToRate);
                         setStatus('rating');
                         stopSimulation();
