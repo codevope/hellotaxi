@@ -84,26 +84,29 @@ function DriverDashboardPageContent() {
       if (!snapshot.empty) {
         const rideDoc = snapshot.docs[0];
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-        const passengerSnap = await getDoc(rideData.passenger);
-        if (passengerSnap.exists()) {
-            const passengerData = passengerSnap.data() as User;
-            const rideWithPassenger = { ...rideData, driver, passenger: passengerData };
-            setActiveRide(rideWithPassenger);
+        
+        if (rideData.passenger) {
+            const passengerSnap = await getDoc(rideData.passenger);
+            if (passengerSnap.exists() && driver) {
+                const passengerData = passengerSnap.data() as User;
+                const rideWithPassenger = { ...rideData, driver, passenger: passengerData };
+                setActiveRide(rideWithPassenger);
 
-            const pickup = { lat: -12.05, lng: -77.05, address: rideData.pickup }; // Fallback
-            const dropoff = { lat: -12.1, lng: -77.0, address: rideData.dropoff }; // Fallback
+                const pickup = { lat: -12.05, lng: -77.05, address: rideData.pickup }; // Fallback
+                const dropoff = { lat: -12.1, lng: -77.0, address: rideData.dropoff }; // Fallback
 
-            setPickupLocation(pickup);
-setDropoffLocation(dropoff);
-            
-            if (rideData.status === 'accepted' || rideData.status === 'arrived') {
-                const driverInitialPos = { lat: -12.045, lng: -77.03 };
-                startSimulation(driverInitialPos, pickup);
-            } else if (rideData.status === 'in-progress') {
-                startSimulation(pickup, dropoff);
+                setPickupLocation(pickup);
+                setDropoffLocation(dropoff);
+                
+                if (rideData.status === 'accepted' || rideData.status === 'arrived') {
+                    const driverInitialPos = { lat: -12.045, lng: -77.03 };
+                    startSimulation(driverInitialPos, pickup);
+                } else if (rideData.status === 'in-progress') {
+                    startSimulation(pickup, dropoff);
+                }
+
+                setStatus('in-progress');
             }
-
-            setStatus('in-progress');
         }
       } else {
          if (status !== 'rating') {
@@ -246,19 +249,19 @@ setDropoffLocation(dropoff);
   };
 
 
-  const handleRatingSubmit = async (passenger: User, rating: number, comment: string) => {
+  const handleRatingSubmit = async (passengerId: string, rating: number, comment: string) => {
     if (!completedRideForRating) return;
     setIsRatingSubmitting(true);
     try {
       await processRating({
-        ratedUserId: passenger.id,
+        ratedUserId: passengerId,
         isDriver: false,
         rating,
         comment,
       });
       toast({
         title: 'Pasajero Calificado',
-        description: `Has calificado a ${passenger.name} con ${rating} estrellas.`,
+        description: `Has calificado al pasajero con ${rating} estrellas.`,
       });
       setCompletedRideForRating(null);
       setPickupLocation(null);
@@ -370,7 +373,7 @@ setDropoffLocation(dropoff);
                  <RatingForm
                     userToRate={completedRideForRating.passenger}
                     isDriver={false}
-                    onSubmit={(rating, comment) => handleRatingSubmit(completedRideForRating!.passenger, rating, comment)}
+                    onSubmit={(rating, comment) => handleRatingSubmit(completedRideForRating!.passenger.id, rating, comment)}
                     isSubmitting={isRatingSubmitting}
                 />
             );

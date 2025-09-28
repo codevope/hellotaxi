@@ -121,27 +121,30 @@ function RidePageContent() {
               setStatus('searching');
             }
         } else {
-             // Check if there is a recently completed ride to rate
+            // No active ride, check if there's a recently completed one to rate
             const completedQuery = query(
-                collection(db, 'rides'), 
+                collection(db, 'rides'),
                 where('passenger', '==', doc(db, 'users', user.uid)),
                 where('status', '==', 'completed')
             );
             const completedSnapshot = await getDocs(completedQuery);
-            const unratedRides = completedSnapshot.docs.filter(d => !(d.data().isRatedByPassenger));
+            // This is a simplified check. A real app would use a specific 'isRated' flag.
+            const unratedRides = completedSnapshot.docs.filter(d => !(d.data() as any).isRatedByPassenger);
 
             if (unratedRides.length > 0) {
-                const rideToRate = { id: unratedRides[0].id, ...unratedRides[0].data() } as Ride;
-                 const driverSnap = await getDoc(rideToRate.driver!);
-                 if(driverSnap.exists()){
-                    setAssignedDriver({id: driverSnap.id, ...driverSnap.data()} as Driver);
-                    setActiveRide(rideToRate);
-                    setStatus('rating');
-                    stopSimulation();
-                 }
-            } else if (status !== 'idle') {
-                if (activeRide?.status === 'completed') {
-                  toast({ title: '¡Viaje finalizado!', description: 'Gracias por viajar con nosotros.'});
+                const rideToRateData = { id: unratedRides[0].id, ...unratedRides[0].data() } as Ride;
+                if (rideToRateData.driver) {
+                    const driverSnap = await getDoc(rideToRateData.driver);
+                    if (driverSnap.exists()) {
+                        setAssignedDriver({ id: driverSnap.id, ...driverSnap.data() } as Driver);
+                        setActiveRide(rideToRateData);
+                        setStatus('rating');
+                        stopSimulation();
+                    }
+                }
+            } else {
+                 if (activeRide?.status === 'completed') {
+                    toast({ title: '¡Viaje finalizado!', description: 'Gracias por viajar con nosotros.' });
                 }
                 resetRide();
             }
@@ -154,7 +157,7 @@ function RidePageContent() {
           clearTimeout(searchTimeoutRef.current);
         }
     };
-  }, [user, status, assignedDriver, pickupLocation, dropoffLocation, startSimulation, stopSimulation, toast, activeRide?.status]);
+  }, [user, assignedDriver?.id, pickupLocation, dropoffLocation, startSimulation, stopSimulation, toast, activeRide?.status]);
 
 
   // Listener for chat messages
@@ -212,9 +215,11 @@ function RidePageContent() {
     setStatus('searching');
 
     // Set a timeout to cancel the search if no driver is found
-    searchTimeoutRef.current = setTimeout(() => {
-        if (ride.status === 'searching') {
-            handleCancelRide({ code: 'NO_DRIVERS', reason: 'No se encontraron conductores' }, true);
+    searchTimeoutRef.current = setTimeout(async () => {
+        const rideRef = doc(db, 'rides', ride.id);
+        const currentRideSnap = await getDoc(rideRef);
+        if (currentRideSnap.exists() && currentRideSnap.data().status === 'searching') {
+            await handleCancelRide({ code: 'NO_DRIVERS', reason: 'No se encontraron conductores' }, true);
             toast({
                 variant: 'destructive',
                 title: 'Búsqueda de Conductor Expirada',
