@@ -128,9 +128,9 @@ const paymentMethodIcons: Record<Exclude<PaymentMethod, 'card'>, React.ReactNode
 };
 
 const serviceTypeIcons: Record<ServiceType, React.ReactNode> = {
-    economy: <Car className="h-8 w-8" />,
-    comfort: <CarFront className="h-8 w-8" />,
-    exclusive: <Rocket className="h-8 w-8" />,
+  economy: <Car className="h-8 w-8" />,
+  comfort: <CarFront className="h-8 w-8" />,
+  exclusive: <Rocket className="h-8 w-8" />,
 }
 
 export default function RideRequestForm({
@@ -165,7 +165,7 @@ export default function RideRequestForm({
     useMap();
   const { toast } = useToast();
   const { calculateRoute, isCalculating, error: routeError } = useETACalculator();
-  
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     mode: 'onSubmit',
@@ -220,14 +220,14 @@ export default function RideRequestForm({
       form.setValue('dropoff', '');
     }
   }, [dropoffLocation, form]);
-  
+
   const handleCalculateFare = async () => {
     if (!pickupLocation || !dropoffLocation) return;
     setStatus('calculating');
     const route = await calculateRoute(
       pickupLocation.coordinates,
       dropoffLocation.coordinates,
-      { 
+      {
         serviceType: form.getValues('serviceType'),
         couponCode: form.getValues('couponCode') || undefined
       }
@@ -313,48 +313,48 @@ export default function RideRequestForm({
     const availableDriver = await findDriver(serviceType);
 
     if (availableDriver && user) {
-        setAssignedDriver(availableDriver);
-        const passengerRef = doc(db, 'users', user.uid);
-        const driverRef = doc(db, 'drivers', availableDriver.id);
-        
-        try {
-            // Create the ride document
-            const newRideData = {
-                pickup: form.getValues('pickup'),
-                dropoff: form.getValues('dropoff'),
-                date: new Date().toISOString(),
-                fare: fare,
-                driver: driverRef,
-                passenger: passengerRef,
-                serviceType: form.getValues('serviceType'),
-                paymentMethod: form.getValues('paymentMethod'),
-                couponCode: form.getValues('couponCode') || '',
-                assignmentTimestamp: new Date().toISOString(),
-                fareBreakdown: breakdown,
-                status: 'in-progress' as const,
-            };
-            const rideDocRef = await addDoc(collection(db, 'rides'), newRideData);
+      setAssignedDriver(availableDriver);
+      const passengerRef = doc(db, 'users', user.uid);
+      const driverRef = doc(db, 'drivers', availableDriver.id);
 
-            // Update driver and passenger in a batch
-            const batch = writeBatch(db);
-            batch.update(driverRef, { status: 'on-ride' });
-            batch.update(passengerRef, { totalRides: increment(1) });
-            await batch.commit();
+      try {
+        // Create the ride document
+        const newRideData = {
+          pickup: form.getValues('pickup'),
+          dropoff: form.getValues('dropoff'),
+          date: new Date().toISOString(),
+          fare: fare,
+          driver: driverRef,
+          passenger: passengerRef,
+          serviceType: form.getValues('serviceType'),
+          paymentMethod: form.getValues('paymentMethod'),
+          couponCode: form.getValues('couponCode') || '',
+          assignmentTimestamp: new Date().toISOString(),
+          fareBreakdown: breakdown,
+          status: 'in-progress' as const,
+        };
+        const rideDocRef = await addDoc(collection(db, 'rides'), newRideData);
 
-            // Set component state with the newly created ride
-            const createdRide: Ride = { id: rideDocRef.id, ...newRideData };
-            setCurrentRide(createdRide);
-            setActiveRide(createdRide);
-            setStatus('assigned');
-            setChatMessages([
-                { sender: availableDriver.name, text: '¡Hola! Ya estoy en camino.', timestamp: new Date().toISOString(), isDriver: true, },
-            ]);
+        // Update driver and passenger in a batch
+        const batch = writeBatch(db);
+        batch.update(driverRef, { status: 'on-ride' });
+        batch.update(passengerRef, { totalRides: increment(1) });
+        await batch.commit();
 
-        } catch (error) {
-            console.error('Error creating ride and updating statuses:', error);
-            toast({ variant: 'destructive', title: 'Error al crear el viaje', description: 'No se pudo registrar el viaje. Inténtalo de nuevo.' });
-            resetRide();
-        }
+        // Set component state with the newly created ride
+        const createdRide: Ride = { id: rideDocRef.id, ...newRideData };
+        setCurrentRide(createdRide);
+        setActiveRide(createdRide);
+        setStatus('assigned');
+        setChatMessages([
+          { sender: availableDriver.name, text: '¡Hola! Ya estoy en camino.', timestamp: new Date().toISOString(), isDriver: true, },
+        ]);
+
+      } catch (error) {
+        console.error('Error creating ride and updating statuses:', error);
+        toast({ variant: 'destructive', title: 'Error al crear el viaje', description: 'No se pudo registrar el viaje. Inténtalo de nuevo.' });
+        resetRide();
+      }
     } else {
       toast({
         variant: 'destructive',
@@ -364,31 +364,31 @@ export default function RideRequestForm({
       resetRide();
     }
   }
-  
+
   async function handleCancelRide(reason: CancellationReason) {
     if (!currentRide || !user || !assignedDriver) return;
 
     const rideRef = doc(db, 'rides', currentRide.id);
     const driverRef = doc(db, 'drivers', assignedDriver.id);
-    
-    try {
-        const batch = writeBatch(db);
-        batch.update(rideRef, { 
-            status: 'cancelled',
-            cancellationReason: reason,
-            cancelledBy: 'passenger'
-        });
-        batch.update(driverRef, { status: 'available' });
-        await batch.commit();
 
-        toast({
-            title: 'Viaje Cancelado',
-            description: `Motivo: ${reason.reason}.`,
-        });
-        resetRide();
+    try {
+      const batch = writeBatch(db);
+      batch.update(rideRef, {
+        status: 'cancelled',
+        cancellationReason: reason,
+        cancelledBy: 'passenger'
+      });
+      batch.update(driverRef, { status: 'available' });
+      await batch.commit();
+
+      toast({
+        title: 'Viaje Cancelado',
+        description: `Motivo: ${reason.reason}.`,
+      });
+      resetRide();
     } catch (error) {
-        console.error('Error cancelling ride:', error);
-        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cancelar el viaje.'});
+      console.error('Error cancelling ride:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cancelar el viaje.' });
     }
   }
 
@@ -457,7 +457,7 @@ export default function RideRequestForm({
       }, 2000);
     }
   }
-  
+
   if (status === 'negotiating' && routeInfo) {
     return (
       <FareNegotiation
@@ -714,7 +714,7 @@ export default function RideRequestForm({
                                 className="peer sr-only"
                               />
                             </FormControl>
-                             <FormLabel
+                            <FormLabel
                               htmlFor={`service-${service.id}`}
                               className={cn(
                                 'flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all',
@@ -732,9 +732,9 @@ export default function RideRequestForm({
                   </FormItem>
                 )}
               />
-              
+
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                 {(status === 'idle' || isCalculating) && (
+                {(status === 'idle' || isCalculating) && (
                   <Button
                     type="submit"
                     className="w-full"
@@ -749,15 +749,8 @@ export default function RideRequestForm({
                   </Button>
                 )}
               </div>
-              
-              {status === 'calculated' && routeInfo && (
-                <ETADisplay
-                  routeInfo={routeInfo}
-                  isCalculating={isCalculating}
-                  error={routeError}
-                />
-              )}
-              
+
+
               <FormField
                 control={form.control}
                 name="paymentMethod"
@@ -779,7 +772,7 @@ export default function RideRequestForm({
                                 className="peer sr-only"
                               />
                             </FormControl>
-                             <FormLabel
+                            <FormLabel
                               htmlFor={`payment-${method}`}
                               className={cn(
                                 "flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all h-24",
@@ -795,6 +788,15 @@ export default function RideRequestForm({
                   </FormItem>
                 )}
               />
+
+
+              {status === 'calculated' && routeInfo && (
+                <ETADisplay
+                  routeInfo={routeInfo}
+                  isCalculating={isCalculating}
+                  error={routeError}
+                />
+              )}
 
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
                 {status === 'calculated' && (
