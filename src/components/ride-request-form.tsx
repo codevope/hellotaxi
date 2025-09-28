@@ -198,10 +198,6 @@ export default function RideRequestForm({
   };
 
   useEffect(() => {
-    getSettings().then((settings) => setAppSettings(settings));
-  }, []);
-
-  useEffect(() => {
     if (pickupLocation) {
       form.setValue('pickup', pickupLocation.address);
     } else {
@@ -793,14 +789,6 @@ export default function RideRequestForm({
 
                 {status === 'calculated' && (
                   <>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setStatus('idle')}
-                    >
-                      Modificar Ruta
-                    </Button>
                     <Button
                       type="button"
                       className="w-full"
