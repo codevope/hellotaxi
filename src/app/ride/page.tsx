@@ -47,6 +47,7 @@ function RidePageContent() {
   const [assignedDriver, setAssignedDriver] = useState<Driver | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isCancelReasonDialogOpen, setIsCancelReasonDialogOpen] = useState(false);
+  const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
   const [appSettings, setAppSettings] = useState<Awaited<ReturnType<typeof getSettings>> | null>(null);
   const [status, setStatus] = useState<'idle' | 'completed' | 'rating'>('idle');
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
@@ -72,7 +73,6 @@ function RidePageContent() {
     setChatMessages([
         { sender: driver.name, text: '¡Hola! Ya estoy en camino.', timestamp: new Date().toISOString(), isDriver: true, },
     ]);
-    setActiveTab('active-ride');
   }
 
   const resetRide = () => {
@@ -175,41 +175,24 @@ function RidePageContent() {
         <Card className="shadow-lg">
           <CardContent className="p-0">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 rounded-t-lg rounded-b-none">
-                <TabsTrigger value="book" disabled={!!activeRide}>
+              <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none">
+                <TabsTrigger value="book">
                   <Car className="mr-2 h-4 w-4" /> Pedir Viaje
                 </TabsTrigger>
-                <TabsTrigger value="history" disabled={!!activeRide}>
+                <TabsTrigger value="history">
                   <History className="mr-2 h-4 w-4" /> Historial
-                </TabsTrigger>
-                <TabsTrigger value="active-ride" disabled={!activeRide}>
-                    <ChatIcon className="mr-2 h-4 w-4" /> Viaje en Curso
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="book" className="p-6">
-                 {status !== 'rating' ? (
-                  <RideRequestForm onRideAssigned={handleRideAssigned} />
-                 ) : assignedDriver && (
-                  <RatingForm
-                    userToRate={assignedDriver}
-                    isDriver={true}
-                    onSubmit={handleRatingSubmit}
-                    isSubmitting={isSubmittingRating}
-                  />
-                 )}
-              </TabsContent>
-              <TabsContent value="history" className="p-6">
-                <RideHistory />
-              </TabsContent>
-              <TabsContent value="active-ride" className="p-0">
-                {assignedDriver && activeRide && (
-                   <div className="space-y-4 h-full flex flex-col p-4">
-                      <CardHeader className="p-2">
-                        <CardTitle>¡Tu conductor está en camino!</CardTitle>
-                        <CardDescription>Llegada estimada: 5 minutos.</CardDescription>
-                      </CardHeader>
-                      <div className="flex items-center gap-4">
+                {activeRide && assignedDriver ? (
+                  <Card className="border-0 shadow-none">
+                    <CardHeader>
+                      <CardTitle>¡Tu conductor está en camino!</CardTitle>
+                      <CardDescription>Llegada estimada: 5 minutos.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                       <div className="flex items-center gap-4">
                         <Avatar className="h-12 w-12">
                           <AvatarImage
                             src={assignedDriver.avatarUrl}
@@ -235,18 +218,6 @@ function RidePageContent() {
                         </p>
                       </div>
                       <Separator />
-                       <Card className="flex-1 flex flex-col">
-                        <CardHeader className="p-4 flex-row items-center gap-2">
-                            <MessageSquare className="h-5 w-5" />
-                            <CardTitle className="text-xl">Chat con el Conductor</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0 flex-1 flex flex-col">
-                            <Chat
-                            messages={chatMessages}
-                            onSendMessage={handleSendMessage}
-                            />
-                        </CardContent>
-                      </Card>
                        <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="destructive" className="w-full">
@@ -270,46 +241,85 @@ function RidePageContent() {
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
-                    </div>
-                )}
+                    </CardContent>
+                  </Card>
+                ) : status !== 'rating' ? (
+                  <RideRequestForm onRideAssigned={handleRideAssigned} />
+                 ) : assignedDriver && (
+                  <RatingForm
+                    userToRate={assignedDriver}
+                    isDriver={true}
+                    onSubmit={handleRatingSubmit}
+                    isSubmitting={isSubmittingRating}
+                  />
+                 )}
+              </TabsContent>
+              <TabsContent value="history" className="p-6">
+                <RideHistory />
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
 
         {activeRide && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="destructive"
-                size="icon"
-                className="absolute bottom-20 right-8 lg:right-[calc(33.33%+2rem)] lg:bottom-20 h-16 w-16 rounded-full shadow-2xl animate-pulse"
-              >
-                <Siren className="h-8 w-8" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  ¿Estás seguro de que quieres activar la alerta de pánico?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta acción notificará inmediatamente a nuestra central de
-                  seguridad con tu ubicación actual y los detalles de tu
-                  viaje. Úsalo solo en caso de una emergencia real.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive hover:bg-destructive/90"
-                  onClick={handleSosConfirm}
+          <>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute bottom-20 right-8 lg:right-[calc(33.33%+2rem)] lg:bottom-20 h-16 w-16 rounded-full shadow-2xl animate-pulse"
                 >
-                  Sí, Activar Alerta
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                  <Siren className="h-8 w-8" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    ¿Estás seguro de que quieres activar la alerta de pánico?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción notificará inmediatamente a nuestra central de
+                    seguridad con tu ubicación actual y los detalles de tu
+                    viaje. Úsalo solo en caso de una emergencia real.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive hover:bg-destructive/90"
+                    onClick={handleSosConfirm}
+                  >
+                    Sí, Activar Alerta
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            
+            <Sheet open={isDriverChatOpen} onOpenChange={setIsDriverChatOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="absolute bottom-4 left-[calc(50%-1.75rem)] lg:left-4 h-14 w-14 rounded-full shadow-lg border-2 border-primary/50"
+                >
+                  <ChatIcon className="h-7 w-7 text-primary" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-full max-w-sm p-0">
+                  <SheetHeader className="p-4 border-b text-left">
+                    <SheetTitle className="flex items-center gap-2">
+                        <MessageSquare className="h-5 w-5" />
+                        <span>Chat con el Conductor</span>
+                    </SheetTitle>
+                  </SheetHeader>
+                   <Chat
+                      messages={chatMessages}
+                      onSendMessage={handleSendMessage}
+                    />
+              </SheetContent>
+            </Sheet>
+          </>
         )}
 
         <Sheet>
@@ -317,7 +327,7 @@ function RidePageContent() {
               <Button
               variant="outline"
               size="icon"
-              className="absolute bottom-4 left-4 h-14 w-14 rounded-full shadow-lg border-2 border-primary/50"
+              className="absolute bottom-4 right-4 h-14 w-14 rounded-full shadow-lg border-2 border-primary/50"
             >
               <MessageSquare className="h-7 w-7 text-primary" />
             </Button>
@@ -417,3 +427,5 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
+
+    
