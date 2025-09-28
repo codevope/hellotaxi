@@ -38,6 +38,7 @@ import {
   CarFront,
   Sparkles,
   ChevronRight,
+  List,
 } from 'lucide-react';
 import type {
   Ride,
@@ -97,6 +98,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from './ui/dialog';
 import { processRating } from '@/ai/flows/process-rating';
 import ETADisplay from './eta-display';
@@ -201,17 +203,17 @@ export default function RideRequestForm({
 
   useEffect(() => {
     if (pickupLocation) {
-      form.setValue('pickup', pickupLocation.address, { shouldValidate: true });
+      form.setValue('pickup', pickupLocation.address);
     } else {
-      form.setValue('pickup', '', { shouldValidate: true });
+      form.setValue('pickup', '');
     }
   }, [pickupLocation, form]);
 
   useEffect(() => {
     if (dropoffLocation) {
-      form.setValue('dropoff', dropoffLocation.address, { shouldValidate: true });
+      form.setValue('dropoff', dropoffLocation.address);
     } else {
-      form.setValue('dropoff', '', { shouldValidate: true });
+      form.setValue('dropoff', '');
     }
   }, [dropoffLocation, form]);
   
@@ -643,14 +645,6 @@ export default function RideRequestForm({
           onSubmit={form.handleSubmit(handleCalculateFare)}
           className="space-y-6"
         >
-          {status === 'calculated' && routeInfo && (
-            <ETADisplay
-              routeInfo={routeInfo}
-              isCalculating={isCalculating}
-              error={routeError}
-            />
-          )}
-
           {(status === 'idle' || status === 'calculating' || status === 'calculated') && (
             <>
               <div className="space-y-4">
@@ -773,6 +767,14 @@ export default function RideRequestForm({
                 )}
               />
               
+              {status === 'calculated' && routeInfo && (
+                <ETADisplay
+                  routeInfo={routeInfo}
+                  isCalculating={isCalculating}
+                  error={routeError}
+                />
+              )}
+
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
                  {(status === 'idle' || isCalculating) && (
                   <Button
