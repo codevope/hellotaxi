@@ -527,9 +527,8 @@ export default function RideRequestForm({
                 )}
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                {status === 'calculated' && (
-                  <>
+              {status === 'calculated' && (
+                  <div className="space-y-4 pt-4">
                     <Button
                       type="button"
                       className="w-full"
@@ -540,15 +539,15 @@ export default function RideRequestForm({
                     </Button>
                      <Button
                       type="button"
-                      variant="outline"
+                      variant="link"
+                      className="w-full text-muted-foreground"
                       onClick={resetForm}
                     >
                       <X className="mr-2 h-4 w-4" />
                       Empezar de Nuevo
                     </Button>
-                  </>
+                  </div>
                 )}
-              </div>
             </>
           )}
         </form>
