@@ -246,7 +246,6 @@ export default function RideRequestForm({
     const driversRef = collection(db, 'drivers');
     const q = query(
       driversRef,
-      where('status', '==', 'available'),
       where('serviceType', '==', serviceType),
       where('documentsStatus', '==', 'approved'),
       limit(1)
@@ -733,25 +732,8 @@ export default function RideRequestForm({
                   </FormItem>
                 )}
               />
-
-              <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                {(status === 'idle' || isCalculating) && (
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={isCalculating || !pickupLocation || !dropoffLocation}
-                  >
-                    {isCalculating ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="mr-2 h-4 w-4" />
-                    )}
-                    {isCalculating ? 'Calculando...' : 'Calcular Tarifa'}
-                  </Button>
-                )}
-              </div>
-
-              <FormField
+              
+               <FormField
                 control={form.control}
                 name="paymentMethod"
                 render={({ field }) => (
@@ -788,7 +770,7 @@ export default function RideRequestForm({
                   </FormItem>
                 )}
               />
-
+              
               {status === 'calculated' && routeInfo && (
                 <ETADisplay
                   routeInfo={routeInfo}
@@ -796,6 +778,23 @@ export default function RideRequestForm({
                   error={routeError}
                 />
               )}
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                {(status === 'idle' || isCalculating) && (
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={isCalculating || !pickupLocation || !dropoffLocation}
+                  >
+                    {isCalculating ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    {isCalculating ? 'Calculando...' : 'Calcular Tarifa'}
+                  </Button>
+                )}
+              </div>
 
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
                 {status === 'calculated' && (
