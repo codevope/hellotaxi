@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { AdvancedMarker, InfoWindow, Pin } from '@vis.gl/react-google-maps';
+import { cn } from '@/lib/utils';
 
 interface Location {
   lat: number;
@@ -23,10 +24,10 @@ interface MapMarkerProps {
 }
 
 const MarkerConfig = {
-  user: { color: '#3B82F6', label: 'Tu ubicación' },
-  pickup: { color: '#10B981', label: 'Punto de recogida' },
-  dropoff: { color: '#EF4444', label: 'Destino' },
-  custom: { color: '#6B7280', label: 'Ubicación' }
+  user: { color: 'bg-blue-500', borderColor: 'border-blue-700', label: 'Tu ubicación' },
+  pickup: { color: 'bg-green-500', borderColor: 'border-green-700', label: 'Punto de recogida' },
+  dropoff: { color: 'bg-red-500', borderColor: 'border-red-700', label: 'Destino' },
+  custom: { color: 'bg-gray-500', borderColor: 'border-gray-700', label: 'Ubicación' }
 };
 
 const MapMarker: React.FC<MapMarkerProps> = ({
@@ -36,10 +37,10 @@ const MapMarker: React.FC<MapMarkerProps> = ({
   showInfoWindow = false,
   onClick,
   onInfoWindowClose,
-  customIcon
 }) => {
   const config = MarkerConfig[type];
-  
+  const shouldAnimate = type === 'user' || type === 'pickup' || type === 'dropoff';
+
   return (
     <>
       <AdvancedMarker
@@ -47,24 +48,26 @@ const MapMarker: React.FC<MapMarkerProps> = ({
         onClick={onClick}
         title={title}
       >
-        <Pin
-          background={config.color}
-          borderColor={config.color}
-          glyphColor="white"
-        />
+        <div className={cn(
+            'w-4 h-4 rounded-full border-2',
+             config.color,
+             config.borderColor,
+             shouldAnimate && 'animate-pulse-slow'
+        )}>
+             <div className="w-full h-full rounded-full bg-white/50 transform scale-[0.4]"></div>
+        </div>
       </AdvancedMarker>
       
       {showInfoWindow && (
         <InfoWindow
           position={position}
           onCloseClick={onInfoWindowClose}
-          pixelOffset={[0, -40]}
+          pixelOffset={[0, -20]}
         >
-          <div className="p-2 min-w-[200px]">
+          <div className="p-2 min-w-[200px] text-black">
             <div className="flex items-center gap-2 mb-2">
               <div 
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: config.color }}
+                className={cn('w-3 h-3 rounded-full', config.color)}
               ></div>
               <span className="font-medium text-sm">
                 {title || config.label}
