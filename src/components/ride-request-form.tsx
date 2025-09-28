@@ -166,6 +166,8 @@ export default function RideRequestForm({
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    mode: 'onSubmit',
+    reValidateMode: 'onSubmit',
     defaultValues: {
       pickup: '',
       dropoff: '',
@@ -772,7 +774,7 @@ export default function RideRequestForm({
               />
               
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                 {status === 'idle' && (
+                 {(status === 'idle' || isCalculating) && (
                   <Button
                     type="submit"
                     className="w-full"
@@ -788,14 +790,24 @@ export default function RideRequestForm({
                 )}
 
                 {status === 'calculated' && (
-                  <Button
-                    type="button"
-                    className="w-full"
-                    onClick={() => setStatus('negotiating')}
-                  >
-                    Continuar a la Negociación
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setStatus('idle')}
+                    >
+                      Modificar Ruta
+                    </Button>
+                    <Button
+                      type="button"
+                      className="w-full"
+                      onClick={() => setStatus('negotiating')}
+                    >
+                      Continuar a la Negociación
+                      <ChevronRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </>
                 )}
               </div>
             </>
