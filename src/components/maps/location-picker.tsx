@@ -2,13 +2,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MapPin, Target } from 'lucide-react';
+import { Target, Navigation } from 'lucide-react';
 import {
   GoogleMapsProvider,
-  InteractiveMap,
-  MapMarker,
   PlaceAutocomplete,
   type Location,
 } from './';
@@ -38,18 +36,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     );
   const { userLocation } = useMap();
 
-  const [mapCenter, setMapCenter] = useState<Location>(
-    initialLocation ||
-      (userLocation ? { lat: userLocation.coordinates.lat, lng: userLocation.coordinates.lng } : { lat: -12.0464, lng: -77.0428 })
-  );
-  
-  const handleMapClick = (location: Location) => {
-    // No hacer nada al hacer clic en el mapa
-  };
-
   const handlePlaceSelect = (location: Location) => {
     setSelectedLocation(location);
-    setMapCenter(location);
   };
 
   const handleConfirm = () => {
@@ -65,7 +53,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
         lng: userLocation.coordinates.lng,
         address: 'Mi ubicación actual',
       };
-      handlePlaceSelect(location);
+      // Directamente confirma esta selección
+      onLocationSelect(location);
     }
   };
 
@@ -80,23 +69,17 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
               isPickup={isPickup}
               onUseCurrentLocation={handleCurrentLocation}
             />
-          </div>
-
-          <InteractiveMap
-            center={mapCenter}
-            height="300px"
-            zoom={15}
-            className="rounded-lg border pointer-events-none"
-            mapId="LOCATION_PICKER_MAP"
-          >
-            {selectedLocation && (
-              <MapMarker
-                position={selectedLocation}
-                type="custom"
-                title="Ubicación seleccionada"
-              />
+            {isPickup && (
+              <Button
+                variant="outline"
+                className="w-full justify-center"
+                onClick={handleCurrentLocation}
+              >
+                <Navigation className="mr-2 h-4 w-4" />
+                Usar mi ubicación actual
+              </Button>
             )}
-          </InteractiveMap>
+          </div>
 
           {selectedLocation && (
             <div className="p-3 bg-muted rounded-lg border">

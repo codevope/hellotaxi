@@ -132,15 +132,6 @@ const PlaceAutocomplete = ({
                     </div>
                 ) : (
                     <ul className="py-1">
-                        {isPickup && (
-                             <li
-                                className="px-4 py-2 text-sm hover:bg-accent cursor-pointer flex items-center gap-2 text-primary"
-                                onMouseDown={onUseCurrentLocation}
-                            >
-                                <Navigation className="h-4 w-4" />
-                                <span>Usar mi ubicación actual</span>
-                            </li>
-                        )}
                         {suggestions.map((s) => (
                             <li
                                 key={s.place_id}

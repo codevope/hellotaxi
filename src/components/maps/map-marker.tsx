@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -22,10 +23,10 @@ interface MapMarkerProps {
 }
 
 const MarkerConfig = {
-  user: { color: '#3B82F6', emoji: '�', label: 'Tu ubicación' },
-  pickup: { color: '#10B981', emoji: '🚗', label: 'Punto de recogida' },
-  dropoff: { color: '#EF4444', emoji: '🏁', label: 'Destino' },
-  custom: { color: '#6B7280', emoji: '📍', label: 'Ubicación' }
+  user: { color: '#3B82F6', label: 'Tu ubicación' },
+  pickup: { color: '#10B981', label: 'Punto de recogida' },
+  dropoff: { color: '#EF4444', label: 'Destino' },
+  custom: { color: '#6B7280', label: 'Ubicación' }
 };
 
 const MapMarker: React.FC<MapMarkerProps> = ({
@@ -50,9 +51,7 @@ const MapMarker: React.FC<MapMarkerProps> = ({
           background={config.color}
           borderColor={config.color}
           glyphColor="white"
-        >
-          <div className="text-lg">{customIcon || config.emoji}</div>
-        </Pin>
+        />
       </AdvancedMarker>
       
       {showInfoWindow && (
