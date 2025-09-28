@@ -25,7 +25,7 @@ export default function IncompleteProfile() {
   
   useEffect(() => {
     if (typeof window !== 'undefined' && !window.recaptchaVerifier) {
-      window.recaptchaVerifier = setupRecaptcha('recaptcha-container');
+      setupRecaptcha('recaptcha-container');
     }
   }, [setupRecaptcha]);
 
@@ -48,6 +48,9 @@ export default function IncompleteProfile() {
   const handleSendOtp = async () => {
     setLoading('phone');
     try {
+      if (!window.recaptchaVerifier) {
+        setupRecaptcha('recaptcha-container');
+      }
       const fullPhoneNumber = `+51${phone}`;
       const result = await signInWithPhone(fullPhoneNumber);
       setConfirmationResult(result);
@@ -117,6 +120,7 @@ export default function IncompleteProfile() {
         <CardDescription>Para activar todas las funciones de tu cuenta, por favor completa los siguientes pasos.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div id="recaptcha-container" />
         {!hasPassword && renderStep({
           completed: false,
           title: 'Establecer Contraseña',
@@ -183,17 +187,10 @@ export default function IncompleteProfile() {
                   </Button>
                 </>
               )}
-               <div id="recaptcha-container"></div>
             </div>
           )
         })}
       </CardContent>
     </Card>
   );
-}
-
-declare global {
-    interface Window {
-        recaptchaVerifier: any;
-    }
 }

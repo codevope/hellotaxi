@@ -143,9 +143,14 @@ export function useAuth() {
   };
 
   const setupRecaptcha = (containerId: string) => {
-    return new RecaptchaVerifier(auth, containerId, {
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
+    }
+    const verifier = new RecaptchaVerifier(auth, containerId, {
       'size': 'invisible',
     });
+    window.recaptchaVerifier = verifier;
+    return verifier;
   };
 
   const signInWithPhone = async (phoneNumber: string, recaptchaVerifier?: RecaptchaVerifier) => {
@@ -294,4 +299,10 @@ export function useAuth() {
       linkPhoneNumber,
       setPasswordForUser
     };
+}
+
+declare global {
+    interface Window {
+        recaptchaVerifier?: RecaptchaVerifier;
+    }
 }
