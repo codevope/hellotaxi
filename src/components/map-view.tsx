@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Navigation, MapPin } from 'lucide-react';
-import { useGeolocation } from '@/hooks/use-geolocation-improved';
+import { useGoogleGeolocation } from '@/hooks/use-google-geolocation';
 import { useMap } from '@/contexts/map-context';
 import type { Ride } from '@/lib/types';
 import { 
@@ -32,7 +32,7 @@ const MapView: React.FC<MapViewProps> = ({
   height = '100%',
   interactive = true
 }) => {
-  const { location: userLocation, error: locationError, requestLocation, loading } = useGeolocation();
+  const { location: userLocation, error: locationError, requestPreciseLocation: requestLocation, loading } = useGoogleGeolocation();
   const { 
     pickupLocation,
     dropoffLocation,
