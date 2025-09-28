@@ -182,6 +182,14 @@ export default function RideRequestForm({
   const serviceType = form.watch('serviceType');
   const paymentMethod = form.watch('paymentMethod');
 
+  useEffect(() => {
+    async function fetchSettings() {
+      const settings = await getSettings();
+      setAppSettings(settings);
+    }
+    fetchSettings();
+  }, []);
+
   const handleLocationSelect = (location: Location) => {
     if (locationPickerFor === 'pickup') {
       setPickupLocation({
@@ -724,7 +732,32 @@ export default function RideRequestForm({
                   </FormItem>
                 )}
               />
-
+              
+              <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                 {(status === 'idle' || isCalculating) && (
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={isCalculating || !pickupLocation || !dropoffLocation}
+                  >
+                    {isCalculating ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    {isCalculating ? 'Calculando...' : 'Calcular Tarifa'}
+                  </Button>
+                )}
+              </div>
+              
+              {status === 'calculated' && routeInfo && (
+                <ETADisplay
+                  routeInfo={routeInfo}
+                  isCalculating={isCalculating}
+                  error={routeError}
+                />
+              )}
+              
               <FormField
                 control={form.control}
                 name="paymentMethod"
@@ -762,31 +795,8 @@ export default function RideRequestForm({
                   </FormItem>
                 )}
               />
-              
-              {status === 'calculated' && routeInfo && (
-                <ETADisplay
-                  routeInfo={routeInfo}
-                  isCalculating={isCalculating}
-                  error={routeError}
-                />
-              )}
 
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                 {(status === 'idle' || isCalculating) && (
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={isCalculating || !pickupLocation || !dropoffLocation}
-                  >
-                    {isCalculating ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="mr-2 h-4 w-4" />
-                    )}
-                    {isCalculating ? 'Calculando...' : 'Calcular Tarifa'}
-                  </Button>
-                )}
-
                 {status === 'calculated' && (
                   <>
                     <Button
