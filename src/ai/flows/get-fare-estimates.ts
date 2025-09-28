@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -17,7 +18,9 @@ import {
   type EstimateRideFareInput,
   type EstimateRideFareOutput,
 } from '@/ai/schemas/fare-estimation-schemas';
-import type { FareBreakdown } from '@/lib/types';
+import type { FareBreakdown, Coupon } from '@/lib/types';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 
 /**
@@ -80,7 +83,29 @@ const estimateRideFareDeterministicFlow = ai.defineFlow(
     });
     
     const peakSurcharge = peakRule ? subtotal * (peakRule.surcharge / 100) : 0;
-    const total = subtotal + peakSurcharge;
+    let total = subtotal + peakSurcharge;
+
+    // Apply coupon discount
+    let couponDiscount = 0;
+    if (input.couponCode) {
+        const couponRef = doc(db, 'coupons', input.couponCode);
+        const couponSnap = await getDoc(couponRef);
+        if (couponSnap.exists()) {
+            const coupon = couponSnap.data() as Coupon;
+            const isExpired = new Date(coupon.expiryDate) < new Date();
+            if (coupon.status === 'active' && !isExpired) {
+                if (coupon.discountType === 'percentage') {
+                    couponDiscount = total * (coupon.value / 100);
+                } else { // fixed amount
+                    couponDiscount = coupon.value;
+                }
+                // Ensure discount doesn't make total negative
+                couponDiscount = Math.min(total, couponDiscount);
+                total -= couponDiscount;
+            }
+        }
+    }
+
 
     const breakdown: FareBreakdown = {
       baseFare,
@@ -90,7 +115,7 @@ const estimateRideFareDeterministicFlow = ai.defineFlow(
       serviceCost,
       peakSurcharge,
       specialDaySurcharge,
-      couponDiscount: 0, // Placeholder for future implementation
+      couponDiscount,
       subtotal,
       total,
     };

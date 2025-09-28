@@ -9,9 +9,12 @@ import {
   GoogleMapsProvider,
   PlaceAutocomplete,
   type Location,
+  InteractiveMap,
+  MapMarker,
 } from './';
 import { useMap } from '@/contexts/map-context';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 interface LocationPickerProps {
   onLocationSelect: (location: Location) => void;
@@ -35,6 +38,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
         : null
     );
   const { userLocation } = useMap();
+  const { toast } = useToast();
 
   const handlePlaceSelect = (location: Location) => {
     setSelectedLocation(location);
@@ -55,11 +59,17 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
       };
       // Directamente confirma esta selección
       onLocationSelect(location);
+    } else {
+        toast({
+            variant: "destructive",
+            title: "Ubicación no disponible",
+            description: "No pudimos obtener tu ubicación actual. Asegúrate de tener los permisos activados.",
+        })
     }
   };
 
   return (
-    <GoogleMapsProvider libraries={['places', 'geocoding']}>
+    <GoogleMapsProvider libraries={['places', 'geocoding', 'marker']}>
       <Card className={cn('w-full mx-auto shadow-none border-0', className)}>
         <CardContent className="space-y-4 pt-6">
           <div className="space-y-2">
@@ -67,7 +77,6 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
               onPlaceSelect={handlePlaceSelect}
               placeholder="Escribe una dirección o lugar..."
               isPickup={isPickup}
-              onUseCurrentLocation={handleCurrentLocation}
             />
             {isPickup && (
               <Button
@@ -81,21 +90,24 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             )}
           </div>
 
-          {selectedLocation && (
-            <div className="p-3 bg-muted rounded-lg border">
-              <div className="flex items-start gap-2">
-                <Target className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">
-                    Ubicación seleccionada
-                  </p>
-                  <p className="text-sm text-muted-foreground break-words">
-                    {selectedLocation.address}
-                  </p>
+          <div className="h-48 w-full bg-muted rounded-lg overflow-hidden border">
+             {selectedLocation ? (
+                 <InteractiveMap
+                    center={selectedLocation}
+                    zoom={16}
+                    interactive={false} // Make map non-clickable
+                 >
+                     <MapMarker
+                        position={selectedLocation}
+                        type={isPickup ? 'pickup' : 'dropoff'}
+                     />
+                 </InteractiveMap>
+             ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                    El mapa aparecerá aquí
                 </div>
-              </div>
-            </div>
-          )}
+             )}
+          </div>
 
           <div className="flex gap-3 pt-4">
             <Button

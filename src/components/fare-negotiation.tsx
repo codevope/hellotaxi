@@ -2,84 +2,110 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { estimateRideFareDeterministic } from '@/ai/flows/estimate-ride-fare';
 import { negotiateFare } from '@/ai/flows/negotiate-fare';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, CircleDollarSign, ShieldX, MessageSquare, ThumbsUp } from 'lucide-react';
+import { Loader2, CircleDollarSign, ShieldX, MessageSquare, ThumbsUp, Info, List } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Slider } from '@/components/ui/slider';
 import type { FareBreakdown } from '@/lib/types';
+import type { RouteInfo } from '@/hooks/use-eta-calculator';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Separator } from './ui/separator';
 
 const PASSENGER_NEGOTIATION_RANGE = 0.20; // Pasajero puede ofrecer hasta 20% menos
 
 type FareNegotiationProps = {
-  rideDetails: {
-    pickup: string;
-    dropoff: string;
-    serviceType: 'economy' | 'comfort' | 'exclusive';
-    distanceKm: number;
-    durationMinutes: number;
-  };
+  routeInfo: RouteInfo;
   onNegotiationComplete: (finalFare: number, breakdown: FareBreakdown) => void;
   onCancel: () => void;
 };
 
+function FareBreakdownDialog({ breakdown }: { breakdown: FareBreakdown }) {
+    const items = [
+        { label: 'Tarifa Base', value: breakdown.baseFare },
+        { label: 'Costo por Distancia', value: breakdown.distanceCost },
+        { label: 'Costo por Duración', value: breakdown.durationCost },
+        { label: 'Tarifa de Servicio', value: breakdown.serviceCost, sub: `(${(breakdown.serviceMultiplier - 1) * 100}%)` },
+    ];
+    const surcharges = [
+        { label: 'Recargo por Hora Punta', value: breakdown.peakSurcharge },
+        { label: 'Recargo por Día Especial', value: breakdown.specialDaySurcharge },
+    ];
+    const discounts = [
+        { label: 'Descuento por Cupón', value: breakdown.couponDiscount },
+    ];
+
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Desglose de la Tarifa</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 text-sm">
+                {items.map(item => (
+                    <div key={item.label} className="flex justify-between items-center">
+                        <p className="text-muted-foreground">{item.label} {item.sub && <span className="text-xs">{item.sub}</span>}</p>
+                        <p>S/{item.value.toFixed(2)}</p>
+                    </div>
+                ))}
+                <Separator />
+                <div className="flex justify-between items-center font-medium">
+                    <p>Subtotal</p>
+                    <p>S/{breakdown.subtotal.toFixed(2)}</p>
+                </div>
+                <Separator />
+                {surcharges.filter(s => s.value > 0).map(surcharge => (
+                     <div key={surcharge.label} className="flex justify-between items-center text-orange-600">
+                        <p>{surcharge.label}</p>
+                        <p>+ S/{surcharge.value.toFixed(2)}</p>
+                    </div>
+                ))}
+                {discounts.filter(d => d.value > 0).map(discount => (
+                    <div key={discount.label} className="flex justify-between items-center text-green-600">
+                        <p>{discount.label}</p>
+                        <p>- S/{discount.value.toFixed(2)}</p>
+                    </div>
+                ))}
+                <Separator className="my-2" />
+                <div className="flex justify-between items-center text-lg font-bold">
+                    <p>Total Sugerido</p>
+                    <p>S/{breakdown.total.toFixed(2)}</p>
+                </div>
+                 {breakdown.couponDiscount > 0 && (
+                    <p className="text-xs text-center text-green-600">
+                        El descuento del cupón ya está aplicado en el total.
+                    </p>
+                )}
+            </div>
+        </DialogContent>
+    );
+}
+
+
 export default function FareNegotiation({
-  rideDetails,
+  routeInfo,
   onNegotiationComplete,
   onCancel,
 }: FareNegotiationProps) {
-  const [status, setStatus] = useState<'estimating' | 'negotiating' | 'processing' | 'counter-offer' | 'failed'>(
-    'estimating'
-  );
-  const [estimatedFare, setEstimatedFare] = useState<number | null>(null);
-  const [breakdown, setBreakdown] = useState<FareBreakdown | null>(null);
-  const [minFare, setMinFare] = useState(0);
-  const [maxFare, setMaxFare] = useState(0);
-  const [proposedFare, setProposedFare] = useState(0);
+  const [status, setStatus] = useState<'negotiating' | 'processing' | 'counter-offer' | 'failed'>('negotiating');
+  
+  const estimatedFare = routeInfo.estimatedFare || 0;
+  const breakdown = routeInfo.fareBreakdown;
+
+  // El pasajero negocia hacia abajo. El mínimo es un 20% menos. El máximo es la tarifa estimada.
+  const minFare = Math.max(1, Math.floor(estimatedFare * (1 - PASSENGER_NEGOTIATION_RANGE)));
+  const maxFare = estimatedFare; // El máximo que puede proponer el pasajero es la tarifa original
+  
+  const [proposedFare, setProposedFare] = useState(maxFare); // La propuesta inicial es la tarifa completa
   const [driverResponse, setDriverResponse] = useState<{decision: string, reason: string, counterFare?: number} | null>(null);
 
   const { toast } = useToast();
-
-  useEffect(() => {
-    async function getInitialEstimate() {
-      const rideDate = new Date();
-      const peakTime = rideDate.getHours() > 16; // Peak time after 4 PM
-      type EstimateRideFareInput = Parameters<typeof estimateRideFareDeterministic>[0];
-
-      const fareInput: EstimateRideFareInput = {
-        distanceKm: rideDetails.distanceKm,
-        durationMinutes: rideDetails.durationMinutes,
-        peakTime,
-        serviceType: rideDetails.serviceType,
-        rideDate: rideDate.toISOString(),
-      };
-
-      try {
-        const result = await estimateRideFareDeterministic(fareInput);
-        const fare = result.estimatedFare;
-        // El pasajero negocia hacia abajo. El mínimo es un 20% menos. El máximo es la tarifa estimada.
-        const lowerBound = Math.max(1, Math.floor(fare * (1 - PASSENGER_NEGOTIATION_RANGE)));
-        
-        setEstimatedFare(fare);
-        setBreakdown(result.breakdown);
-        setProposedFare(fare); // La propuesta inicial es la tarifa completa
-        setMinFare(lowerBound);
-        setMaxFare(fare); // El máximo que puede proponer el pasajero es la tarifa original
-        setStatus('negotiating');
-      } catch (error) {
-        console.error('La estimación de tarifa falló:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'No se pudo obtener una estimación de tarifa. Por favor, inténtalo de nuevo.',
-        });
-        setStatus('failed');
-      }
-    }
-    getInitialEstimate();
-  }, [rideDetails, toast]);
   
   async function handleProposeFare() {
     if (!estimatedFare || !breakdown) return;
@@ -124,19 +150,6 @@ export default function FareNegotiation({
     }
   }
 
-
-  if (status === 'estimating') {
-    return (
-      <Alert>
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <AlertTitle>Estimando tu tarifa...</AlertTitle>
-        <AlertDescription>
-          Por favor, espera mientras calculamos el mejor precio para tu viaje.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
   if (status === 'failed') {
     return (
         <Alert variant="destructive">
@@ -156,13 +169,27 @@ export default function FareNegotiation({
 
   return (
     <div className="space-y-4">
-      <Alert>
-        <CircleDollarSign className="h-4 w-4" />
-        <AlertTitle>Tarifa Sugerida: S/{estimatedFare?.toFixed(2)}</AlertTitle>
-        <AlertDescription>
-          Desliza para proponer una tarifa menor. Puedes ofrecer desde S/{minFare.toFixed(2)}.
-        </AlertDescription>
-      </Alert>
+      <Dialog>
+        <Alert>
+          <CircleDollarSign className="h-4 w-4" />
+          <AlertTitle>Tarifa Sugerida: S/{estimatedFare?.toFixed(2)}</AlertTitle>
+          <AlertDescription className="flex justify-between items-center">
+            <span>
+              Desliza para proponer una tarifa menor.
+            </span>
+            {breakdown && (
+              <DialogTrigger asChild>
+                <Button variant="link" size="sm" className="px-0 h-auto">
+                    <List className="mr-1 h-4 w-4"/>
+                    Ver desglose
+                </Button>
+              </DialogTrigger>
+            )}
+          </AlertDescription>
+        </Alert>
+        {breakdown && <FareBreakdownDialog breakdown={breakdown} />}
+      </Dialog>
+
 
       <div className="space-y-4">
         <label htmlFor="fare-slider" className="font-medium">Tu Propuesta: <span className="text-primary font-bold text-lg">S/{proposedFare.toFixed(2)}</span></label>

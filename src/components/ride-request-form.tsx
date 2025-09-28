@@ -36,6 +36,7 @@ import {
   Tag,
   Rocket,
   CarFront,
+  Sparkles,
 } from 'lucide-react';
 import type {
   Ride,
@@ -216,7 +217,10 @@ export default function RideRequestForm({
     const route = await calculateRoute(
       pickupLocation.coordinates,
       dropoffLocation.coordinates,
-      { serviceType: form.getValues('serviceType') }
+      { 
+        serviceType: form.getValues('serviceType'),
+        couponCode: form.getValues('couponCode') || undefined
+      }
     );
     if (route) {
       setRouteInfo(route);
@@ -589,13 +593,7 @@ export default function RideRequestForm({
   if (status === 'calculated' && routeInfo) {
     return (
       <FareNegotiation
-        rideDetails={{
-          pickup: pickupLocation!.address,
-          dropoff: dropoffLocation!.address,
-          serviceType: form.getValues('serviceType'),
-          distanceKm: routeInfo.distance.value / 1000,
-          durationMinutes: routeInfo.duration.value / 60,
-        }}
+        routeInfo={routeInfo}
         onNegotiationComplete={handleNegotiationComplete}
         onCancel={() => {
           setStatus('idle');
@@ -696,7 +694,7 @@ export default function RideRequestForm({
                         <FormLabel
                           htmlFor={`service-${service.id}`}
                           className={cn(
-                            'flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 [&:has([data-state=checked])]:border-primary',
+                            'flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground',
                             field.value === service.id && "border-primary bg-primary/10"
                           )}
                         >
@@ -733,7 +731,7 @@ export default function RideRequestForm({
                            <FormLabel
                             htmlFor={`payment-${method}`}
                              className={cn(
-                              'flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 [&:has([data-state=checked])]:border-primary',
+                              'flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground',
                                field.value === method && "border-primary bg-primary/10"
                             )}
                           >
@@ -834,6 +832,15 @@ export default function RideRequestForm({
             )}
           />
 
+          { status === 'idle' && routeInfo && (
+            <ETADisplay
+              routeInfo={routeInfo}
+              startAddress={pickupLocation!.address}
+              endAddress={dropoffLocation!.address}
+              className="my-4"
+            />
+          )}
+
           <div className="flex flex-col sm:flex-row gap-2 pt-4">
             <Button
               type="submit"
@@ -847,7 +854,7 @@ export default function RideRequestForm({
             >
               {isCalculating ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
+              ) : <Sparkles className="mr-2 h-4 w-4" />}
               {isCalculating ? 'Calculando...' : 'Calcular Tarifa y Continuar'}
             </Button>
             <Button

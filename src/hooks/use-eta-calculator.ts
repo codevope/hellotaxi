@@ -24,6 +24,7 @@ export interface RouteInfo {
 export interface ETACalculationOptions {
   travelMode?: google.maps.TravelMode;
   serviceType: ServiceType;
+  couponCode?: string;
 }
 
 export interface UseETACalculatorReturn {
@@ -104,7 +105,7 @@ export function useETACalculator(): UseETACalculatorReturn {
       const leg = route.legs[0];
       
       const distanceMeters = leg.distance?.value;
-      const durationSeconds = leg.duration?.value; // Esta duración ya considera el tráfico
+      const durationSeconds = leg.duration_in_traffic?.value || leg.duration?.value; // Prioriza la duración con tráfico
 
       if (distanceMeters === undefined || durationSeconds === undefined) {
           throw new Error("La respuesta de Google no incluyó distancia o duración.");
@@ -114,7 +115,6 @@ export function useETACalculator(): UseETACalculatorReturn {
       const distanceKm = distanceMeters / 1000;
       const durationMinutes = durationSeconds / 60;
       const rideDate = new Date();
-      // Simple check para hora punta. Se puede refinar con las reglas de settings.
       const peakTime = rideDate.getHours() >= 16 && rideDate.getHours() <= 19;
 
       const fareResult = await estimateRideFareDeterministic({
@@ -123,6 +123,7 @@ export function useETACalculator(): UseETACalculatorReturn {
         peakTime,
         serviceType: options.serviceType,
         rideDate: rideDate.toISOString(),
+        couponCode: options.couponCode
       });
 
       // 3. Ensamblar y devolver el objeto combinado

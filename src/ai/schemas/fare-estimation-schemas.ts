@@ -1,3 +1,4 @@
+
 import { z } from "genkit";
 import type { FareBreakdown } from "@/lib/types";
 
@@ -29,6 +30,7 @@ export const EstimateRideFareInputSchema = z.object({
     .describe(
       "La fecha del viaje en formato ISO para verificar tarifas especiales."
     ),
+  couponCode: z.string().optional().describe("El código de cupón a aplicar.")
 });
 export type EstimateRideFareInput = z.infer<typeof EstimateRideFareInputSchema>;
 
