@@ -134,8 +134,12 @@ export default function RideRequestForm({
   });
   
   useEffect(() => {
-    form.setValue('pickup', pickupLocation?.address || '');
-    form.setValue('dropoff', dropoffLocation?.address || '');
+    if (pickupLocation) {
+        form.setValue('pickup', pickupLocation.address || '');
+    }
+     if (dropoffLocation) {
+        form.setValue('dropoff', dropoffLocation.address || '');
+    }
   }, [pickupLocation, dropoffLocation, form]);
 
 
@@ -252,7 +256,20 @@ export default function RideRequestForm({
         routeInfo={routeInfo}
         onNegotiationComplete={handleNegotiationComplete}
         onCancel={() => {
-          if (routeInfo) setRouteInfo(routeInfo); // Re-calculates and sets status
+            resetRide();
+            // Re-trigger calculation to go back to calculated state
+            if(pickupLocation && dropoffLocation) {
+                 calculateRoute(
+                    pickupLocation,
+                    dropoffLocation,
+                    {
+                        serviceType: form.getValues('serviceType'),
+                        couponCode: form.getValues('couponCode') || undefined
+                    }
+                ).then(route => {
+                    if (route) setRouteInfo(route);
+                });
+            }
         }}
       />
     );
@@ -566,3 +583,6 @@ export default function RideRequestForm({
     </>
   );
 }
+
+
+    

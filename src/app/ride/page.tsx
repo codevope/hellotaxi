@@ -94,20 +94,20 @@ function RidePageContent() {
     );
     
     unsubscribe = onSnapshot(q, async (snapshot) => {
-        const currentRideState = useRideStore.getState().activeRide;
-        if (snapshot.empty && !currentRideState) {
-            resetRide();
+        const currentRideState = useRideStore.getState();
+
+        // Find the most relevant document (not completed or cancelled)
+        const rideDoc = snapshot.docs.find(doc => !['completed', 'cancelled'].includes(doc.data().status));
+
+        if (!rideDoc) {
+             if (currentRideState.status !== 'idle' && currentRideState.status !== 'rating') {
+                resetRide();
+            }
             return;
         }
 
-        const rideDoc = snapshot.docs.find(doc => doc.data().status !== 'completed' && doc.data().status !== 'cancelled') || snapshot.docs[0];
-        if (!rideDoc) {
-          resetRide();
-          return;
-        }
-
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-        const previousStatus = useRideStore.getState().activeRide?.status;
+        const previousStatus = currentRideState.activeRide?.status;
         setActiveRide(rideData);
 
         if (searchTimeoutRef.current) {
@@ -115,6 +115,7 @@ function RidePageContent() {
             searchTimeoutRef.current = null;
         }
 
+        // Handle completed ride for rating
         if (rideData.status === 'completed') {
             const isRated = (rideData as any).isRatedByPassenger === true;
             if (!isRated && rideData.driver) {
@@ -124,11 +125,14 @@ function RidePageContent() {
                     completeRideForRating(driverData);
                  }
             } else {
-                resetRide();
+                if (currentRideState.status === 'assigned') { // If it was assigned and now it's completed but rated
+                   resetRide();
+                }
             }
             return;
         }
 
+        // Handle driver assignment and status updates
         if (rideData.driver) {
              const driverSnap = await getDoc(rideData.driver);
              if (driverSnap.exists()) {
@@ -137,8 +141,8 @@ function RidePageContent() {
                   assignDriver(driverData);
                 }
                 
-                const pLoc = useRideStore.getState().pickupLocation || { lat: -12.05, lng: -77.05, address: rideData.pickup };
-                const dLoc = useRideStore.getState().dropoffLocation || { lat: -12.10, lng: -77.03, address: rideData.dropoff };
+                const pLoc = currentRideState.pickupLocation || { lat: -12.05, lng: -77.05, address: rideData.pickup };
+                const dLoc = currentRideState.dropoffLocation || { lat: -12.10, lng: -77.03, address: rideData.dropoff };
                 const driverInitialPos = (driverData as any).location || { lat: -12.045, lng: -77.03 };
 
                 if (rideData.status === 'accepted' && previousStatus !== 'accepted') {
@@ -148,13 +152,14 @@ function RidePageContent() {
                 } else if (rideData.status === 'arrived' && previousStatus !== 'arrived') {
                   toast({ title: '¡Tu conductor ha llegado!', description: 'Por favor, acércate al punto de recojo.'});
                   updateRideStatus('assigned');
-                } else if (rideData.status === 'in-progress') {
-                   if(previousStatus !== 'in-progress') toast({ title: '¡Viaje iniciado!', description: 'Que tengas un buen viaje.'});
+                } else if (rideData.status === 'in-progress' && previousStatus !== 'in-progress') {
+                   toast({ title: '¡Viaje iniciado!', description: 'Que tengas un buen viaje.'});
                    updateRideStatus('assigned');
                    startSimulation(pLoc, dLoc);
                 }
              }
         } else if(rideData.status === 'searching') {
+          // If we receive a document that is still searching, ensure the state is correct.
           startSearch();
         }
     });
@@ -166,7 +171,7 @@ function RidePageContent() {
         }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
+  }, [user?.uid, resetRide]);
 
 
   // Listener for chat messages
@@ -475,7 +480,7 @@ function RidePageContent() {
                                 </CardContent>
                             </Card>
                             )}
-                            {(status === 'idle' || status === 'calculating' || status === 'calculated' || status === 'negotiating') && (
+                            {status !== 'searching' && status !== 'assigned' && status !== 'rating' && (
                                 <RideRequestForm 
                                     onRideCreated={handleRideCreated}
                                 />
@@ -591,5 +596,7 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
+
+    
 
     
