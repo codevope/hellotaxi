@@ -123,6 +123,18 @@ export const drivers: Omit<Driver, 'id'>[] = [
 //                             USERS                                 //
 // ================================================================= //
 export const users: (Omit<User, 'id'>)[] = [
+     {
+        name: 'Codevo Admin',
+        email: 'codevo.pe@gmail.com',
+        avatarUrl: defaultAvatar,
+        role: 'passenger',
+        signupDate: new Date().toISOString(),
+        totalRides: 0,
+        rating: 5.0,
+        phone: '+51 987 654 321',
+        address: 'Lima, Perú',
+        isAdmin: true,
+    },
     {
         name: 'Lucia Fernandez',
         email: 'lucia.f@example.com',
