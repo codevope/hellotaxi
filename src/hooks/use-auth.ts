@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useContext, useEffect } from 'react';
@@ -13,6 +12,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
+  fetchSignInMethodsForEmail,
+  linkWithCredential,
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
@@ -75,7 +76,25 @@ export function useAuth() {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
+        // Handle cases where the user's email is already associated with an email/password account.
+        if (error.code === 'auth/account-exists-with-different-credential' && error.customData.email) {
+            const email = error.customData.email;
+            const credential = GoogleAuthProvider.credentialFromError(error);
+
+            // Get sign-in methods for this email.
+            const methods = await fetchSignInMethodsForEmail(auth, email);
+
+            // If the user has a password account, you could prompt them to sign in with their password
+            // and then link the Google account. For a smoother experience, we can try to link automatically
+            // if the user is already signed in (which they won't be in this flow).
+            // For now, we'll guide the user.
+            if (methods.includes('password')) {
+                throw new Error('Ya tienes una cuenta con este correo. Por favor, inicia sesión con tu contraseña para vincular tu cuenta de Google.');
+            } else {
+                throw new Error('Ocurrió un error al intentar vincular tu cuenta de Google. Intenta de nuevo.');
+            }
+        }
       console.error('Error signing in with Google', error);
       throw error;
     }
