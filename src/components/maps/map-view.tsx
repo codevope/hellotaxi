@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, Children, isValidElement } from 'react';
@@ -24,6 +23,7 @@ interface MapViewProps {
   height?: string;
   interactive?: boolean;
   children?: React.ReactNode;
+  mapCenter?: Location;
 }
 
 const MapView: React.FC<MapViewProps> & { Marker: typeof MapMarker } = ({
@@ -35,25 +35,27 @@ const MapView: React.FC<MapViewProps> & { Marker: typeof MapMarker } = ({
   className = '',
   height = '100%',
   interactive = true,
-  children
+  children,
+  mapCenter: initialMapCenter
 }) => {
   const { location: userLocation, requestLocation, loading } = useGeolocation();
   const { toast } = useToast();
   
-  const [mapCenter, setMapCenter] = useState<Location>({ lat: -12.046374, lng: -77.042793 }); // Default to Lima
+  const [mapCenter, setMapCenter] = useState<Location>(initialMapCenter || { lat: -12.046374, lng: -77.042793 }); // Default to Lima
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userLocation && !loading) {
+    if(initialMapCenter) {
+      setMapCenter(initialMapCenter);
+    } else if (!userLocation && !loading) {
       requestLocation();
-    }
-    if (userLocation) {
+    } else if (userLocation) {
       setMapCenter({
         lat: userLocation.latitude,
         lng: userLocation.longitude,
       });
     }
-  }, [userLocation, loading, requestLocation]);
+  }, [userLocation, loading, requestLocation, initialMapCenter]);
 
   useEffect(() => {
     if(pickupLocation && !dropoffLocation) {
