@@ -21,7 +21,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
@@ -29,7 +28,7 @@ import SupportChat from '@/components/support-chat';
 import { Loader2 } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import Link from 'next/link';
-import { doc, writeBatch } from 'firebase/firestore';
+import { doc, writeBatch, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getSettings } from '@/services/settings-service';
@@ -57,11 +56,49 @@ function RidePageContent() {
   const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
 
 
+  const { user } = useAuth();
   const { toast } = useToast();
   
   useEffect(() => {
     getSettings().then(setAppSettings);
   }, []);
+
+  // Listener for active ride changes
+  useEffect(() => {
+    if (!user) return;
+
+    const passengerRef = doc(db, 'users', user.uid);
+    const q = query(collection(db, 'rides'), where('passenger', '==', passengerRef), where('status', 'in', ['in-progress', 'completed']));
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+        if (!snapshot.empty) {
+            const rideDoc = snapshot.docs[0];
+            const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
+            
+            const driverSnap = await getDoc(rideData.driver);
+            const driverData = { id: driverSnap.id, ...driverSnap.data()} as Driver;
+
+            setAssignedDriver(driverData);
+
+            if (rideData.status === 'in-progress') {
+                setActiveRide(rideData);
+                setStatus('idle'); // Back to main view, but with active ride info
+            } else if (rideData.status === 'completed' && status !== 'rating') {
+                // The driver just completed the ride, switch to rating view
+                setActiveRide(rideData); // Keep ride data for rating
+                setStatus('rating');
+            }
+        } else {
+            // No active or recently completed rides found
+            if (status !== 'rating') { // Don't reset if we are in the middle of rating
+                 resetRide();
+            }
+        }
+    });
+
+    return () => unsubscribe();
+  }, [user, status]);
+
 
   const handleLocationSelect = (location: Location, type: 'pickup' | 'dropoff') => {
     if (type === 'pickup') {
@@ -281,7 +318,7 @@ function RidePageContent() {
               </TabsList>
 
               <TabsContent value="book" className="p-6">
-                 {activeRide && assignedDriver ? (
+                 {activeRide && assignedDriver && status !== 'rating' ? (
                   <Card className="border-0 shadow-none">
                     <CardHeader>
                       <CardTitle>¡Tu conductor está en camino!</CardTitle>
@@ -302,7 +339,7 @@ function RidePageContent() {
                           <p className="font-bold text-md">{assignedDriver.name}</p>
                           <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />{' '}
-                            {assignedDriver.rating}
+                            {assignedDriver.rating.toFixed(1)}
                           </div>
                           <p className="text-xs">
                             {assignedDriver.vehicleBrand} {assignedDriver.vehicleModel} -{' '}
@@ -434,7 +471,7 @@ export default function RidePage() {
         return (
              <>
                 <AppHeader />
-                <div className="flex flex-col items-center justify-center text-center flex-1 p-8">
+                <main className="flex flex-col items-center justify-center text-center p-8 py-16 md:py-24">
                     <Card className="max-w-md p-8">
                         <CardHeader>
                             <CardTitle>Función solo para Pasajeros</CardTitle>
@@ -451,12 +488,10 @@ export default function RidePage() {
                             </Button>
                         </CardContent>
                     </Card>
-                </div>
+                </main>
             </>
         )
     }
 
     return <RidePageContent />;
 }
-
-    
