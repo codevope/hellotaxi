@@ -37,18 +37,16 @@ export default function LoginPage() {
   const [confirmationResult, setConfirmationResult] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isRecaptchaVerified, setIsRecaptchaVerified] = useState(false);
+  
+  // This will be called when the reCAPTCHA is successfully solved
+  const onRecaptchaResolved = () => {
+    handlePhoneSignIn();
+  };
 
   useEffect(() => {
-    // This effect now only runs when the tab 'phone-login' is active
-    // and reCAPTCHA hasn't been verified yet.
-    if (!isRecaptchaVerified && !window.recaptchaVerifier) {
-      setupRecaptcha('recaptcha-container', () => {
-        setIsRecaptchaVerified(true);
-        handlePhoneSignIn();
-      });
-    }
-  }, [isRecaptchaVerified, setupRecaptcha]);
+    // We only set up the reCAPTCHA verifier. It won't render until we tell it to.
+    setupRecaptcha('recaptcha-container', onRecaptchaResolved);
+  }, [setupRecaptcha]);
 
 
   if (loading) {
@@ -86,15 +84,20 @@ export default function LoginPage() {
   const handlePhoneSignIn = async () => {
     setIsSubmitting(true);
     try {
-      const result = await signInWithPhone(`+51${phone}`); // Asumiendo código de Perú
+      const result = await signInWithPhone(`+51${phone}`);
       setConfirmationResult(result);
       toast({ title: 'Código de verificación enviado', description: 'Revisa tus mensajes SMS.' });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error con el número', description: error.message });
+       let description = error.message;
+       if (error.code === 'auth/too-many-requests') {
+           description = 'Has intentado demasiadas veces. Por favor, intenta de nuevo más tarde.';
+       }
+      toast({ variant: 'destructive', title: 'Error al enviar código', description: description });
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   const handleOtpConfirm = async () => {
     if (!confirmationResult) return;
@@ -188,8 +191,10 @@ export default function LoginPage() {
                             <Input id="phone" type="tel" placeholder="987654321" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-l-none" disabled={isSubmitting} />
                         </div>
                      </div>
-                     <div id="recaptcha-container" className="flex justify-center"></div>
-                     {isSubmitting && <p className="text-sm text-muted-foreground text-center">Enviando código...</p>}
+                     <div id="recaptcha-container" className="flex justify-center my-4"></div>
+                     <p className="text-xs text-center text-muted-foreground">
+                        Completa el reCAPTCHA para que podamos enviar tu código de verificación.
+                     </p>
                   </div>
                 ) : (
                    <div className="space-y-4 flex flex-col items-center">

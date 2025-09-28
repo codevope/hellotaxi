@@ -4,7 +4,7 @@
 import AppHeader from '@/components/app-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Car, ShieldAlert, FileText, Star, UserCog, Wallet, History, MessageCircle, LogIn } from 'lucide-react';
+import { Loader2, Car, ShieldAlert, FileText, Star, UserCog, Wallet, History, MessageCircle, LogIn, Siren } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -29,6 +29,8 @@ import { useRouteSimulator } from '@/hooks/use-route-simulator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import Chat from '@/components/chat';
 import Link from 'next/link';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
     available: { label: 'Disponible', variant: 'default' },
@@ -85,9 +87,9 @@ function DriverDashboardPageContent() {
         const rideDoc = snapshot.docs[0];
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
         
-        if (rideData.passenger) {
+        if (rideData.passenger && driver) {
             const passengerSnap = await getDoc(rideData.passenger);
-            if (passengerSnap.exists() && driver) {
+            if (passengerSnap.exists()) {
                 const passengerData = passengerSnap.data() as User;
                 const rideWithPassenger = { ...rideData, driver, passenger: passengerData };
                 setActiveRide(rideWithPassenger);
@@ -245,6 +247,33 @@ function DriverDashboardPageContent() {
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar el estado del viaje.'});
     } finally {
         setIsCompletingRide(false);
+    }
+  };
+
+  const handleSosConfirm = async () => {
+    if (!activeRide || !user || !driver) return;
+
+    try {
+        await addDoc(collection(db, 'sosAlerts'), {
+            rideId: activeRide.id,
+            passenger: doc(db, 'users', activeRide.passenger.id),
+            driver: doc(db, 'drivers', driver.id),
+            date: new Date().toISOString(),
+            status: 'pending',
+            triggeredBy: 'driver'
+        });
+        toast({
+            variant: 'destructive',
+            title: '¡Alerta de Pánico Activada!',
+            description: 'Se ha notificado a la central de seguridad.',
+        });
+    } catch (error) {
+        console.error("Error creating SOS alert:", error);
+         toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'No se pudo activar la alerta de pánico.',
+        });
     }
   };
 
@@ -423,6 +452,38 @@ function DriverDashboardPageContent() {
                         interactive={false}
                     />
                     {status === 'in-progress' && (
+                       <>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                            <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-4 right-4 h-16 w-16 rounded-full shadow-2xl animate-pulse"
+                            >
+                                <Siren className="h-8 w-8" />
+                            </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                ¿Estás seguro de que quieres activar la alerta de pánico?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                Esta acción notificará inmediatamente a nuestra central de
+                                seguridad. Úsalo solo en caso de una emergencia real.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                className="bg-destructive hover:bg-destructive/90"
+                                onClick={handleSosConfirm}
+                                >
+                                Sí, Activar Alerta
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                         <Sheet open={isDriverChatOpen} onOpenChange={setIsDriverChatOpen}>
                             <SheetTrigger asChild>
                             <Button
@@ -445,6 +506,7 @@ function DriverDashboardPageContent() {
                                 />
                             </SheetContent>
                         </Sheet>
+                        </>
                     )}
                 </div>
                  <div className="flex flex-col gap-8">

@@ -42,7 +42,7 @@ async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
       phone: user.phoneNumber || '',
       address: '',
       isAdmin: false,
-      status: 'incomplete', // Start as incomplete
+      status: 'active', // All users start as active
     };
     await setDoc(userRef, newUser);
 
@@ -111,15 +111,23 @@ export function useAuth() {
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+        const methods = await fetchSignInMethodsForEmail(auth, email);
+        if (methods.length > 0) {
+            // User exists, check if they are logged in with a social account
+            if (auth.currentUser && auth.currentUser.email === email) {
+                const credential = EmailAuthProvider.credential(email, password);
+                await linkWithCredential(auth.currentUser, credential);
+                return; // Exit after linking
+            }
+             throw new Error('Este correo electrónico ya está en uso. Por favor, inicia sesión o utiliza otro correo.');
+        }
+        await createUserWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
-      console.error('Error signing up with email', error);
-      if (error.code === 'auth/email-already-in-use') {
-        throw new Error('Este correo electrónico ya está en uso. Por favor, inicia sesión o utiliza otro correo.');
-      }
-      throw error;
+        console.error('Error signing up with email', error);
+        throw error;
     }
   };
+
 
   const setPasswordForUser = async (password: string) => {
     if (!auth.currentUser) throw new Error("No hay un usuario autenticado.");
@@ -145,15 +153,24 @@ export function useAuth() {
     }
   };
 
-  const setupRecaptcha = (containerId: string) => {
-    if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
+  const setupRecaptcha = (containerId: string, callback?: () => void) => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+        size: 'normal', // Use normal, visible reCAPTCHA
+        callback: (response) => {
+          // reCAPTCHA solved, allow signInWithPhoneNumber.
+          console.log('reCAPTCHA solved');
+          if (callback) {
+            callback();
+          }
+        },
+        'expired-callback': () => {
+          // Response expired. Ask user to solve reCAPTCHA again.
+          console.log('reCAPTCHA expired');
+        },
+      });
+      window.recaptchaVerifier.render();
     }
-    const verifier = new RecaptchaVerifier(auth, containerId, {
-      'size': 'invisible',
-    });
-    window.recaptchaVerifier = verifier;
-    return verifier;
   };
 
   const signInWithPhone = async (phoneNumber: string): Promise<ConfirmationResult> => {
@@ -185,28 +202,10 @@ export function useAuth() {
     const credential = PhoneAuthProvider.credential(confirmationResult.verificationId, otp);
     await linkWithCredential(auth.currentUser, credential);
     
-    // Also save the phone number to Firestore user profile
     const userRef = doc(db, 'users', auth.currentUser.uid);
     await updateDoc(userRef, { phone: phoneNumber });
   };
   
-  const checkAndCompleteProfile = async (uid: string) => {
-    const user = auth.currentUser;
-    if (!user) return;
-    
-    const hasEmail = user.providerData.some(p => p.providerId === 'password');
-    const hasGoogle = user.providerData.some(p => p.providerId === 'google.com');
-    const hasPhone = user.providerData.some(p => p.providerId === 'phone');
-
-    if (hasEmail && hasGoogle && hasPhone) {
-        const userRef = doc(db, 'users', uid);
-        await updateDoc(userRef, { status: 'active' });
-        // Refresh appUser state
-        const updatedUserDoc = await getDoc(userRef);
-        setAppUser(updatedUserDoc.data() as User);
-    }
-  }
-
 
   const signOut = async () => {
     try {
@@ -277,7 +276,6 @@ export function useAuth() {
       setPasswordForUser,
       linkGoogleAccount,
       linkPhoneNumber,
-      checkAndCompleteProfile
     };
 }
 

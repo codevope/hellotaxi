@@ -76,78 +76,67 @@ function RidePageContent() {
     
     let unsubscribe: () => void;
 
-    // Listener for rides where the user is the passenger and status is not final
     const q = query(
         collection(db, 'rides'), 
         where('passenger', '==', doc(db, 'users', user.uid)), 
-        where('status', 'in', ['searching', 'accepted', 'arrived', 'in-progress'])
+        where('status', 'in', ['searching', 'accepted', 'arrived', 'in-progress', 'completed'])
     );
     
     unsubscribe = onSnapshot(q, async (snapshot) => {
-        if (!snapshot.empty) {
-            const rideDoc = snapshot.docs[0];
-            const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-            const previousStatus = activeRide?.status;
-            setActiveRide(rideData);
+        if (snapshot.empty) {
+            resetRide();
+            return;
+        }
 
-            if (searchTimeoutRef.current) {
-              clearTimeout(searchTimeoutRef.current);
-              searchTimeoutRef.current = null;
-            }
+        const rideDoc = snapshot.docs.find(doc => doc.data().status !== 'completed' && doc.data().status !== 'cancelled') || snapshot.docs[0];
+        const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
+        const previousStatus = activeRide?.status;
+        setActiveRide(rideData);
 
-            if (rideData.driver) {
-                 const driverSnap = await getDoc(rideData.driver);
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+            searchTimeoutRef.current = null;
+        }
+
+        if (rideData.status === 'completed') {
+            const isRated = (rideData as any).isRatedByPassenger === true;
+            if (!isRated && rideData.driver) {
+                const driverSnap = await getDoc(rideData.driver);
                  if (driverSnap.exists()) {
-                    const driverData = {id: driverSnap.id, ...driverSnap.data()} as Driver;
-                    if (assignedDriver?.id !== driverData.id) {
-                      setAssignedDriver(driverData);
-                    }
-                    setStatus('assigned');
-                    
-                    const pLoc = pickupLocation || { lat: -12.05, lng: -77.05, address: rideData.pickup };
-                    const dLoc = dropoffLocation || { lat: -12.10, lng: -77.03, address: rideData.dropoff };
-                    const driverInitialPos = { lat: -12.045, lng: -77.03 };
-
-                    if (rideData.status === 'accepted' && previousStatus !== 'accepted') {
-                      toast({ title: '¡Conductor Encontrado!', description: `${driverData.name} está en camino.`});
-                      startSimulation(driverInitialPos, pLoc);
-                    } else if (rideData.status === 'arrived' && previousStatus !== 'arrived') {
-                      toast({ title: '¡Tu conductor ha llegado!', description: 'Por favor, acércate al punto de recojo.'});
-                    } else if (rideData.status === 'in-progress') {
-                       if(previousStatus !== 'in-progress') toast({ title: '¡Viaje iniciado!', description: 'Que tengas un buen viaje.'});
-                       startSimulation(pLoc, dLoc);
-                    }
+                    setAssignedDriver({ id: driverSnap.id, ...driverSnap.data() } as Driver);
+                    setStatus('rating');
                  }
             } else {
-              setStatus('searching');
-            }
-        } else {
-            // No active ride, check if there's a recently completed one to rate
-            const completedQuery = query(
-                collection(db, 'rides'),
-                where('passenger', '==', doc(db, 'users', user.uid)),
-                where('status', '==', 'completed'),
-                where('isRatedByPassenger', '==', false)
-            );
-            const completedSnapshot = await getDocs(completedQuery);
-
-            if (!completedSnapshot.empty) {
-                const rideToRateData = { id: completedSnapshot.docs[0].id, ...completedSnapshot.docs[0].data() } as Ride;
-                if (rideToRateData.driver) {
-                    const driverSnap = await getDoc(rideToRateData.driver);
-                    if (driverSnap.exists()) {
-                        setAssignedDriver({ id: driverSnap.id, ...driverSnap.data() } as Driver);
-                        setActiveRide(rideToRateData);
-                        setStatus('rating');
-                        stopSimulation();
-                    }
-                }
-            } else {
-                 if (activeRide?.status === 'completed' || activeRide?.status === 'cancelled') {
-                    toast({ title: activeRide.status === 'completed' ? '¡Viaje finalizado!' : 'Viaje Cancelado', description: 'Gracias por viajar con nosotros.' });
-                 }
                 resetRide();
             }
+            return;
+        }
+
+        if (rideData.driver) {
+             const driverSnap = await getDoc(rideData.driver);
+             if (driverSnap.exists()) {
+                const driverData = {id: driverSnap.id, ...driverSnap.data()} as Driver;
+                if (assignedDriver?.id !== driverData.id) {
+                  setAssignedDriver(driverData);
+                }
+                setStatus('assigned');
+                
+                const pLoc = pickupLocation || { lat: -12.05, lng: -77.05, address: rideData.pickup };
+                const dLoc = dropoffLocation || { lat: -12.10, lng: -77.03, address: rideData.dropoff };
+                const driverInitialPos = driverData.location || { lat: -12.045, lng: -77.03 };
+
+                if (rideData.status === 'accepted' && previousStatus !== 'accepted') {
+                  toast({ title: '¡Conductor Encontrado!', description: `${driverData.name} está en camino.`});
+                  startSimulation(driverInitialPos, pLoc);
+                } else if (rideData.status === 'arrived' && previousStatus !== 'arrived') {
+                  toast({ title: '¡Tu conductor ha llegado!', description: 'Por favor, acércate al punto de recojo.'});
+                } else if (rideData.status === 'in-progress') {
+                   if(previousStatus !== 'in-progress') toast({ title: '¡Viaje iniciado!', description: 'Que tengas un buen viaje.'});
+                   startSimulation(pLoc, dLoc);
+                }
+             }
+        } else {
+          setStatus('searching');
         }
     });
 
@@ -157,7 +146,7 @@ function RidePageContent() {
           clearTimeout(searchTimeoutRef.current);
         }
     };
-  }, [user?.uid]); // Only depend on user.uid
+  }, [user?.uid]);
 
 
   // Listener for chat messages
@@ -425,11 +414,15 @@ function RidePageContent() {
                             {status === 'assigned' && activeRide && assignedDriver && (
                             <Card className="border-0 shadow-none">
                                 <CardHeader>
-                                <CardTitle>¡Tu conductor está en camino!</CardTitle>
+                                <CardTitle>
+                                    {activeRide.status === 'accepted' && '¡Tu conductor está en camino!'}
+                                    {activeRide.status === 'arrived' && '¡Tu conductor ha llegado!'}
+                                    {activeRide.status === 'in-progress' && 'Viaje en Progreso'}
+                                </CardTitle>
                                 <CardDescription>
-                                    {activeRide.status === 'accepted' && 'Llegada estimada: 5 minutos.'}
-                                    {activeRide.status === 'arrived' && 'Tu conductor ha llegado al punto de recojo.'}
-                                    {activeRide.status === 'in-progress' && 'Viaje en progreso hacia tu destino.'}
+                                    {activeRide.status === 'accepted' && 'Mantente atento al punto de recojo.'}
+                                    {activeRide.status === 'arrived' && 'Por favor, acércate a tu conductor.'}
+                                    {activeRide.status === 'in-progress' && 'Disfruta tu viaje a tu destino.'}
                                 </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
