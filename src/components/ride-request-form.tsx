@@ -717,8 +717,7 @@ export default function RideRequestForm({
                 <FormLabel>Método de Pago</FormLabel>
                 <FormControl>
                   <RadioGroup
-                    onValuecha
-nge={field.onChange}
+                    onValueChange={field.onChange}
                     value={field.value}
                     className="grid grid-cols-4 gap-4"
                   >
