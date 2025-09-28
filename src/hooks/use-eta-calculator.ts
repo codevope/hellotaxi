@@ -5,6 +5,9 @@ import { useState, useCallback } from 'react';
 import { estimateRideFareDeterministic } from '@/ai/flows/get-fare-estimates';
 import type { FareBreakdown, ServiceType } from '@/lib/types';
 
+export type TrafficCondition = 'light' | 'moderate' | 'heavy' | 'unknown';
+
+
 export interface RouteInfo {
   distance: {
     text: string;
@@ -12,8 +15,9 @@ export interface RouteInfo {
   };
   duration: {
     text: string;
-    value: number; // en segundos
+    value: number; // en segundos (con tráfico)
   };
+  trafficCondition: TrafficCondition;
   startAddress: string;
   endAddress: string;
   polyline?: string;
@@ -60,6 +64,23 @@ export function useETACalculator(): UseETACalculatorReturn {
     return `${(meters / 1000).toFixed(1)} km`;
   }, []);
 
+  const getTrafficCondition = useCallback((durationInTraffic?: number, baselineDuration?: number): TrafficCondition => {
+      if (durationInTraffic === undefined || baselineDuration === undefined) {
+        return 'unknown';
+      }
+
+      const delaySeconds = durationInTraffic - baselineDuration;
+
+      if (delaySeconds < 120) { // Menos de 2 minutos de retraso
+        return 'light';
+      }
+      if (delaySeconds <= 600) { // Entre 2 y 10 minutos de retraso
+        return 'moderate';
+      }
+      return 'heavy'; // Más de 10 minutos de retraso
+  }, []);
+
+
   const calculateRoute = useCallback(async (
     origin: { lat: number; lng: number },
     destination: { lat: number; lng: number },
@@ -74,7 +95,6 @@ export function useETACalculator(): UseETACalculatorReturn {
     setError(null);
 
     try {
-      // 1. Obtener la ruta, distancia y duración (con tráfico) desde Google Maps
       const directionsService = new google.maps.DirectionsService();
       
       const request: google.maps.DirectionsRequest = {
@@ -82,7 +102,7 @@ export function useETACalculator(): UseETACalculatorReturn {
         destination: new google.maps.LatLng(destination.lat, destination.lng),
         travelMode: options.travelMode || google.maps.TravelMode.DRIVING,
         drivingOptions: {
-          departureTime: new Date(), // Clave para obtener la duración CON tráfico
+          departureTime: new Date(), 
           trafficModel: google.maps.TrafficModel.BEST_GUESS,
         },
       };
@@ -105,15 +125,15 @@ export function useETACalculator(): UseETACalculatorReturn {
       const leg = route.legs[0];
       
       const distanceMeters = leg.distance?.value;
-      const durationSeconds = leg.duration_in_traffic?.value || leg.duration?.value; // Prioriza la duración con tráfico
+      const durationSecondsWithTraffic = leg.duration_in_traffic?.value;
+      const durationSecondsBaseline = leg.duration?.value;
 
-      if (distanceMeters === undefined || durationSeconds === undefined) {
-          throw new Error("La respuesta de Google no incluyó distancia o duración.");
+      if (distanceMeters === undefined || durationSecondsWithTraffic === undefined || durationSecondsBaseline === undefined) {
+          throw new Error("La respuesta de Google no incluyó datos completos de distancia o duración.");
       }
 
-      // 2. Usar esos datos precisos para alimentar nuestro algoritmo de tarifa
       const distanceKm = distanceMeters / 1000;
-      const durationMinutes = durationSeconds / 60;
+      const durationMinutes = durationSecondsWithTraffic / 60;
       const rideDate = new Date();
       const peakTime = rideDate.getHours() >= 16 && rideDate.getHours() <= 19;
 
@@ -126,16 +146,18 @@ export function useETACalculator(): UseETACalculatorReturn {
         couponCode: options.couponCode
       });
 
-      // 3. Ensamblar y devolver el objeto combinado
+      const trafficCondition = getTrafficCondition(durationSecondsWithTraffic, durationSecondsBaseline);
+
       const finalRouteInfo: RouteInfo = {
         distance: {
           text: leg.distance?.text || formatDistance(distanceMeters),
           value: distanceMeters
         },
         duration: {
-          text: leg.duration?.text || formatDuration(durationSeconds),
-          value: durationSeconds
+          text: leg.duration_in_traffic?.text || formatDuration(durationSecondsWithTraffic),
+          value: durationSecondsWithTraffic
         },
+        trafficCondition,
         startAddress: leg.start_address,
         endAddress: leg.end_address,
         estimatedFare: fareResult.estimatedFare,
@@ -152,7 +174,7 @@ export function useETACalculator(): UseETACalculatorReturn {
     } finally {
       setIsCalculating(false);
     }
-  }, [formatDistance, formatDuration]);
+  }, [formatDistance, formatDuration, getTrafficCondition]);
 
   return {
     isCalculating,

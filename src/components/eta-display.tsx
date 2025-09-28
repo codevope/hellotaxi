@@ -4,11 +4,10 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { 
-  MapPin, 
   CarFront,
   Loader2
 } from 'lucide-react';
-import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
+import { useETACalculator, type RouteInfo, type TrafficCondition } from '@/hooks/use-eta-calculator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -19,6 +18,14 @@ interface ETADisplayProps {
   error?: string | null;
   className?: string;
 }
+
+const trafficConfig: Record<TrafficCondition, { text: string; className: string; iconColor: string }> = {
+    light: { text: 'Tráfico ligero', className: 'bg-green-100 text-green-800 border-green-200', iconColor: 'text-green-500' },
+    moderate: { text: 'Tráfico moderado', className: 'bg-yellow-100 text-yellow-800 border-yellow-200', iconColor: 'text-yellow-500' },
+    heavy: { text: 'Tráfico pesado', className: 'bg-red-100 text-red-800 border-red-200', iconColor: 'text-red-500' },
+    unknown: { text: 'Tráfico no disponible', className: 'bg-gray-100 text-gray-800 border-gray-200', iconColor: 'text-gray-500' },
+};
+
 
 const ETADisplay: React.FC<ETADisplayProps> = ({
   routeInfo,
@@ -53,7 +60,9 @@ const ETADisplay: React.FC<ETADisplayProps> = ({
     return null;
   }
 
-  const { distance, duration, estimatedFare } = routeInfo;
+  const { distance, duration, estimatedFare, trafficCondition } = routeInfo;
+  const trafficInfo = trafficConfig[trafficCondition];
+
 
   return (
     <div className={cn("rounded-xl overflow-hidden shadow-lg bg-gradient-to-br from-blue-600 to-blue-800 text-white", className)}>
@@ -62,7 +71,10 @@ const ETADisplay: React.FC<ETADisplayProps> = ({
             <div>
                 <p className="text-sm opacity-80">Duración estimada</p>
                 <p className="text-4xl font-bold tracking-tighter">{formatDuration(duration.value)}</p>
-                <Badge variant="secondary" className="mt-1 bg-white/20 text-white border-0">con tráfico</Badge>
+                <Badge variant="secondary" className={cn("mt-1 border-0 flex items-center gap-1.5", trafficInfo.className)}>
+                    <CarFront className={cn("h-4 w-4", trafficInfo.iconColor)} />
+                    <span className="font-medium">{trafficInfo.text}</span>
+                </Badge>
             </div>
              <CarFront className="w-12 h-12 text-white/50" />
         </div>
