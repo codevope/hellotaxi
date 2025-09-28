@@ -10,7 +10,7 @@ import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
 import { MapProvider } from '@/contexts/map-context';
 import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
-import { History, Car, Siren, LayoutDashboard, MessageSquare as ChatIcon } from 'lucide-react';
+import { History, Car, Siren, LayoutDashboard, MessageCircle, MessageSquare as ChatIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -21,15 +21,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
 import SupportChat from '@/components/support-chat';
-import { Loader2, MessageSquare } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import Link from 'next/link';
-import { doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getSettings } from '@/services/settings-service';
@@ -299,17 +298,16 @@ function RidePageContent() {
             <Sheet open={isDriverChatOpen} onOpenChange={setIsDriverChatOpen}>
               <SheetTrigger asChild>
                 <Button
-                  variant="outline"
                   size="icon"
-                  className="absolute bottom-4 left-[calc(50%-1.75rem)] lg:left-4 h-14 w-14 rounded-full shadow-lg border-2 border-primary/50"
+                  className="absolute bottom-4 left-[calc(50%-1.75rem)] lg:left-4 h-14 w-14 rounded-full shadow-lg"
                 >
-                  <ChatIcon className="h-7 w-7 text-primary" />
+                  <MessageCircle className="h-7 w-7" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-full max-w-sm p-0">
                   <SheetHeader className="p-4 border-b text-left">
                     <SheetTitle className="flex items-center gap-2">
-                        <MessageSquare className="h-5 w-5" />
+                        <MessageCircle className="h-5 w-5" />
                         <span>Chat con el Conductor</span>
                     </SheetTitle>
                   </SheetHeader>
@@ -329,7 +327,7 @@ function RidePageContent() {
               size="icon"
               className="absolute bottom-4 right-4 h-14 w-14 rounded-full shadow-lg border-2 border-primary/50"
             >
-              <MessageSquare className="h-7 w-7 text-primary" />
+              <ChatIcon className="h-7 w-7 text-primary" />
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-full max-w-sm p-0">
@@ -427,5 +425,3 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
-
-    
