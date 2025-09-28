@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, query, where, getDoc } from 'firebase/firestore';
 import type { Ride, Driver, User } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
