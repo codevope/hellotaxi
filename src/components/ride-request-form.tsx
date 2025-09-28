@@ -342,6 +342,9 @@ export default function RideRequestForm({
       </div>
     );
   }
+  
+  const isFormLocked = status !== 'idle';
+
 
   return (
     <>
@@ -381,6 +384,7 @@ export default function RideRequestForm({
                     variant="outline"
                     className="w-full justify-start text-left font-normal h-auto"
                     onClick={() => setLocationPickerFor('pickup')}
+                    disabled={isFormLocked}
                   >
                     <MapPin className="mr-2 h-4 w-4 flex-shrink-0" />
                     {pickupLocation ? (
@@ -401,6 +405,7 @@ export default function RideRequestForm({
                     variant="outline"
                     className="w-full justify-start text-left font-normal h-auto"
                     onClick={() => setLocationPickerFor('dropoff')}
+                    disabled={isFormLocked}
                   >
                     <MapPin className="mr-2 h-4 w-4 flex-shrink-0" />
                     {dropoffLocation ? (
@@ -426,6 +431,7 @@ export default function RideRequestForm({
                         onValueChange={field.onChange}
                         value={field.value}
                         className="grid grid-cols-3 gap-4"
+                        disabled={isFormLocked}
                       >
                         {appSettings.serviceTypes.map((service) => (
                           <FormItem key={service.id}>
@@ -440,7 +446,8 @@ export default function RideRequestForm({
                               htmlFor={`service-${service.id}`}
                               className={cn(
                                 'flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all',
-                                field.value === service.id && "border-primary bg-primary/10"
+                                field.value === service.id && "border-primary bg-primary/10",
+                                isFormLocked && "cursor-not-allowed opacity-50"
                               )}
                             >
                               {serviceTypeIcons[service.id]}
@@ -466,6 +473,7 @@ export default function RideRequestForm({
                         onValueChange={field.onChange}
                         value={field.value}
                         className="grid grid-cols-3 gap-4"
+                        disabled={isFormLocked}
                       >
                         {(Object.keys(paymentMethodIcons) as Array<keyof typeof paymentMethodIcons>).map((method) => (
                           <FormItem key={method}>
@@ -480,7 +488,8 @@ export default function RideRequestForm({
                               htmlFor={`payment-${method}`}
                               className={cn(
                                 "flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all h-24",
-                                field.value === method && "border-primary bg-primary/10"
+                                field.value === method && "border-primary bg-primary/10",
+                                isFormLocked && "cursor-not-allowed opacity-50"
                               )}
                             >
                               {paymentMethodIcons[method]}
@@ -502,7 +511,7 @@ export default function RideRequestForm({
               )}
 
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                {(status === 'idle' || isCalculating) && (
+                {status === 'idle' && (
                   <Button
                     type="submit"
                     className="w-full"
@@ -528,6 +537,14 @@ export default function RideRequestForm({
                     >
                       Continuar a la Negociación
                       <ChevronRight className="ml-2 h-4 w-4" />
+                    </Button>
+                     <Button
+                      type="button"
+                      variant="outline"
+                      onClick={resetForm}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Empezar de Nuevo
                     </Button>
                   </>
                 )}
