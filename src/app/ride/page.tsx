@@ -9,7 +9,7 @@ import AppHeader from '@/components/app-header';
 import MapView from '@/components/map-view';
 import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
-import type { Ride, Driver, ChatMessage, CancellationReason, User, Location } from '@/lib/types';
+import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
 import { History, Car, Siren, LayoutDashboard, MessageCircle, Bot, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,7 +28,7 @@ import SupportChat from '@/components/support-chat';
 import { Loader2 } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import Link from 'next/link';
-import { doc, onSnapshot, getDoc, collection, query, where, addDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, collection, query, where, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getSettings } from '@/services/settings-service';
@@ -40,6 +40,7 @@ import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
 import { GoogleIcon } from '@/components/google-icon';
 import { useRouteSimulator } from '@/hooks/use-route-simulator';
+import type { Location } from '@/components/maps';
 
 type PassengerStatus = 'idle' | 'searching' | 'assigned' | 'rating';
 
@@ -68,52 +69,69 @@ function RidePageContent() {
 
   // Listener for active ride changes
   useEffect(() => {
-    if (!user || !activeRide) return;
+    if (!user) return;
+    
+    let unsubscribe: () => void;
 
-    const rideRef = doc(db, 'rides', activeRide.id);
-
-    const unsubscribe = onSnapshot(rideRef, async (rideSnap) => {
-        if (!rideSnap.exists()) {
-             resetRide(); // Ride was cancelled or deleted
-             return;
-        }
-
-        const rideData = rideSnap.data() as Ride;
-
-        if (rideData.status === 'completed' && status !== 'rating') {
-            stopSimulation();
+    // Listener for rides where the user is the passenger and status is not final
+    const q = query(
+        collection(db, 'rides'), 
+        where('passenger', '==', doc(db, 'users', user.uid)), 
+        where('status', 'in', ['searching', 'accepted', 'arrived', 'in-progress'])
+    );
+    
+    unsubscribe = onSnapshot(q, async (snapshot) => {
+        if (!snapshot.empty) {
+            const rideDoc = snapshot.docs[0];
+            const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
             setActiveRide(rideData);
-            setStatus('rating');
-        } else if (rideData.status === 'cancelled') {
-            toast({ title: 'Viaje Cancelado', description: 'El conductor ha cancelado el viaje.'});
-            resetRide();
+
+            if (rideData.driver && !assignedDriver) {
+                 const driverSnap = await getDoc(rideData.driver);
+                 if (driverSnap.exists()) {
+                    const driverData = driverSnap.data() as Driver;
+                    setAssignedDriver(driverData);
+                    setStatus('assigned');
+                    
+                    const pLoc = pickupLocation || { lat: -12.05, lng: -77.05 };
+                    const driverInitialPos = { lat: -12.045, lng: -77.03 };
+                    startSimulation(driverInitialPos, pLoc);
+                 }
+            }
+             if (rideData.status === 'in-progress' && pickupLocation && dropoffLocation) {
+                startSimulation(pickupLocation, dropoffLocation);
+            }
+
         } else {
-             setActiveRide(rideData);
-        }
-
-        if (rideData.driver && !assignedDriver) {
-             const driverSnap = await getDoc(rideData.driver);
-             if (driverSnap.exists()) {
-                const driverData = driverSnap.data() as Driver;
-                setAssignedDriver(driverData);
-                setStatus('assigned');
-                
-                // Start simulation from driver's position to pickup
-                const driverInitialPos = { lat: -12.045, lng: -77.03 };
-                if (pickupLocation) {
-                    startSimulation(driverInitialPos, pickupLocation);
+             // Check if there is a recently completed ride to rate
+            const completedQuery = query(
+                collection(db, 'rides'), 
+                where('passenger', '==', doc(db, 'users', user.uid)),
+                where('status', '==', 'completed')
+            );
+            const completedSnapshot = await getDocs(completedQuery);
+            if (!completedSnapshot.empty) {
+                const rideToRate = { id: completedSnapshot.docs[0].id, ...completedSnapshot.docs[0].data() } as Ride;
+                // This logic is simplified; a real app would check if it's been rated
+                if(status !== 'rating') {
+                     const driverSnap = await getDoc(rideToRate.driver!);
+                     if(driverSnap.exists()){
+                        setAssignedDriver(driverSnap.data() as Driver);
+                        setActiveRide(rideToRate);
+                        setStatus('rating');
+                        stopSimulation();
+                     }
                 }
-             }
-        }
-
-        if (rideData.status === 'in-progress' && pickupLocation && dropoffLocation) {
-            // If the simulation isn't for the main route, switch it.
-            startSimulation(pickupLocation, dropoffLocation);
+            } else if (status !== 'idle') {
+                resetRide();
+            }
         }
     });
 
-    return () => unsubscribe();
-  }, [user, activeRide, status, toast, assignedDriver, startSimulation, stopSimulation, pickupLocation, dropoffLocation]);
+    return () => {
+        if(unsubscribe) unsubscribe();
+    };
+  }, [user, status]);
 
 
   const handleLocationSelect = (location: Location, type: 'pickup' | 'dropoff') => {
@@ -534,3 +552,5 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
+
+    

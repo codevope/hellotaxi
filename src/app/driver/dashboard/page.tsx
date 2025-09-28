@@ -83,13 +83,11 @@ function DriverDashboardPageContent() {
             const rideWithPassenger = { ...rideData, driver, passenger: passengerData };
             setActiveRide(rideWithPassenger);
 
-            const pickupLoc = (await getDoc(rideData.passenger)).data() as User;
-
             const pickup = { lat: -12.05, lng: -77.05, address: rideData.pickup }; // Fallback
             const dropoff = { lat: -12.1, lng: -77.0, address: rideData.dropoff }; // Fallback
 
             setPickupLocation(pickup);
-            setDropoffLocation(dropoff);
+setDropoffLocation(dropoff);
             
             if (rideData.status === 'accepted' || rideData.status === 'arrived') {
                 const driverInitialPos = { lat: -12.045, lng: -77.03 };
@@ -180,8 +178,8 @@ function DriverDashboardPageContent() {
                 driver: doc(db, 'drivers', driver.id)
             });
             await updateDoc(doc(db, 'drivers', driver.id), { status: 'on-ride' });
-            // Let the snapshot listener handle the UI transition
             setRequestedRide(null);
+            // The snapshot listener will automatically transition the state to 'in-progress'
         } catch (e) {
             console.error("Error accepting ride:", e);
         }
@@ -206,7 +204,7 @@ function DriverDashboardPageContent() {
             batch.update(driverRef, { status: 'available' });
             // Note: In a real app, you would increment rides for the correct period.
             // For simplicity, we increment the main counter.
-            batch.update(driverRef, { totalRides: increment(1) });
+            batch.update(doc(db, 'users', activeRide.passenger.id), { totalRides: increment(1) });
             await batch.commit();
 
             toast({ title: '¡Viaje Finalizado!', description: 'Ahora califica al pasajero.' });
@@ -574,3 +572,5 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
+
+    
