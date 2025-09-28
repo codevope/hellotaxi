@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import AppHeader from '@/components/app-header';
@@ -30,6 +31,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import Chat from '@/components/chat';
 import Link from 'next/link';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useRideStore } from '@/store/ride-store';
 
 
 const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
@@ -49,21 +51,31 @@ const rideStatusConfig: Record<Ride['status'], { label: string; variant: 'second
 
 type EnrichedRide = Omit<Ride, 'passenger' | 'driver'> & { passenger: User, driver: Driver };
 
-type DriverStatus = 'idle' | 'requesting' | 'in-progress' | 'rating';
-
 function DriverDashboardPageContent() {
+  const {
+    status,
+    activeRide,
+    pickupLocation,
+    dropoffLocation,
+    isSupportChatOpen,
+    setActiveRide,
+    setPickupLocation,
+    setDropoffLocation,
+    startRequesting,
+    completeRide,
+    resetRide,
+    setDriverAsAvailable,
+    setDriverAsOnRide
+  } = useRideStore();
+
   const { user, driver, setDriver, loading } = useDriverAuth();
   const { toast } = useToast();
   const [allRides, setAllRides] = useState<EnrichedRide[]>([]);
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
-  const [activeRide, setActiveRide] = useState<EnrichedRide | null>(null);
   const [requestedRide, setRequestedRide] = useState<(Ride & {passenger: User}) | null>(null);
   const [completedRideForRating, setCompletedRideForRating] = useState<EnrichedRide | null>(null);
   const [isCompletingRide, setIsCompletingRide] = useState(false);
-  const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
-  const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [status, setStatus] = useState<DriverStatus>('idle');
   const { startSimulation, stopSimulation, simulatedLocation: driverLocation } = useRouteSimulator();
   const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -106,17 +118,12 @@ function DriverDashboardPageContent() {
                 } else if (rideData.status === 'in-progress') {
                     startSimulation(pickup, dropoff);
                 }
-
-                setStatus('in-progress');
             }
         }
       } else {
          if (status !== 'rating') {
-            setActiveRide(null);
-            setPickupLocation(null);
-            setDropoffLocation(null);
+            resetRide();
             stopSimulation();
-            setStatus('idle');
          }
       }
     });
@@ -126,6 +133,7 @@ function DriverDashboardPageContent() {
             unsubscribe();
         }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driver, status, startSimulation, stopSimulation]);
 
   // Listener for new ride requests
@@ -149,17 +157,18 @@ function DriverDashboardPageContent() {
             if (passengerSnap.exists()) {
                 const passengerData = passengerSnap.data() as User;
                 setRequestedRide({ ...rideData, passenger: passengerData });
-                setStatus('requesting');
+                startRequesting();
             }
         } else {
             setRequestedRide(null);
             if (status === 'requesting') {
-                setStatus('idle');
+                resetRide();
             }
         }
     });
 
     return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driver, driver?.status, activeRide, status, rejectedRideIds]);
 
     // Listener for chat messages
@@ -173,6 +182,7 @@ function DriverDashboardPageContent() {
     });
 
     return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRide, status]);
 
 
@@ -210,14 +220,14 @@ function DriverDashboardPageContent() {
                 driver: doc(db, 'drivers', driver.id)
             });
             await updateDoc(doc(db, 'drivers', driver.id), { status: 'on-ride' });
-            // The snapshot listener will automatically transition the state to 'in-progress'
+            setDriverAsOnRide();
         } catch (e) {
             console.error("Error accepting ride:", e);
         }
     } else {
         // Add to rejected list to avoid seeing it again
         setRejectedRideIds(prev => [...prev, rideId]);
-        setStatus('idle');
+        resetRide();
     }
   };
 
@@ -240,8 +250,7 @@ function DriverDashboardPageContent() {
             
             stopSimulation();
             setCompletedRideForRating(activeRide);
-            setActiveRide(null);
-            setStatus('rating');
+            completeRide();
         } else {
             await updateDoc(rideRef, { status: newStatus });
             toast({ title: `¡Estado del viaje actualizado: ${newStatus}!`});
@@ -297,9 +306,7 @@ function DriverDashboardPageContent() {
         description: `Has calificado al pasajero con ${rating} estrellas.`,
       });
       setCompletedRideForRating(null);
-      setPickupLocation(null);
-      setDropoffLocation(null);
-      setStatus('idle');
+      resetRide();
     } catch (error) {
       console.error('Error submitting passenger rating:', error);
       toast({
@@ -449,8 +456,6 @@ function DriverDashboardPageContent() {
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 flex flex-col min-h-[60vh] rounded-xl overflow-hidden shadow-lg relative">
                      <MapView 
-                        pickupLocation={pickupLocation}
-                        dropoffLocation={dropoffLocation}
                         driverLocation={driverLocation}
                         activeRide={activeRide} 
                         interactive={false}
@@ -708,3 +713,4 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
+

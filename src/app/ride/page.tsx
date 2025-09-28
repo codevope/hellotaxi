@@ -43,25 +43,37 @@ import { processRating } from '@/ai/flows/process-rating';
 import { GoogleIcon } from '@/components/google-icon';
 import { useRouteSimulator } from '@/hooks/use-route-simulator';
 import type { Location } from '@/lib/types';
-
-type PassengerStatus = 'idle' | 'searching' | 'assigned' | 'rating';
+import { useRideStore } from '@/store/ride-store';
 
 function RidePageContent() {
+  const {
+    status,
+    activeRide,
+    assignedDriver,
+    chatMessages,
+    isSupportChatOpen,
+    pickupLocation,
+    dropoffLocation,
+    setActiveRide,
+    setAssignedDriver,
+    setChatMessages,
+    setPickupLocation,
+    setDropoffLocation,
+    startSearch,
+    assignDriver,
+    updateRideStatus,
+    completeRideForRating,
+    resetRide,
+    toggleSupportChat,
+  } = useRideStore();
+  
   const [activeTab, setActiveTab] = useState('book');
-  const [activeRide, setActiveRide] = useState<Ride | null>(null);
-  const [assignedDriver, setAssignedDriver] = useState<Driver | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isCancelReasonDialogOpen, setIsCancelReasonDialogOpen] = useState(false);
   const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
   const [appSettings, setAppSettings] = useState<Awaited<ReturnType<typeof getSettings>> | null>(null);
-  const [status, setStatus] = useState<PassengerStatus>('idle');
   const [isRatingSubmitting, setIsSubmittingRating] = useState(false);
-  const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
-  const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
-  const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
   const { startSimulation, stopSimulation, simulatedLocation: driverLocation } = useRouteSimulator();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -103,8 +115,8 @@ function RidePageContent() {
             if (!isRated && rideData.driver) {
                 const driverSnap = await getDoc(rideData.driver);
                  if (driverSnap.exists()) {
-                    setAssignedDriver({ id: driverSnap.id, ...driverSnap.data() } as Driver);
-                    setStatus('rating');
+                    const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
+                    completeRideForRating(driverData);
                  }
             } else {
                 resetRide();
@@ -117,26 +129,28 @@ function RidePageContent() {
              if (driverSnap.exists()) {
                 const driverData = {id: driverSnap.id, ...driverSnap.data()} as Driver;
                 if (assignedDriver?.id !== driverData.id) {
-                  setAssignedDriver(driverData);
+                  assignDriver(driverData);
                 }
-                setStatus('assigned');
                 
                 const pLoc = pickupLocation || { lat: -12.05, lng: -77.05, address: rideData.pickup };
                 const dLoc = dropoffLocation || { lat: -12.10, lng: -77.03, address: rideData.dropoff };
-                const driverInitialPos = driverData.location || { lat: -12.045, lng: -77.03 };
+                const driverInitialPos = (driverData as any).location || { lat: -12.045, lng: -77.03 };
 
                 if (rideData.status === 'accepted' && previousStatus !== 'accepted') {
                   toast({ title: '¡Conductor Encontrado!', description: `${driverData.name} está en camino.`});
+                  updateRideStatus('assigned');
                   startSimulation(driverInitialPos, pLoc);
                 } else if (rideData.status === 'arrived' && previousStatus !== 'arrived') {
                   toast({ title: '¡Tu conductor ha llegado!', description: 'Por favor, acércate al punto de recojo.'});
+                  updateRideStatus('assigned');
                 } else if (rideData.status === 'in-progress') {
                    if(previousStatus !== 'in-progress') toast({ title: '¡Viaje iniciado!', description: 'Que tengas un buen viaje.'});
+                   updateRideStatus('assigned');
                    startSimulation(pLoc, dLoc);
                 }
              }
         } else {
-          setStatus('searching');
+          startSearch();
         }
     });
 
@@ -146,6 +160,7 @@ function RidePageContent() {
           clearTimeout(searchTimeoutRef.current);
         }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
 
 
@@ -160,16 +175,8 @@ function RidePageContent() {
     });
 
     return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRide, status]);
-
-
-  const handleLocationSelect = (location: Location, type: 'pickup' | 'dropoff') => {
-    if (type === 'pickup') {
-      setPickupLocation(location);
-    } else {
-      setDropoffLocation(location);
-    }
-  };
 
 
   const handleSosConfirm = async () => {
@@ -201,27 +208,15 @@ function RidePageContent() {
 
   const handleRideCreated = (ride: Ride) => {
     setActiveRide(ride);
-    setStatus('searching');
+    startSearch();
 
     // Set a timeout to cancel the search if no driver is found
     searchTimeoutRef.current = setTimeout(async () => {
-        const rideRef = doc(db, 'rides', ride.id);
-        const currentRideSnap = await getDoc(rideRef);
+        const currentRideSnap = await getDoc(doc(db, 'rides', ride.id));
         if (currentRideSnap.exists() && currentRideSnap.data().status === 'searching') {
             await handleCancelRide({ code: 'NO_DRIVERS', reason: 'No se encontraron conductores' }, true);
         }
     }, 60000); // 60 seconds
-  }
-
-  const resetRide = () => {
-    setActiveRide(null);
-    setAssignedDriver(null);
-    setChatMessages([]);
-    setPickupLocation(null);
-    setDropoffLocation(null);
-    stopSimulation();
-    setActiveTab('book');
-    setStatus('idle');
   }
 
   const handleCancelRide = async (reason: CancellationReason, isAutomatic: boolean = false) => {
@@ -249,6 +244,9 @@ function RidePageContent() {
             });
         }
         resetRide();
+        stopSimulation();
+        setActiveTab('book');
+
     } catch (error) {
         console.error('Error cancelling ride:', error);
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cancelar el viaje.' });
@@ -307,15 +305,12 @@ function RidePageContent() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 flex flex-col min-h-[60vh] rounded-xl overflow-hidden shadow-lg relative">
                     <MapView 
-                        pickupLocation={pickupLocation}
-                        dropoffLocation={dropoffLocation}
-                        onLocationSelect={handleLocationSelect}
                         driverLocation={driverLocation}
                         activeRide={activeRide} 
                     />
 
                     {/* Floating Action Buttons */}
-                    <Sheet open={isSupportChatOpen} onOpenChange={setIsSupportChatOpen}>
+                    <Sheet open={isSupportChatOpen} onOpenChange={toggleSupportChat}>
                         <SheetTrigger asChild>
                             <Button
                                 variant="outline"
@@ -476,10 +471,6 @@ function RidePageContent() {
                             {status === 'idle' && (
                                 <RideRequestForm 
                                     onRideCreated={handleRideCreated}
-                                    pickupLocation={pickupLocation}
-                                    dropoffLocation={dropoffLocation}
-                                    onLocationSelect={handleLocationSelect}
-                                    onReset={resetRide}
                                 />
                             )}
                             {status === 'rating' && assignedDriver && activeRide && (
@@ -595,3 +586,4 @@ export default function RidePage() {
 }
 
     
+

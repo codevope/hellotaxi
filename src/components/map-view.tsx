@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -12,11 +13,10 @@ import {
 } from './maps';
 import { GeocodingService } from '@/services/geocoding-service';
 import { useToast } from '@/hooks/use-toast';
+import { useRideStore } from '@/store/ride-store';
 
 interface MapViewProps {
   onLocationSelect?: (location: Location, type: 'pickup' | 'dropoff') => void;
-  pickupLocation: Location | null;
-  dropoffLocation: Location | null;
   driverLocation?: Location | null;
   activeRide?: Ride | null;
   className?: string;
@@ -25,15 +25,18 @@ interface MapViewProps {
 }
 
 const MapView: React.FC<MapViewProps> = ({
-  onLocationSelect,
-  pickupLocation,
-  dropoffLocation,
   driverLocation,
   activeRide,
   className = '',
   height = '100%',
   interactive = true
 }) => {
+  const { 
+    pickupLocation, 
+    dropoffLocation,
+    setPickupLocation,
+    setDropoffLocation
+   } = useRideStore();
   const { location: userLocation, requestLocation, loading } = useGeolocation();
   const { toast } = useToast();
   
@@ -68,7 +71,7 @@ const MapView: React.FC<MapViewProps> = ({
   } : undefined;
 
   const handleMapClick = async (location: Location) => {
-    if (!interactive || !onLocationSelect) return;
+    if (!interactive) return;
 
     try {
         const geocoded = await GeocodingService.reverseGeocode(location.lat, location.lng);
@@ -79,11 +82,11 @@ const MapView: React.FC<MapViewProps> = ({
         };
 
         if (!pickupLocation) {
-            onLocationSelect(mapLocation, 'pickup');
+            setPickupLocation(mapLocation);
         } else if (!dropoffLocation) {
-            onLocationSelect(mapLocation, 'dropoff');
+            setDropoffLocation(mapLocation);
         } else {
-             onLocationSelect(mapLocation, 'pickup');
+             setPickupLocation(mapLocation);
         }
 
     } catch (error) {
@@ -101,9 +104,9 @@ const MapView: React.FC<MapViewProps> = ({
         };
 
         if (!pickupLocation) {
-            onLocationSelect(fallbackLocation, 'pickup');
+            setPickupLocation(fallbackLocation);
         } else if (!dropoffLocation) {
-            onLocationSelect(fallbackLocation, 'dropoff');
+            setDropoffLocation(fallbackLocation);
         }
     }
   };
@@ -172,3 +175,4 @@ const MapView: React.FC<MapViewProps> = ({
 };
 
 export default MapView;
+

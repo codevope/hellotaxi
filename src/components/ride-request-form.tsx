@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -67,6 +68,7 @@ import { cn } from '@/lib/utils';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { format } from 'date-fns';
+import { useRideStore } from '@/store/ride-store';
 
 const formSchema = z.object({
   pickup: z.string().min(5, 'Por favor, introduce una ubicación de recojo válida.'),
@@ -79,10 +81,6 @@ const formSchema = z.object({
 
 type RideRequestFormProps = {
   onRideCreated: (ride: Ride) => void;
-  pickupLocation: Location | null;
-  dropoffLocation: Location | null;
-  onLocationSelect: (location: Location, type: 'pickup' | 'dropoff') => void;
-  onReset: () => void;
 };
 
 
@@ -100,21 +98,20 @@ const serviceTypeIcons: Record<ServiceType, React.ReactNode> = {
 
 export default function RideRequestForm({
   onRideCreated,
-  pickupLocation,
-  dropoffLocation,
-  onLocationSelect,
-  onReset,
 }: RideRequestFormProps) {
-  const [status, setStatus] = useState<
-    | 'idle'
-    | 'calculating'
-    | 'calculated'
-    | 'negotiating'
-    | 'scheduling'
-  >('idle');
+    const {
+    status,
+    pickupLocation,
+    dropoffLocation,
+    routeInfo,
+    setPickupLocation,
+    setDropoffLocation,
+    setRouteInfo,
+    startNegotiation,
+    resetRide,
+  } = useRideStore();
   
   const [appSettings, setAppSettings] = useState<Settings | null>(null);
-  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [locationPickerFor, setLocationPickerFor] = useState<
     'pickup' | 'dropoff' | null
   >(null);
@@ -152,9 +149,9 @@ export default function RideRequestForm({
 
   const handleLocationSelected = (location: Location) => {
     if (locationPickerFor === 'pickup') {
-      onLocationSelect(location, 'pickup');
+      setPickupLocation(location);
     } else if (locationPickerFor === 'dropoff') {
-      onLocationSelect(location, 'dropoff');
+      setDropoffLocation(location);
     }
     setLocationPickerFor(null);
   };
@@ -192,7 +189,6 @@ export default function RideRequestForm({
     }
 
 
-    setStatus('calculating');
     const route = await calculateRoute(
       pickupLocation,
       dropoffLocation,
@@ -203,9 +199,6 @@ export default function RideRequestForm({
     );
     if (route) {
       setRouteInfo(route);
-      setStatus('calculated');
-    } else {
-      setStatus('idle');
     }
   };
 
@@ -247,9 +240,7 @@ export default function RideRequestForm({
   }
 
   function resetForm() {
-    setStatus('idle');
-    onReset();
-    setRouteInfo(null);
+    resetRide();
     setIsScheduling(false);
     form.reset();
   }
@@ -261,7 +252,7 @@ export default function RideRequestForm({
         routeInfo={routeInfo}
         onNegotiationComplete={handleNegotiationComplete}
         onCancel={() => {
-          setStatus('calculated');
+          if (routeInfo) setRouteInfo(routeInfo); // Re-calculates and sets status
         }}
       />
     );
@@ -306,7 +297,7 @@ export default function RideRequestForm({
           onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-6"
         >
-          {(status === 'idle' || status === 'calculating' || status === 'calculated') && (
+          {(status === 'idle' || isCalculating || status === 'calculated') && (
             <>
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -509,7 +500,7 @@ export default function RideRequestForm({
                 )}
               />
               
-              {(status === 'calculating' || status === 'calculated') && routeInfo && (
+              {(isCalculating || status === 'calculated') && routeInfo && (
                 <ETADisplay
                   routeInfo={routeInfo}
                   isCalculating={isCalculating}
@@ -552,7 +543,7 @@ export default function RideRequestForm({
                     <Button
                       type="button"
                       className="w-full"
-                      onClick={() => setStatus('negotiating')}
+                      onClick={startNegotiation}
                     >
                       Continuar a la Negociación
                       <ChevronRight className="ml-2 h-4 w-4" />
@@ -575,4 +566,5 @@ export default function RideRequestForm({
     </>
   );
 }
+
 
