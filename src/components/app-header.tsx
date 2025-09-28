@@ -29,7 +29,7 @@ export default function AppHeader() {
   const navLinks = [
     // Conditionally render "Viaja" link
     !isDriver && { href: '/ride', label: 'Viaja' },
-    { href: '/driver', label: 'Conduce' },
+    !isDriver && { href: '/driver', label: 'Conduce' },
     { href: '/about', label: 'Quiénes Somos' },
   ].filter(Boolean) as { href: string; label: string }[];
 
