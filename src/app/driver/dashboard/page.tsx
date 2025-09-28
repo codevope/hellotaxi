@@ -19,7 +19,6 @@ import { db } from '@/lib/firebase';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
-import { GoogleIcon } from '@/components/google-icon';
 import MapView from '@/components/map-view';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DriverDocuments from '@/components/driver/documents';
@@ -57,14 +56,12 @@ function DriverDashboardPageContent() {
     activeRide,
     pickupLocation,
     dropoffLocation,
-    isSupportChatOpen,
     setActiveRide,
     setPickupLocation,
     setDropoffLocation,
     startRequesting,
     completeRide,
     resetRide,
-    setDriverAsAvailable,
     setDriverAsOnRide
   } = useRideStore();
 
@@ -111,9 +108,10 @@ function DriverDashboardPageContent() {
 
                 setPickupLocation(pickup);
                 setDropoffLocation(dropoff);
+                setDriverAsOnRide();
                 
                 if (rideData.status === 'accepted' || rideData.status === 'arrived') {
-                    const driverInitialPos = { lat: -12.045, lng: -77.03 };
+                    const driverInitialPos = (driver as any).location || { lat: -12.045, lng: -77.03 };
                     startSimulation(driverInitialPos, pickup);
                 } else if (rideData.status === 'in-progress') {
                     startSimulation(pickup, dropoff);
@@ -161,7 +159,7 @@ function DriverDashboardPageContent() {
             }
         } else {
             setRequestedRide(null);
-            if (status === 'requesting') {
+            if (get().status === 'requesting') {
                 resetRide();
             }
         }
@@ -169,7 +167,7 @@ function DriverDashboardPageContent() {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver, driver?.status, activeRide, status, rejectedRideIds]);
+  }, [driver?.status, activeRide, rejectedRideIds]);
 
     // Listener for chat messages
   useEffect(() => {
@@ -457,7 +455,8 @@ function DriverDashboardPageContent() {
                 <div className="lg:col-span-2 flex flex-col min-h-[60vh] rounded-xl overflow-hidden shadow-lg relative">
                      <MapView 
                         driverLocation={driverLocation}
-                        activeRide={activeRide} 
+                        pickupLocation={pickupLocation}
+                        dropoffLocation={dropoffLocation}
                         interactive={false}
                     />
                     {status === 'in-progress' && (
@@ -713,4 +712,3 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
-

@@ -16,8 +16,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useRideStore } from '@/store/ride-store';
 
 interface MapViewProps {
-  onLocationSelect?: (location: Location, type: 'pickup' | 'dropoff') => void;
   driverLocation?: Location | null;
+  pickupLocation: Location | null;
+  dropoffLocation: Location | null;
   activeRide?: Ride | null;
   className?: string;
   height?: string;
@@ -26,17 +27,14 @@ interface MapViewProps {
 
 const MapView: React.FC<MapViewProps> = ({
   driverLocation,
+  pickupLocation,
+  dropoffLocation,
   activeRide,
   className = '',
   height = '100%',
-  interactive = true
+  interactive = true,
 }) => {
-  const { 
-    pickupLocation, 
-    dropoffLocation,
-    setPickupLocation,
-    setDropoffLocation
-   } = useRideStore();
+  const { setPickupLocation, setDropoffLocation } = useRideStore();
   const { location: userLocation, requestLocation, loading } = useGeolocation();
   const { toast } = useToast();
   
@@ -175,4 +173,3 @@ const MapView: React.FC<MapViewProps> = ({
 };
 
 export default MapView;
-

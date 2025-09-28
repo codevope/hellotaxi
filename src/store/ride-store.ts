@@ -10,7 +10,8 @@ export type RideStatus =
   | 'searching'
   | 'assigned'
   | 'rating'
-  | 'requesting';
+  | 'requesting'
+  | 'in-progress';
 
 interface RideState {
   status: RideStatus;
@@ -38,7 +39,7 @@ interface RideActions {
   startSearch: () => void;
   startNegotiation: () => void;
   assignDriver: (driver: Driver) => void;
-  updateRideStatus: (newStatus: 'assigned') => void;
+  updateRideStatus: (newStatus: RideStatus) => void;
   completeRide: () => void;
   completeRideForRating: (driver: Driver) => void;
   startRequesting: () => void;
@@ -46,7 +47,6 @@ interface RideActions {
 
   // Driver actions
   setDriverAsOnRide: () => void;
-  setDriverAsAvailable: () => void;
 }
 
 const initialState: RideState = {
@@ -87,5 +87,4 @@ export const useRideStore = create<RideState & RideActions>((set, get) => ({
 
   // Driver actions
   setDriverAsOnRide: () => set({ status: 'in-progress' }),
-  setDriverAsAvailable: () => set({ status: 'idle' }),
 }));

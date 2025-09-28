@@ -40,7 +40,6 @@ import { Star } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
-import { GoogleIcon } from '@/components/google-icon';
 import { useRouteSimulator } from '@/hooks/use-route-simulator';
 import type { Location } from '@/lib/types';
 import { useRideStore } from '@/store/ride-store';
@@ -57,8 +56,6 @@ function RidePageContent() {
     setActiveRide,
     setAssignedDriver,
     setChatMessages,
-    setPickupLocation,
-    setDropoffLocation,
     startSearch,
     assignDriver,
     updateRideStatus,
@@ -95,14 +92,20 @@ function RidePageContent() {
     );
     
     unsubscribe = onSnapshot(q, async (snapshot) => {
-        if (snapshot.empty) {
+        const currentRideState = useRideStore.getState().activeRide;
+        if (snapshot.empty && !currentRideState) {
             resetRide();
             return;
         }
 
         const rideDoc = snapshot.docs.find(doc => doc.data().status !== 'completed' && doc.data().status !== 'cancelled') || snapshot.docs[0];
+        if (!rideDoc) {
+          resetRide();
+          return;
+        }
+
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-        const previousStatus = activeRide?.status;
+        const previousStatus = currentRideState?.status;
         setActiveRide(rideData);
 
         if (searchTimeoutRef.current) {
@@ -132,8 +135,8 @@ function RidePageContent() {
                   assignDriver(driverData);
                 }
                 
-                const pLoc = pickupLocation || { lat: -12.05, lng: -77.05, address: rideData.pickup };
-                const dLoc = dropoffLocation || { lat: -12.10, lng: -77.03, address: rideData.dropoff };
+                const pLoc = useRideStore.getState().pickupLocation || { lat: -12.05, lng: -77.05, address: rideData.pickup };
+                const dLoc = useRideStore.getState().dropoffLocation || { lat: -12.10, lng: -77.03, address: rideData.dropoff };
                 const driverInitialPos = (driverData as any).location || { lat: -12.045, lng: -77.03 };
 
                 if (rideData.status === 'accepted' && previousStatus !== 'accepted') {
@@ -149,7 +152,7 @@ function RidePageContent() {
                    startSimulation(pLoc, dLoc);
                 }
              }
-        } else {
+        } else if(rideData.status === 'searching') {
           startSearch();
         }
     });
@@ -306,6 +309,8 @@ function RidePageContent() {
                 <div className="lg:col-span-2 flex flex-col min-h-[60vh] rounded-xl overflow-hidden shadow-lg relative">
                     <MapView 
                         driverLocation={driverLocation}
+                        pickupLocation={pickupLocation}
+                        dropoffLocation={dropoffLocation}
                         activeRide={activeRide} 
                     />
 
@@ -390,7 +395,7 @@ function RidePageContent() {
                     <CardContent className="p-0">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none">
-                            <TabsTrigger value="book" disabled={status !== 'idle'}>
+                            <TabsTrigger value="book">
                             <Car className="mr-2 h-4 w-4" /> Pedir Viaje
                             </TabsTrigger>
                             <TabsTrigger value="history">
@@ -468,7 +473,7 @@ function RidePageContent() {
                                 </CardContent>
                             </Card>
                             )}
-                            {status === 'idle' && (
+                            {(status === 'idle' || status === 'calculating' || status === 'calculated' || status === 'negotiating') && (
                                 <RideRequestForm 
                                     onRideCreated={handleRideCreated}
                                 />
@@ -584,6 +589,3 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
-
-    
-
