@@ -171,14 +171,9 @@ export default function AdminDashboard() {
         </Card>
       </div>
       <div className="space-y-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Mapa de Actividad en Tiempo Real</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[400px] p-0">
-             <RealtimeMap />
-          </CardContent>
-        </Card>
+        <div className="h-[400px] w-full rounded-xl overflow-hidden shadow-lg border">
+          <RealtimeMap />
+        </div>
 
         <div className="grid gap-8 lg:grid-cols-2">
           <Card>

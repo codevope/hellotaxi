@@ -27,6 +27,10 @@ export default function RealtimeMap() {
             const fetchedDrivers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
             setDrivers(fetchedDrivers);
             setLoading(false);
+        }, (error) => {
+            console.error("Error fetching drivers for map:", error);
+            // Si hay un error, dejamos de cargar para que el mapa se muestre igual
+            setLoading(false);
         });
 
         return () => unsubscribe();
@@ -42,7 +46,7 @@ export default function RealtimeMap() {
 
     return (
         <GoogleMapsProvider>
-            <div className="relative w-full h-full bg-gray-300 rounded-lg overflow-hidden">
+            <div className="relative w-full h-full">
                 <MapView 
                     pickupLocation={null}
                     dropoffLocation={null}
