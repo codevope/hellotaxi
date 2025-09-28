@@ -156,18 +156,6 @@ export const users: (Omit<User, 'id'>)[] = [
         rating: 5.0,
         phone: '',
         address: ''
-    },
-    {
-        name: 'Viktor Olivares',
-        email: 'viktorolivares@gmail.com',
-        avatarUrl: '', // Can be empty, will be filled by Google Sign-In
-        role: 'passenger',
-        signupDate: new Date().toISOString(),
-        totalRides: 0,
-        rating: 5.0,
-        phone: '',
-        address: '',
-        isAdmin: true,
     }
 ];
 
