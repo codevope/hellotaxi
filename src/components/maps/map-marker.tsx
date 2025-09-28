@@ -4,6 +4,7 @@
 import React from 'react';
 import { AdvancedMarker, InfoWindow, Pin } from '@vis.gl/react-google-maps';
 import { cn } from '@/lib/utils';
+import { Car } from 'lucide-react';
 
 interface Location {
   lat: number;
@@ -11,7 +12,7 @@ interface Location {
   address?: string;
 }
 
-type MarkerType = 'user' | 'pickup' | 'dropoff' | 'custom';
+type MarkerType = 'user' | 'pickup' | 'dropoff' | 'driver' | 'custom';
 
 interface MapMarkerProps {
   position: Location;
@@ -27,6 +28,7 @@ const MarkerConfig = {
   user: { color: 'bg-blue-500', borderColor: 'border-blue-700', label: 'Tu ubicación' },
   pickup: { color: 'bg-green-500', borderColor: 'border-green-700', label: 'Punto de recogida' },
   dropoff: { color: 'bg-red-500', borderColor: 'border-red-700', label: 'Destino' },
+  driver: { color: 'bg-gray-800', borderColor: 'border-black', label: 'Conductor' },
   custom: { color: 'bg-gray-500', borderColor: 'border-gray-700', label: 'Ubicación' }
 };
 
@@ -41,6 +43,19 @@ const MapMarker: React.FC<MapMarkerProps> = ({
   const config = MarkerConfig[type];
   const shouldAnimate = type === 'user' || type === 'pickup' || type === 'dropoff';
 
+  if (type === 'driver') {
+    return (
+      <AdvancedMarker
+        position={position}
+        title={title || config.label}
+      >
+        <div className="p-1 bg-gray-800 rounded-full shadow-lg border-2 border-white">
+          <Car className="w-5 h-5 text-white" />
+        </div>
+      </AdvancedMarker>
+    );
+  }
+
   return (
     <>
       <AdvancedMarker
@@ -52,7 +67,7 @@ const MapMarker: React.FC<MapMarkerProps> = ({
             'w-4 h-4 rounded-full border-2',
              config.color,
              config.borderColor,
-             shouldAnimate && 'animate-pulse-slow'
+             shouldAnimate && 'animate-pulse'
         )}>
              <div className="w-full h-full rounded-full bg-white/50 transform scale-[0.4]"></div>
         </div>

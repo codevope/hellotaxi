@@ -13,4 +13,4 @@ export interface Location {
   address?: string;
 }
 
-export type MarkerType = 'user' | 'pickup' | 'dropoff' | 'custom';
+export type MarkerType = 'user' | 'pickup' | 'dropoff' | 'driver' | 'custom';

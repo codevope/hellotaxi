@@ -3,13 +3,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useGeolocation } from '@/hooks/use-geolocation-improved';
-import type { Ride } from '@/lib/types';
+import type { Ride, Location } from '@/lib/types';
 import {
   GoogleMapsProvider,
   InteractiveMap,
   MapMarker,
   RouteDisplay,
-  type Location,
 } from './maps';
 import { GeocodingService } from '@/services/geocoding-service';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +17,7 @@ interface MapViewProps {
   onLocationSelect?: (location: Location, type: 'pickup' | 'dropoff') => void;
   pickupLocation: Location | null;
   dropoffLocation: Location | null;
+  driverLocation?: Location | null;
   activeRide?: Ride | null;
   className?: string;
   height?: string;
@@ -28,6 +28,7 @@ const MapView: React.FC<MapViewProps> = ({
   onLocationSelect,
   pickupLocation,
   dropoffLocation,
+  driverLocation,
   activeRide,
   className = '',
   height = '100%',
@@ -120,7 +121,7 @@ const MapView: React.FC<MapViewProps> = ({
           zoom={14}
           onMapClick={interactive ? handleMapClick : undefined}
         >
-          {userPos && (
+          {userPos && !driverLocation && (
             <MapMarker
               position={userPos}
               type="user"
@@ -147,6 +148,14 @@ const MapView: React.FC<MapViewProps> = ({
               showInfoWindow={selectedMarker === 'dropoff'}
               onClick={() => handleMarkerClick('dropoff')}
               onInfoWindowClose={() => setSelectedMarker(null)}
+            />
+          )}
+
+           {driverLocation && (
+            <MapMarker
+              position={driverLocation}
+              type="driver"
+              title="Conductor"
             />
           )}
 

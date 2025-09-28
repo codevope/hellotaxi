@@ -28,7 +28,7 @@ import SupportChat from '@/components/support-chat';
 import { Loader2 } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import Link from 'next/link';
-import { doc, writeBatch, onSnapshot, Unsubscribe, getDoc, collection, query, where, addDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, collection, query, where, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getSettings } from '@/services/settings-service';
@@ -39,6 +39,7 @@ import { Separator } from '@/components/ui/separator';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
 import { GoogleIcon } from '@/components/google-icon';
+import { useRouteSimulator } from '@/hooks/use-route-simulator';
 
 type PassengerStatus = 'idle' | 'searching' | 'assigned' | 'rating';
 
@@ -55,6 +56,7 @@ function RidePageContent() {
   const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
   const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
+  const { startSimulation, stopSimulation, simulatedLocation: driverLocation } = useRouteSimulator();
 
 
   const { user } = useAuth();
@@ -79,6 +81,7 @@ function RidePageContent() {
         const rideData = rideSnap.data() as Ride;
 
         if (rideData.status === 'completed' && status !== 'rating') {
+            stopSimulation();
             setActiveRide(rideData);
             setStatus('rating');
         } else if (rideData.status === 'cancelled') {
@@ -91,14 +94,26 @@ function RidePageContent() {
         if (rideData.driver && !assignedDriver) {
              const driverSnap = await getDoc(rideData.driver);
              if (driverSnap.exists()) {
-                setAssignedDriver(driverSnap.data() as Driver);
+                const driverData = driverSnap.data() as Driver;
+                setAssignedDriver(driverData);
                 setStatus('assigned');
+                
+                // Start simulation from driver's position to pickup
+                const driverInitialPos = { lat: -12.045, lng: -77.03 };
+                if (pickupLocation) {
+                    startSimulation(driverInitialPos, pickupLocation);
+                }
              }
+        }
+
+        if (rideData.status === 'in-progress' && pickupLocation && dropoffLocation) {
+            // If the simulation isn't for the main route, switch it.
+            startSimulation(pickupLocation, dropoffLocation);
         }
     });
 
     return () => unsubscribe();
-  }, [user, activeRide, status, toast, assignedDriver]);
+  }, [user, activeRide, status, toast, assignedDriver, startSimulation, stopSimulation, pickupLocation, dropoffLocation]);
 
 
   const handleLocationSelect = (location: Location, type: 'pickup' | 'dropoff') => {
@@ -110,13 +125,31 @@ function RidePageContent() {
   };
 
 
-  const handleSosConfirm = () => {
-    toast({
-      variant: 'destructive',
-      title: '¡Alerta de Pánico Activada!',
-      description:
-        'Se ha notificado a la central de seguridad. Mantén la calma, la ayuda está en camino.',
-    });
+  const handleSosConfirm = async () => {
+    if (!activeRide || !user || !assignedDriver) return;
+
+    try {
+        await addDoc(collection(db, 'sosAlerts'), {
+            rideId: activeRide.id,
+            passenger: doc(db, 'users', user.uid),
+            driver: doc(db, 'drivers', assignedDriver.id),
+            date: new Date().toISOString(),
+            status: 'pending',
+            triggeredBy: 'passenger'
+        });
+        toast({
+            variant: 'destructive',
+            title: '¡Alerta de Pánico Activada!',
+            description: 'Se ha notificado a la central de seguridad. Mantén la calma, la ayuda está en camino.',
+        });
+    } catch (error) {
+        console.error("Error creating SOS alert:", error);
+         toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'No se pudo activar la alerta de pánico.',
+        });
+    }
   };
 
   const handleRideCreated = (ride: Ride) => {
@@ -133,6 +166,7 @@ function RidePageContent() {
     setChatMessages([]);
     setPickupLocation(null);
     setDropoffLocation(null);
+    stopSimulation();
     setActiveTab('book');
     setStatus('idle');
   }
@@ -143,22 +177,20 @@ function RidePageContent() {
     const rideRef = doc(db, 'rides', activeRide.id);
     
     try {
-      const updateData: any = {
-        status: 'cancelled',
-        cancellationReason: reason,
-        cancelledBy: 'passenger'
-      };
+        await updateDoc(rideRef, {
+            status: 'cancelled',
+            cancellationReason: reason,
+            cancelledBy: 'passenger'
+        });
 
-      await writeBatch(db).update(rideRef, updateData).commit();
-
-      toast({
-        title: 'Viaje Cancelado',
-        description: `Motivo: ${reason.reason}.`,
-      });
-      resetRide();
+        toast({
+            title: 'Viaje Cancelado',
+            description: `Motivo: ${reason.reason}.`,
+        });
+        resetRide();
     } catch (error) {
-      console.error('Error cancelling ride:', error);
-      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cancelar el viaje.' });
+        console.error('Error cancelling ride:', error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cancelar el viaje.' });
     }
   }
 
@@ -225,6 +257,7 @@ function RidePageContent() {
                         pickupLocation={pickupLocation}
                         dropoffLocation={dropoffLocation}
                         onLocationSelect={handleLocationSelect}
+                        driverLocation={driverLocation}
                         activeRide={activeRide} 
                     />
 
@@ -389,10 +422,7 @@ function RidePageContent() {
                                     pickupLocation={pickupLocation}
                                     dropoffLocation={dropoffLocation}
                                     onLocationSelect={handleLocationSelect}
-                                    onReset={() => {
-                                    setPickupLocation(null);
-                                    setDropoffLocation(null);
-                                    }}
+                                    onReset={resetRide}
                                 />
                             )}
                             {status === 'rating' && assignedDriver && (
@@ -504,5 +534,3 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
-
-    

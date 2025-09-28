@@ -4,7 +4,7 @@
 import AppHeader from '@/components/app-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Car, ShieldCheck, ShieldAlert, FileText, Star, UserCog, Wallet, History } from 'lucide-react';
+import { Loader2, Car, ShieldAlert, FileText, Star, UserCog, Wallet, History } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -16,17 +16,16 @@ import { useEffect, useState } from 'react';
 import { collection, query, where, getDocs, doc, writeBatch, onSnapshot, Unsubscribe, updateDoc, increment, getDoc, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
 import { GoogleIcon } from '@/components/google-icon';
-import { useGeolocation } from '@/hooks/use-geolocation-improved';
 import MapView from '@/components/map-view';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DriverDocuments from '@/components/driver/documents';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useRouteSimulator } from '@/hooks/use-route-simulator';
 
 const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
     available: { label: 'Disponible', variant: 'default' },
@@ -60,6 +59,7 @@ function DriverDashboardPageContent() {
   const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [status, setStatus] = useState<DriverStatus>('idle');
+  const { startSimulation, stopSimulation, simulatedLocation: driverLocation } = useRouteSimulator();
 
 
   // Listener for driver's active ride
@@ -80,19 +80,39 @@ function DriverDashboardPageContent() {
         const passengerSnap = await getDoc(rideData.passenger);
         if (passengerSnap.exists()) {
             const passengerData = passengerSnap.data() as User;
-            setActiveRide({ ...rideData, driver, passenger: passengerData });
+            const rideWithPassenger = { ...rideData, driver, passenger: passengerData };
+            setActiveRide(rideWithPassenger);
+
+            const pickupLoc = (await getDoc(rideData.passenger)).data() as User;
+
+            const pickup = { lat: -12.05, lng: -77.05, address: rideData.pickup }; // Fallback
+            const dropoff = { lat: -12.1, lng: -77.0, address: rideData.dropoff }; // Fallback
+
+            setPickupLocation(pickup);
+            setDropoffLocation(dropoff);
+            
+            if (rideData.status === 'accepted' || rideData.status === 'arrived') {
+                const driverInitialPos = { lat: -12.045, lng: -77.03 };
+                startSimulation(driverInitialPos, pickup);
+            } else if (rideData.status === 'in-progress') {
+                startSimulation(pickup, dropoff);
+            }
+
             setStatus('in-progress');
         }
       } else {
          if (status !== 'rating') {
             setActiveRide(null);
+            setPickupLocation(null);
+            setDropoffLocation(null);
+            stopSimulation();
             setStatus('idle');
          }
       }
     });
 
     return () => unsubscribe();
-  }, [driver, status]);
+  }, [driver, status, startSimulation, stopSimulation]);
 
   // Listener for new ride requests
   useEffect(() => {
@@ -160,8 +180,7 @@ function DriverDashboardPageContent() {
                 driver: doc(db, 'drivers', driver.id)
             });
             await updateDoc(doc(db, 'drivers', driver.id), { status: 'on-ride' });
-            setActiveRide({ ...requestedRide, driver });
-            setStatus('in-progress');
+            // Let the snapshot listener handle the UI transition
             setRequestedRide(null);
         } catch (e) {
             console.error("Error accepting ride:", e);
@@ -185,17 +204,20 @@ function DriverDashboardPageContent() {
             const batch = writeBatch(db);
             batch.update(rideRef, { status: 'completed' });
             batch.update(driverRef, { status: 'available' });
+            // Note: In a real app, you would increment rides for the correct period.
+            // For simplicity, we increment the main counter.
             batch.update(driverRef, { totalRides: increment(1) });
             await batch.commit();
 
             toast({ title: '¡Viaje Finalizado!', description: 'Ahora califica al pasajero.' });
             
+            stopSimulation();
             setCompletedRideForRating(activeRide);
             setActiveRide(null);
             setStatus('rating');
         } else {
             await updateDoc(rideRef, { status: newStatus });
-            // The onSnapshot listener will handle the UI update
+            // The onSnapshot listener will handle the UI update and route simulation
         }
     } catch (error) {
         console.error('Error updating ride status:', error);
@@ -220,6 +242,8 @@ function DriverDashboardPageContent() {
         description: `Has calificado a ${passenger.name} con ${rating} estrellas.`,
       });
       setCompletedRideForRating(null);
+      setPickupLocation(null);
+      setDropoffLocation(null);
       setStatus('idle');
     } catch (error) {
       console.error('Error submitting passenger rating:', error);
@@ -360,6 +384,7 @@ function DriverDashboardPageContent() {
                     <MapView 
                         pickupLocation={pickupLocation}
                         dropoffLocation={dropoffLocation}
+                        driverLocation={driverLocation}
                         activeRide={activeRide} 
                         interactive={false}
                     />
@@ -549,5 +574,3 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
-
-    
