@@ -2,6 +2,10 @@ import AdminsTable from '@/components/admin/admins-table';
 import UsersTable from '@/components/admin/users-table';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export default function AdminUsersPage() {
   return (
