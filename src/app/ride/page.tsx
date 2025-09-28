@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
 import SupportChat from '@/components/support-chat';
 import { Loader2 } from 'lucide-react';
@@ -329,7 +329,7 @@ function RidePageContent() {
                     userToRate={assignedDriver}
                     isDriver={true}
                     onSubmit={handleRatingSubmit}
-                    isSubmitting={isSubmittingRating}
+                    isSubmitting={isRatingSubmitting}
                   />
                  )}
               </TabsContent>
