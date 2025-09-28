@@ -1,9 +1,8 @@
 
 'use client';
 
-import React, { useState } from 'react';
-import { useGoogleGeolocation } from '@/hooks/use-google-geolocation';
-import { useMapStore } from '@/stores/map-store';
+import React, { useState, useEffect } from 'react';
+import { useGeolocation } from '@/hooks/use-geolocation-improved';
 import type { Ride } from '@/lib/types';
 import { 
   GoogleMapsProvider, 
@@ -14,6 +13,7 @@ import {
 } from './maps';
 import { GeocodingService } from '@/services/geocoding-service';
 import { useToast } from '@/hooks/use-toast';
+import { useMapStore } from '@/stores/map-store'; // Importando el store
 
 interface MapViewProps {
   onLocationSelect?: (location: Location, type: 'pickup' | 'dropoff') => void;
@@ -30,22 +30,32 @@ const MapView: React.FC<MapViewProps> = ({
   height = '100%',
   interactive = true
 }) => {
-  const { location: userLocation, requestPreciseLocation: requestLocation, loading } = useGoogleGeolocation();
+  const { location: userLocation, requestLocation, loading } = useGeolocation();
+  const { toast } = useToast();
+  
+  // Usando el store de Zustand en lugar de estado local
   const { 
     pickupLocation,
     dropoffLocation,
     mapCenter,
     setPickupLocation,
     setDropoffLocation,
+    setUserLocation,
   } = useMapStore();
-  const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
-  const { toast } = useToast();
 
-  React.useEffect(() => {
-    if (!userLocation) {
+  const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userLocation && !loading) {
       requestLocation();
     }
-  }, [userLocation, requestLocation]);
+    if (userLocation) {
+      setUserLocation({
+        coordinates: { lat: userLocation.latitude, lng: userLocation.longitude },
+        address: userLocation.address || 'Tu ubicación actual',
+      });
+    }
+  }, [userLocation, loading, requestLocation, setUserLocation]);
 
   const userPos: Location | undefined = userLocation ? {
     lat: userLocation.latitude,

@@ -52,7 +52,6 @@ import {
 import { db } from '@/lib/firebase';
 import { getSettings } from '@/services/settings-service';
 import { useAuth } from '@/hooks/use-auth';
-import { useMapStore } from '@/stores/map-store';
 import { Input } from './ui/input';
 import {
   Dialog,
@@ -62,7 +61,7 @@ import {
 } from './ui/dialog';
 import ETADisplay from './eta-display';
 import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
-import { LocationPicker, type Location } from '@/components/maps';
+import { LocationPicker, type Location, InteractiveMap } from '@/components/maps';
 import { Label } from './ui/label';
 import Image from 'next/image';
 
@@ -110,10 +109,9 @@ export default function RideRequestForm({
   const [locationPickerFor, setLocationPickerFor] = useState<
     'pickup' | 'dropoff' | null
   >(null);
-
+  const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
+  const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
   const { user } = useAuth();
-  const { pickupLocation, dropoffLocation, setPickupLocation, setDropoffLocation, clearRideLocations } =
-    useMapStore();
   const { toast } = useToast();
   const { calculateRoute, isCalculating, error: routeError } = useETACalculator();
 
@@ -140,41 +138,21 @@ export default function RideRequestForm({
 
   const handleLocationSelect = (location: Location) => {
     if (locationPickerFor === 'pickup') {
-      setPickupLocation({
-        coordinates: { lat: location.lat, lng: location.lng },
-        address: location.address || '',
-      });
+      setPickupLocation(location);
+      form.setValue('pickup', location.address || `${location.lat}, ${location.lng}`);
     } else if (locationPickerFor === 'dropoff') {
-      setDropoffLocation({
-        coordinates: { lat: location.lat, lng: location.lng },
-        address: location.address || '',
-      });
+      setDropoffLocation(location);
+      form.setValue('dropoff', location.address || `${location.lat}, ${location.lng}`);
     }
     setLocationPickerFor(null); // Close the dialog
   };
-
-  useEffect(() => {
-    if (pickupLocation) {
-      form.setValue('pickup', pickupLocation.address);
-    } else {
-      form.setValue('pickup', '');
-    }
-  }, [pickupLocation, form]);
-
-  useEffect(() => {
-    if (dropoffLocation) {
-      form.setValue('dropoff', dropoffLocation.address);
-    } else {
-      form.setValue('dropoff', '');
-    }
-  }, [dropoffLocation, form]);
 
   const handleCalculateFare = async () => {
     if (!pickupLocation || !dropoffLocation) return;
     setStatus('calculating');
     const route = await calculateRoute(
-      pickupLocation.coordinates,
-      dropoffLocation.coordinates,
+      pickupLocation,
+      dropoffLocation,
       {
         serviceType: form.getValues('serviceType'),
         couponCode: form.getValues('couponCode') || undefined
@@ -313,7 +291,8 @@ export default function RideRequestForm({
   function resetForm() {
     setStatus('idle');
     setFinalFare(null);
-    clearRideLocations();
+    setPickupLocation(null);
+    setDropoffLocation(null);
     setRouteInfo(null);
     form.reset();
   }
@@ -370,6 +349,7 @@ export default function RideRequestForm({
             onLocationSelect={handleLocationSelect}
             onCancel={() => setLocationPickerFor(null)}
             isPickup={locationPickerFor === 'pickup'}
+            initialLocation={locationPickerFor === 'pickup' ? pickupLocation : dropoffLocation}
           />
         </DialogContent>
       </Dialog>

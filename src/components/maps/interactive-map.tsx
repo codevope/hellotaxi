@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Map } from '@vis.gl/react-google-maps';
 import type { MapMouseEvent } from '@vis.gl/react-google-maps';
 
@@ -31,18 +31,28 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
   mapId = 'DEMO_MAP_ID'
 }) => {
   const [isTilesLoaded, setTilesLoaded] = useState(false);
+  const lastExternalCenterRef = useRef(newCenter);
   
   // Internal state for map's viewport to allow user interaction
   const [internalCenter, setInternalCenter] = useState(newCenter);
   const [internalZoom, setInternalZoom] = useState(initialZoom);
 
-  // Update internal state only when the external `center` prop changes meaningfully.
+  // Update internal state only when the external `center` prop changes meaningfully from outside
   useEffect(() => {
-    if (newCenter && (newCenter.lat !== internalCenter?.lat || newCenter.lng !== internalCenter?.lng)) {
+    if (newCenter && 
+        (!lastExternalCenterRef.current || 
+         (newCenter.lat !== lastExternalCenterRef.current.lat || 
+          newCenter.lng !== lastExternalCenterRef.current.lng))) {
+      
+      lastExternalCenterRef.current = newCenter;
       setInternalCenter(newCenter);
-      setInternalZoom(16); // Reset zoom when center changes programmatically
+      
+      // Only reset zoom if we don't have a specific zoom prop and it's a significant change
+      if (initialZoom === 13) {
+        setInternalZoom(16);
+      }
     }
-  }, [newCenter, internalCenter]);
+  }, [newCenter, initialZoom]);
   
   const handleTilesLoaded = useCallback(() => {
     setTilesLoaded(true);
@@ -58,6 +68,25 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
     },
     [onMapClick]
   );
+
+  const handleCameraChanged = useCallback((ev: any) => {
+    // Only update internal state if the change is from user interaction
+    // Don't update if we're programmatically setting the center
+    const newCenter = ev.detail.center;
+    const newZoom = ev.detail.zoom;
+    
+    // Prevent infinite loops by checking if this is really a different value
+    if (newZoom !== internalZoom) {
+      setInternalZoom(newZoom);
+    }
+    
+    if (newCenter && 
+        (!internalCenter || 
+         newCenter.lat !== internalCenter.lat || 
+         newCenter.lng !== internalCenter.lng)) {
+      setInternalCenter(newCenter);
+    }
+  }, [internalZoom, internalCenter]);
   
   return (
     <div
@@ -85,13 +114,12 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
         disableDefaultUI={false}
         onClick={handleClick}
         onTilesLoaded={handleTilesLoaded}
-        onCameraChanged={(ev) => {
-            setInternalZoom(ev.detail.zoom);
-            setInternalCenter(ev.detail.center);
-        }}
+        onCameraChanged={handleCameraChanged}
         mapTypeControl={false}
         streetViewControl={false}
         fullscreenControl={false}
+        zoomControl={true}
+        scrollwheel={true}
         style={{
           width: '100%',
           height: '100%',

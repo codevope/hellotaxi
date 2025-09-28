@@ -12,14 +12,14 @@ import {
   InteractiveMap,
   MapMarker,
 } from './';
-import { useMapStore } from '@/stores/map-store';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useGeolocation } from '@/hooks/use-geolocation-improved';
 
 interface LocationPickerProps {
   onLocationSelect: (location: Location) => void;
   onCancel?: () => void;
-  initialLocation?: { lat: number; lng: number };
+  initialLocation?: Location | null;
   className?: string;
   isPickup?: boolean;
 }
@@ -32,12 +32,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   isPickup = false,
 }) => {
   const [selectedLocation, setSelectedLocation] =
-    useState<Location | null>(
-      initialLocation
-        ? { ...initialLocation, address: 'Ubicación seleccionada' }
-        : null
-    );
-  const { userLocation } = useMapStore();
+    useState<Location | null>(initialLocation);
+  const { location: userLocation, requestLocation: requestGeoLocation } = useGeolocation();
   const { toast } = useToast();
 
   const handlePlaceSelect = (location: Location) => {
@@ -51,15 +47,16 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   };
 
   const handleCurrentLocation = () => {
-    if (userLocation?.coordinates) {
+    if (userLocation) {
       const location: Location = {
-        lat: userLocation.coordinates.lat,
-        lng: userLocation.coordinates.lng,
-        address: 'Mi ubicación actual',
+        lat: userLocation.latitude,
+        lng: userLocation.longitude,
+        address: userLocation.address || 'Mi ubicación actual',
       };
       // Directamente confirma esta selección
       onLocationSelect(location);
     } else {
+        requestGeoLocation();
         toast({
             variant: "destructive",
             title: "Ubicación no disponible",
@@ -77,6 +74,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
               onPlaceSelect={handlePlaceSelect}
               placeholder="Escribe una dirección o lugar..."
               isPickup={isPickup}
+              defaultValue={selectedLocation?.address}
             />
             {isPickup && (
               <Button
