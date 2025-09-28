@@ -28,7 +28,7 @@ import SupportChat from '@/components/support-chat';
 import { Loader2 } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import Link from 'next/link';
-import { doc, writeBatch, onSnapshot, Unsubscribe } from 'firebase/firestore';
+import { doc, writeBatch, onSnapshot, Unsubscribe, getDoc, collection, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getSettings } from '@/services/settings-service';
@@ -219,214 +219,216 @@ function RidePageContent() {
   return (
       <div className="flex flex-col h-screen bg-background">
         <AppHeader />
-        <main className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 p-4 lg:p-8 min-h-0">
-            <div className="lg:col-span-2 flex flex-col min-h-0 rounded-xl overflow-hidden shadow-lg relative">
-              <MapView 
-                pickupLocation={pickupLocation}
-                dropoffLocation={dropoffLocation}
-                onLocationSelect={handleLocationSelect}
-                activeRide={activeRide} 
-              />
+        <main className="flex-1 p-4 lg:p-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 flex flex-col min-h-[60vh] rounded-xl overflow-hidden shadow-lg relative">
+                    <MapView 
+                        pickupLocation={pickupLocation}
+                        dropoffLocation={dropoffLocation}
+                        onLocationSelect={handleLocationSelect}
+                        activeRide={activeRide} 
+                    />
 
-              {/* Floating Action Buttons */}
-              <Sheet open={isSupportChatOpen} onOpenChange={setIsSupportChatOpen}>
-                <SheetTrigger asChild>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="absolute top-4 left-4 h-14 w-14 rounded-full shadow-lg border-2 border-primary/50 bg-background"
-                    >
-                        <Bot className="h-7 w-7 text-primary" />
-                    </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-full max-w-sm p-0">
-                    <SupportChat />
-                </SheetContent>
-              </Sheet>
-
-              {activeRide && (
-                <>
-                   <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-4 right-4 h-16 w-16 rounded-full shadow-2xl animate-pulse"
-                      >
-                        <Siren className="h-8 w-8" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          ¿Estás seguro de que quieres activar la alerta de pánico?
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Esta acción notificará inmediatamente a nuestra central de
-                          seguridad con tu ubicación actual y los detalles de tu
-                          viaje. Úsalo solo en caso de una emergencia real.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive hover:bg-destructive/90"
-                          onClick={handleSosConfirm}
-                        >
-                          Sí, Activar Alerta
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                
-                  <Sheet open={isDriverChatOpen} onOpenChange={setIsDriverChatOpen}>
-                    <SheetTrigger asChild>
-                      <Button
-                        size="icon"
-                        className="absolute bottom-4 left-4 h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90"
-                      >
-                        <MessageCircle className="h-7 w-7" />
-                      </Button>
-                    </SheetTrigger>
-                    <SheetContent side="left" className="w-full max-w-sm p-0">
-                        <SheetHeader className="p-4 border-b text-left">
-                          <SheetTitle className="flex items-center gap-2">
-                              <MessageCircle className="h-5 w-5" />
-                              <span>Chat con el Conductor</span>
-                          </SheetTitle>
-                        </SheetHeader>
-                         <Chat
-                            messages={chatMessages}
-                            onSendMessage={handleSendMessage}
-                          />
-                    </SheetContent>
-                  </Sheet>
-                </>
-              )}
-          </div>
-   
-        <Card className="shadow-lg">
-          <CardContent className="p-0">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none">
-                <TabsTrigger value="book" disabled={!!activeRide}>
-                  <Car className="mr-2 h-4 w-4" /> Pedir Viaje
-                </TabsTrigger>
-                <TabsTrigger value="history">
-                  <History className="mr-2 h-4 w-4" /> Historial
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="book" className="p-6">
-                 {activeRide && assignedDriver && status !== 'rating' ? (
-                  <Card className="border-0 shadow-none">
-                    <CardHeader>
-                      <CardTitle>¡Tu conductor está en camino!</CardTitle>
-                      <CardDescription>Llegada estimada: 5 minutos.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                       <div className="flex items-center gap-4">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage
-                            src={assignedDriver.avatarUrl}
-                            alt={assignedDriver.name}
-                          />
-                          <AvatarFallback>
-                            {assignedDriver.name.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-bold text-md">{assignedDriver.name}</p>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />{' '}
-                            {assignedDriver.rating.toFixed(1)}
-                          </div>
-                          <p className="text-xs">
-                            {assignedDriver.vehicleBrand} {assignedDriver.vehicleModel} -{' '}
-                            {assignedDriver.licensePlate}
-                          </p>
-                        </div>
-                        <p className="font-bold text-lg text-right flex-1">
-                          S/{activeRide.fare.toFixed(2)}
-                        </p>
-                      </div>
-                      <Separator />
-                       <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" className="w-full">
-                              <X className="mr-2 h-4 w-4" /> Cancelar Viaje
+                    {/* Floating Action Buttons */}
+                    <Sheet open={isSupportChatOpen} onOpenChange={setIsSupportChatOpen}>
+                        <SheetTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                className="absolute top-4 left-4 h-14 w-14 rounded-full shadow-lg border-2 border-primary/50 bg-background"
+                            >
+                                <Bot className="h-7 w-7 text-primary" />
                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
+                        </SheetTrigger>
+                        <SheetContent side="left" className="w-full max-w-sm p-0">
+                            <SupportChat />
+                        </SheetContent>
+                    </Sheet>
+
+                    {activeRide && (
+                        <>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                            <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-4 right-4 h-16 w-16 rounded-full shadow-2xl animate-pulse"
+                            >
+                                <Siren className="h-8 w-8" />
+                            </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>¿Seguro que quieres cancelar?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta acción podría afectar negativamente tu calificación como pasajero. ¿Aún deseas cancelar?
-                              </AlertDialogDescription>
+                                <AlertDialogTitle>
+                                ¿Estás seguro de que quieres activar la alerta de pánico?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                Esta acción notificará inmediatamente a nuestra central de
+                                seguridad con tu ubicación actual y los detalles de tu
+                                viaje. Úsalo solo en caso de una emergencia real.
+                                </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>No, continuar viaje</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => setIsCancelReasonDialogOpen(true)}
-                              >
-                                Sí, cancelar
-                              </AlertDialogAction>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                className="bg-destructive hover:bg-destructive/90"
+                                onClick={handleSosConfirm}
+                                >
+                                Sí, Activar Alerta
+                                </AlertDialogAction>
                             </AlertDialogFooter>
-                          </AlertDialogContent>
+                            </AlertDialogContent>
                         </AlertDialog>
+                        
+                        <Sheet open={isDriverChatOpen} onOpenChange={setIsDriverChatOpen}>
+                            <SheetTrigger asChild>
+                            <Button
+                                size="icon"
+                                className="absolute bottom-4 left-4 h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90"
+                            >
+                                <MessageCircle className="h-7 w-7" />
+                            </Button>
+                            </SheetTrigger>
+                            <SheetContent side="left" className="w-full max-w-sm p-0">
+                                <SheetHeader className="p-4 border-b text-left">
+                                <SheetTitle className="flex items-center gap-2">
+                                    <MessageCircle className="h-5 w-5" />
+                                    <span>Chat con el Conductor</span>
+                                </SheetTitle>
+                                </SheetHeader>
+                                <Chat
+                                    messages={chatMessages}
+                                    onSendMessage={handleSendMessage}
+                                />
+                            </SheetContent>
+                        </Sheet>
+                        </>
+                    )}
+                </div>
+        
+                <Card className="shadow-lg">
+                    <CardContent className="p-0">
+                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none">
+                            <TabsTrigger value="book" disabled={!!activeRide}>
+                            <Car className="mr-2 h-4 w-4" /> Pedir Viaje
+                            </TabsTrigger>
+                            <TabsTrigger value="history">
+                            <History className="mr-2 h-4 w-4" /> Historial
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="book" className="p-6">
+                            {activeRide && assignedDriver && status !== 'rating' ? (
+                            <Card className="border-0 shadow-none">
+                                <CardHeader>
+                                <CardTitle>¡Tu conductor está en camino!</CardTitle>
+                                <CardDescription>Llegada estimada: 5 minutos.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                <div className="flex items-center gap-4">
+                                    <Avatar className="h-12 w-12">
+                                    <AvatarImage
+                                        src={assignedDriver.avatarUrl}
+                                        alt={assignedDriver.name}
+                                    />
+                                    <AvatarFallback>
+                                        {assignedDriver.name.charAt(0)}
+                                    </AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                    <p className="font-bold text-md">{assignedDriver.name}</p>
+                                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />{' '}
+                                        {assignedDriver.rating.toFixed(1)}
+                                    </div>
+                                    <p className="text-xs">
+                                        {assignedDriver.vehicleBrand} {assignedDriver.vehicleModel} -{' '}
+                                        {assignedDriver.licensePlate}
+                                    </p>
+                                    </div>
+                                    <p className="font-bold text-lg text-right flex-1">
+                                    S/{activeRide.fare.toFixed(2)}
+                                    </p>
+                                </div>
+                                <Separator />
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" className="w-full">
+                                        <X className="mr-2 h-4 w-4" /> Cancelar Viaje
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Seguro que quieres cancelar?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta acción podría afectar negativamente tu calificación como pasajero. ¿Aún deseas cancelar?
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel>No, continuar viaje</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={() => setIsCancelReasonDialogOpen(true)}
+                                        >
+                                            Sí, cancelar
+                                        </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                    </AlertDialog>
+                                </CardContent>
+                            </Card>
+                            ) : status !== 'rating' ? (
+                            <RideRequestForm 
+                                onRideAssigned={handleRideAssigned}
+                                pickupLocation={pickupLocation}
+                                dropoffLocation={dropoffLocation}
+                                onLocationSelect={handleLocationSelect}
+                                onReset={() => {
+                                setPickupLocation(null);
+                                setDropoffLocation(null);
+                                }}
+                            />
+                            ) : assignedDriver && (
+                            <RatingForm
+                                userToRate={assignedDriver}
+                                isDriver={true}
+                                onSubmit={handleRatingSubmit}
+                                isSubmitting={isRatingSubmitting}
+                            />
+                            )}
+                        </TabsContent>
+                        <TabsContent value="history" className="p-6">
+                            <RideHistory />
+                        </TabsContent>
+                        </Tabs>
                     </CardContent>
-                  </Card>
-                ) : status !== 'rating' ? (
-                  <RideRequestForm 
-                    onRideAssigned={handleRideAssigned}
-                    pickupLocation={pickupLocation}
-                    dropoffLocation={dropoffLocation}
-                    onLocationSelect={handleLocationSelect}
-                    onReset={() => {
-                      setPickupLocation(null);
-                      setDropoffLocation(null);
-                    }}
-                  />
-                 ) : assignedDriver && (
-                  <RatingForm
-                    userToRate={assignedDriver}
-                    isDriver={true}
-                    onSubmit={handleRatingSubmit}
-                    isSubmitting={isRatingSubmitting}
-                  />
-                 )}
-              </TabsContent>
-              <TabsContent value="history" className="p-6">
-                <RideHistory />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-         <Dialog
-          open={isCancelReasonDialogOpen}
-          onOpenChange={setIsCancelReasonDialogOpen}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>¿Por qué estás cancelando?</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-2 py-4">
-              {appSettings?.cancellationReasons.map((reason) => (
-                <Button
-                  key={reason.code}
-                  variant="outline"
-                  className="w-full justify-start text-left h-auto py-3"
-                  onClick={() => handleCancelRide(reason)}
-                >
-                  {reason.reason}
-                </Button>
-              ))}
+                </Card>
             </div>
-          </DialogContent>
-        </Dialog>
 
-      </main>
+            <Dialog
+                open={isCancelReasonDialogOpen}
+                onOpenChange={setIsCancelReasonDialogOpen}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                    <DialogTitle>¿Por qué estás cancelando?</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-2 py-4">
+                    {appSettings?.cancellationReasons.map((reason) => (
+                        <Button
+                        key={reason.code}
+                        variant="outline"
+                        className="w-full justify-start text-left h-auto py-3"
+                        onClick={() => handleCancelRide(reason)}
+                        >
+                        {reason.reason}
+                        </Button>
+                    ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+        </main>
       </div>
   );
 }
