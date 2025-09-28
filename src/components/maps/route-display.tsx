@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -35,10 +36,35 @@ const RouteDisplay: React.FC<RouteDisplayProps> = ({
       map: map,
       suppressMarkers: true, // No mostrar marcadores por defecto, usamos los nuestros
       polylineOptions: {
-        strokeColor: '#1976D2', // Azul estilo Uber
-        strokeOpacity: 0.8,
-        strokeWeight: 5,
-        zIndex: 1
+        strokeColor: '#00A3FF', // Un azul más eléctrico y vibrante
+        strokeOpacity: 0.9,
+        strokeWeight: 6, // Un poco más grueso para destacar
+        zIndex: 50, // Asegurarse de que esté por encima de otros elementos del mapa
+        icons: [
+            {
+                // Un círculo en el punto de inicio
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    strokeColor: '#00A3FF',
+                    strokeWeight: 4,
+                    fillColor: 'white',
+                    fillOpacity: 1,
+                },
+                offset: '0%',
+            },
+            {
+                // Una flecha en el punto final para indicar la dirección
+                icon: {
+                    path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                    scale: 4,
+                    strokeColor: '#00A3FF',
+                    fillColor: '#00A3FF',
+                    fillOpacity: 1,
+                },
+                offset: '100%',
+            }
+        ]
       },
       panel: null
     });
