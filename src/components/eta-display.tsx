@@ -5,12 +5,14 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { 
   CarFront,
-  Loader2
+  Loader2,
+  Tag
 } from 'lucide-react';
 import { useETACalculator, type RouteInfo, type TrafficCondition } from '@/hooks/use-eta-calculator';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Separator } from './ui/separator';
 
 interface ETADisplayProps {
   routeInfo?: RouteInfo | null;
@@ -60,12 +62,13 @@ const ETADisplay: React.FC<ETADisplayProps> = ({
     return null;
   }
 
-  const { distance, duration, estimatedFare, trafficCondition } = routeInfo;
+  const { distance, duration, estimatedFare, trafficCondition, fareBreakdown } = routeInfo;
   const trafficInfo = trafficConfig[trafficCondition];
+  const couponDiscount = fareBreakdown?.couponDiscount || 0;
 
 
   return (
-    <div className={cn("rounded-xl overflow-hidden shadow-lg bg-blue-600 text-white", className)}>
+    <div className={cn("rounded-xl overflow-hidden shadow-lg bg-primary text-white", className)}>
       <div className="p-6">
         <div className="flex justify-between items-start">
             <div>
@@ -89,10 +92,21 @@ const ETADisplay: React.FC<ETADisplayProps> = ({
                 <p className="text-lg font-bold">S/ {(estimatedFare || 0).toFixed(2)}</p>
             </div>
         </div>
+
+        {couponDiscount > 0 && (
+          <>
+            <Separator className="my-4 bg-white/20" />
+            <div className="flex items-center justify-center gap-2 text-sm text-green-300 font-semibold">
+              <Tag className="h-4 w-4" />
+              <span>Se aplicó un descuento de S/{couponDiscount.toFixed(2)} con tu cupón.</span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 };
 
 export default ETADisplay;
+
 

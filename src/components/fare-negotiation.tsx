@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { negotiateFare } from '@/ai/flows/negotiate-fare';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, CircleDollarSign, ShieldX, MessageSquare, ThumbsUp, Info, List } from 'lucide-react';
+import { Loader2, CircleDollarSign, ShieldX, MessageSquare, ThumbsUp, Info, List, Tag } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Slider } from '@/components/ui/slider';
 import type { FareBreakdown } from '@/lib/types';
@@ -30,10 +30,14 @@ export default function FareNegotiation({
   
   const estimatedFare = routeInfo.estimatedFare || 0;
   const breakdown = routeInfo.fareBreakdown;
+  const couponDiscount = breakdown?.couponDiscount || 0;
+
+  // La negociación se hace sobre la tarifa antes del descuento
+  const baseFareForNegotiation = estimatedFare + couponDiscount;
 
   // El pasajero negocia hacia abajo. El mínimo es un 20% menos. El máximo es la tarifa estimada.
-  const minFare = Math.max(1, Math.floor(estimatedFare * (1 - PASSENGER_NEGOTIATION_RANGE)));
-  const maxFare = estimatedFare; // El máximo que puede proponer el pasajero es la tarifa original
+  const minFare = Math.max(1, Math.floor(baseFareForNegotiation * (1 - PASSENGER_NEGOTIATION_RANGE)));
+  const maxFare = baseFareForNegotiation; // El máximo que puede proponer el pasajero es la tarifa original
   
   const [proposedFare, setProposedFare] = useState(maxFare); // La propuesta inicial es la tarifa completa
   const [driverResponse, setDriverResponse] = useState<{decision: string, reason: string, counterFare?: number} | null>(null);
@@ -47,17 +51,18 @@ export default function FareNegotiation({
 
     try {
         const result = await negotiateFare({
-            estimatedFare,
+            estimatedFare: baseFareForNegotiation,
             proposedFare,
-            minFare: Math.floor(estimatedFare * 0.9), // Mínimo absoluto del conductor (10% menos)
-            maxFare: Math.ceil(estimatedFare * 1.2),  // Máximo que el conductor esperaría (20% más)
+            minFare: Math.floor(baseFareForNegotiation * 0.9), // Mínimo absoluto del conductor (10% menos)
+            maxFare: Math.ceil(baseFareForNegotiation * 1.2),  // Máximo que el conductor esperaría (20% más)
         });
 
         setDriverResponse(result);
 
         if(result.decision === 'accepted') {
-            const finalBreakdown = { ...breakdown, total: proposedFare };
-            setTimeout(() => onNegotiationComplete(proposedFare, finalBreakdown), 2000);
+            const finalFare = proposedFare - couponDiscount;
+            const finalBreakdown = { ...breakdown, total: finalFare };
+            setTimeout(() => onNegotiationComplete(finalFare, finalBreakdown), 2000);
         } else if (result.decision === 'counter-offer' && result.counterFare) {
             setStatus('counter-offer');
             setProposedFare(result.counterFare);
@@ -78,8 +83,9 @@ export default function FareNegotiation({
   
   function handleAcceptCounterOffer() {
     if(driverResponse?.counterFare && breakdown) {
-        const finalBreakdown = { ...breakdown, total: driverResponse.counterFare };
-        onNegotiationComplete(driverResponse.counterFare, finalBreakdown);
+        const finalFare = driverResponse.counterFare - couponDiscount;
+        const finalBreakdown = { ...breakdown, total: finalFare };
+        onNegotiationComplete(finalFare, finalBreakdown);
     }
   }
 
@@ -104,11 +110,21 @@ export default function FareNegotiation({
     <div className="space-y-4">
       <Alert>
         <CircleDollarSign className="h-4 w-4" />
-        <AlertTitle>Tarifa Sugerida: S/{estimatedFare?.toFixed(2)}</AlertTitle>
+        <AlertTitle>Tarifa Sugerida: S/{baseFareForNegotiation?.toFixed(2)}</AlertTitle>
         <AlertDescription>
           Desliza para proponer una tarifa menor.
         </AlertDescription>
       </Alert>
+
+      {couponDiscount > 0 && (
+          <Alert variant="default" className="border-green-500 bg-green-50 text-green-800">
+            <Tag className="h-4 w-4 text-green-600" />
+            <AlertTitle>Cupón Aplicado</AlertTitle>
+            <AlertDescription>
+                Se restará un descuento de S/{couponDiscount.toFixed(2)} de tu tarifa final acordada.
+            </AlertDescription>
+        </Alert>
+      )}
 
       <div className="space-y-4">
         <label htmlFor="fare-slider" className="font-medium">Tu Propuesta: <span className="text-primary font-bold text-lg">S/{proposedFare.toFixed(2)}</span></label>
@@ -147,6 +163,16 @@ export default function FareNegotiation({
         </Alert>
       )}
 
+      {driverResponse?.decision === 'accepted' && (
+          <div className="p-4 border rounded-lg bg-green-50 space-y-2 text-center">
+              <p className="text-sm">Tarifa Acordada: S/{proposedFare.toFixed(2)}</p>
+              <p className="text-sm">Descuento Cupón: -S/{couponDiscount.toFixed(2)}</p>
+              <Separator />
+              <p className="font-bold text-lg">Total a Pagar: S/{(proposedFare - couponDiscount).toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground mt-2">Buscando conductor para confirmar tu viaje...</p>
+          </div>
+      )}
+
       {status === 'counter-offer' && driverResponse?.counterFare && (
         <div className="p-4 border rounded-lg bg-secondary/50 space-y-3">
             <p className="text-center font-semibold">Contraoferta del Conductor: S/{driverResponse.counterFare.toFixed(2)}</p>
@@ -171,3 +197,4 @@ export default function FareNegotiation({
     </div>
   );
 }
+

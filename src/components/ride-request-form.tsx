@@ -26,6 +26,7 @@ import {
   ChevronRight,
   Bot,
   Calendar as CalendarIcon,
+  Ticket,
 } from 'lucide-react';
 import type {
   Ride,
@@ -232,8 +233,6 @@ export default function RideRequestForm({
       };
 
       const rideDocRef = await addDoc(collection(db, 'rides'), newRideData);
-
-      await updateDoc(passengerRef, { totalRides: increment(1) });
       
       const createdRide: Ride = { id: rideDocRef.id, ...newRideData, driver: doc(db, 'drivers/placeholder') };
       onRideCreated(createdRide);
@@ -487,6 +486,28 @@ export default function RideRequestForm({
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="couponCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Código de Cupón (Opcional)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          {...field}
+                          placeholder="Ej: BIENVENIDO10"
+                          className="pl-10"
+                          disabled={isFormLocked}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               
               {(status === 'calculating' || status === 'calculated') && routeInfo && (
                 <ETADisplay
@@ -554,3 +575,4 @@ export default function RideRequestForm({
     </>
   );
 }
+
