@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -60,6 +60,7 @@ function RidePageContent() {
   const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
   const { startSimulation, stopSimulation, simulatedLocation: driverLocation } = useRouteSimulator();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 
   const { user } = useAuth();
@@ -86,7 +87,13 @@ function RidePageContent() {
         if (!snapshot.empty) {
             const rideDoc = snapshot.docs[0];
             const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
+            const previousStatus = activeRide?.status;
             setActiveRide(rideData);
+
+            if (searchTimeoutRef.current) {
+              clearTimeout(searchTimeoutRef.current);
+              searchTimeoutRef.current = null;
+            }
 
             if (rideData.driver) {
                  const driverSnap = await getDoc(rideData.driver);
@@ -99,15 +106,20 @@ function RidePageContent() {
                     
                     const pLoc = pickupLocation || { lat: -12.05, lng: -77.05 };
                     const driverInitialPos = { lat: -12.045, lng: -77.03 };
-                    startSimulation(driverInitialPos, pLoc);
+
+                    if (rideData.status === 'accepted' && previousStatus !== 'accepted') {
+                      toast({ title: '¡Conductor Encontrado!', description: `${driverData.name} está en camino.`});
+                      startSimulation(driverInitialPos, pLoc);
+                    } else if (rideData.status === 'arrived' && previousStatus !== 'arrived') {
+                      toast({ title: '¡Tu conductor ha llegado!', description: 'Por favor, acércate al punto de recojo.'});
+                    } else if (rideData.status === 'in-progress' && pickupLocation && dropoffLocation) {
+                       if(previousStatus !== 'in-progress') toast({ title: '¡Viaje iniciado!', description: 'Que tengas un buen viaje.'});
+                       startSimulation(pickupLocation, dropoffLocation);
+                    }
                  }
             } else {
               setStatus('searching');
             }
-             if (rideData.status === 'in-progress' && pickupLocation && dropoffLocation) {
-                startSimulation(pickupLocation, dropoffLocation);
-            }
-
         } else {
              // Check if there is a recently completed ride to rate
             const completedQuery = query(
@@ -116,19 +128,21 @@ function RidePageContent() {
                 where('status', '==', 'completed')
             );
             const completedSnapshot = await getDocs(completedQuery);
-            if (!completedSnapshot.empty) {
-                const rideToRate = { id: completedSnapshot.docs[0].id, ...completedSnapshot.docs[0].data() } as Ride;
-                // This logic is simplified; a real app would check if it's been rated
-                if(status !== 'rating') {
-                     const driverSnap = await getDoc(rideToRate.driver!);
-                     if(driverSnap.exists()){
-                        setAssignedDriver({id: driverSnap.id, ...driverSnap.data()} as Driver);
-                        setActiveRide(rideToRate);
-                        setStatus('rating');
-                        stopSimulation();
-                     }
-                }
+            const unratedRides = completedSnapshot.docs.filter(d => !(d.data().isRatedByPassenger));
+
+            if (unratedRides.length > 0) {
+                const rideToRate = { id: unratedRides[0].id, ...unratedRides[0].data() } as Ride;
+                 const driverSnap = await getDoc(rideToRate.driver!);
+                 if(driverSnap.exists()){
+                    setAssignedDriver({id: driverSnap.id, ...driverSnap.data()} as Driver);
+                    setActiveRide(rideToRate);
+                    setStatus('rating');
+                    stopSimulation();
+                 }
             } else if (status !== 'idle') {
+                if (activeRide?.status === 'completed') {
+                  toast({ title: '¡Viaje finalizado!', description: 'Gracias por viajar con nosotros.'});
+                }
                 resetRide();
             }
         }
@@ -136,8 +150,11 @@ function RidePageContent() {
 
     return () => {
         if(unsubscribe) unsubscribe();
+        if (searchTimeoutRef.current) {
+          clearTimeout(searchTimeoutRef.current);
+        }
     };
-  }, [user, status, assignedDriver, pickupLocation, dropoffLocation, startSimulation, stopSimulation]);
+  }, [user, status, assignedDriver, pickupLocation, dropoffLocation, startSimulation, stopSimulation, toast, activeRide?.status]);
 
 
   // Listener for chat messages
@@ -193,6 +210,18 @@ function RidePageContent() {
   const handleRideCreated = (ride: Ride) => {
     setActiveRide(ride);
     setStatus('searching');
+
+    // Set a timeout to cancel the search if no driver is found
+    searchTimeoutRef.current = setTimeout(() => {
+        if (ride.status === 'searching') {
+            handleCancelRide({ code: 'NO_DRIVERS', reason: 'No se encontraron conductores' }, true);
+            toast({
+                variant: 'destructive',
+                title: 'Búsqueda de Conductor Expirada',
+                description: 'No hemos encontrado conductores disponibles. Intenta ofrecer una tarifa más alta o prueba más tarde.',
+            });
+        }
+    }, 60000); // 60 seconds
   }
 
   const resetRide = () => {
@@ -206,7 +235,7 @@ function RidePageContent() {
     setStatus('idle');
   }
 
-  const handleCancelRide = async (reason: CancellationReason) => {
+  const handleCancelRide = async (reason: CancellationReason, isAutomatic: boolean = false) => {
     if (!activeRide) return;
 
     const rideRef = doc(db, 'rides', activeRide.id);
@@ -215,13 +244,15 @@ function RidePageContent() {
         await updateDoc(rideRef, {
             status: 'cancelled',
             cancellationReason: reason,
-            cancelledBy: 'passenger'
+            cancelledBy: isAutomatic ? 'system' : 'passenger'
         });
-
-        toast({
-            title: 'Viaje Cancelado',
-            description: `Motivo: ${reason.reason}.`,
-        });
+        
+        if(!isAutomatic) {
+            toast({
+                title: 'Viaje Cancelado',
+                description: `Motivo: ${reason.reason}.`,
+            });
+        }
         resetRide();
     } catch (error) {
         console.error('Error cancelling ride:', error);
@@ -241,7 +272,7 @@ function RidePageContent() {
   }
 
   const handleRatingSubmit = async (rating: number, comment: string) => {
-    if (!assignedDriver) return;
+    if (!assignedDriver || !activeRide) return;
     setIsSubmittingRating(true);
 
     try {
@@ -251,15 +282,14 @@ function RidePageContent() {
         rating,
         comment,
       });
-      
-      // Also mark the ride as fully "dealt with" by the user
-      // In a real app, you might add a flag like `isRatedByPassenger: true`
-      // For now, we just reset.
 
+      // Mark the ride as rated by the passenger
+      const rideRef = doc(db, 'rides', activeRide.id);
+      await updateDoc(rideRef, { isRatedByPassenger: true });
+      
       toast({
         title: '¡Gracias por tu calificación!',
-        description:
-          'Tu opinión ayuda a mantener la calidad de nuestra comunidad.',
+        description: 'Tu opinión ayuda a mantener la calidad de nuestra comunidad.',
       });
       resetRide();
     } catch (error) {
@@ -267,8 +297,7 @@ function RidePageContent() {
       toast({
         variant: 'destructive',
         title: 'Error al Calificar',
-        description:
-          'No se pudo guardar tu calificación. Por favor, intenta de nuevo.',
+        description: 'No se pudo guardar tu calificación. Por favor, intenta de nuevo.',
       });
     } finally {
       setIsSubmittingRating(false);

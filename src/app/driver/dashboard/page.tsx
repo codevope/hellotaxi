@@ -65,6 +65,7 @@ function DriverDashboardPageContent() {
   const { startSimulation, stopSimulation, simulatedLocation: driverLocation } = useRouteSimulator();
   const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [rejectedRideIds, setRejectedRideIds] = useState<string[]>([]);
 
 
 
@@ -132,6 +133,8 @@ setDropoffLocation(dropoff);
     const unsubscribe = onSnapshot(q, async (snapshot) => {
         if (!snapshot.empty) {
             const rideDoc = snapshot.docs[0];
+            if (rejectedRideIds.includes(rideDoc.id)) return; // Skip rejected rides
+
             const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
             const passengerSnap = await getDoc(rideData.passenger);
             if (passengerSnap.exists()) {
@@ -148,7 +151,7 @@ setDropoffLocation(dropoff);
     });
 
     return () => unsubscribe();
-  }, [driver, driver?.status, activeRide, status]);
+  }, [driver, driver?.status, activeRide, status, rejectedRideIds]);
 
     // Listener for chat messages
   useEffect(() => {
@@ -187,24 +190,24 @@ setDropoffLocation(dropoff);
 
   const handleRideRequestResponse = async (accepted: boolean) => {
     if (!requestedRide || !driver) return;
-
-    const rideRef = doc(db, 'rides', requestedRide.id);
+    const rideId = requestedRide.id;
+    setRequestedRide(null); // Clear request immediately from UI
 
     if (accepted) {
+        const rideRef = doc(db, 'rides', rideId);
         try {
             await updateDoc(rideRef, {
                 status: 'accepted',
                 driver: doc(db, 'drivers', driver.id)
             });
             await updateDoc(doc(db, 'drivers', driver.id), { status: 'on-ride' });
-            setRequestedRide(null);
             // The snapshot listener will automatically transition the state to 'in-progress'
         } catch (e) {
             console.error("Error accepting ride:", e);
         }
     } else {
-        // Here you could add logic to "blacklist" this ride for this driver for a few minutes
-        setRequestedRide(null);
+        // Add to rejected list to avoid seeing it again
+        setRejectedRideIds(prev => [...prev, rideId]);
         setStatus('idle');
     }
   };
@@ -221,8 +224,6 @@ setDropoffLocation(dropoff);
             const batch = writeBatch(db);
             batch.update(rideRef, { status: 'completed' });
             batch.update(driverRef, { status: 'available' });
-            // Note: In a real app, you would increment rides for the correct period.
-            // For simplicity, we increment the main counter.
             batch.update(doc(db, 'users', activeRide.passenger.id), { totalRides: increment(1) });
             await batch.commit();
 
@@ -234,7 +235,7 @@ setDropoffLocation(dropoff);
             setStatus('rating');
         } else {
             await updateDoc(rideRef, { status: newStatus });
-            // The onSnapshot listener will handle the UI update and route simulation
+            toast({ title: `¡Estado del viaje actualizado: ${newStatus}!`});
         }
     } catch (error) {
         console.error('Error updating ride status:', error);
@@ -369,7 +370,7 @@ setDropoffLocation(dropoff);
                  <RatingForm
                     userToRate={completedRideForRating.passenger}
                     isDriver={false}
-                    onSubmit={(rating, comment) => handleRatingSubmit(completedRideForRating.passenger, rating, comment)}
+                    onSubmit={(rating, comment) => handleRatingSubmit(completedRideForRating!.passenger, rating, comment)}
                     isSubmitting={isRatingSubmitting}
                 />
             );
