@@ -117,9 +117,7 @@ export default function DriverPage() {
                         </li>
                     </ul>
                 </div>
-                <div className="flex items-center justify-center">
-                    <img src="/img/sedan.png" alt="Sedan moderno" className="rounded-lg shadow-xl" />
-                </div>
+                <img src="/img/sedan.png" alt="Sedan moderno" className="shadow-xl" />
             </div>
         </section>
         
