@@ -8,18 +8,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, query, where, getDoc } from 'firebase/firestore';
 import type { Ride, Driver, User } from '@/lib/types';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MapPin, Car } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Badge } from './ui/badge';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Separator } from './ui/separator';
 
 type EnrichedRide = Omit<Ride, 'driver' | 'passenger'> & { driver: Driver; passenger: User };
 
 const statusConfig = {
-  completed: { label: 'Completado', variant: 'secondary' },
-  'in-progress': { label: 'En Progreso', variant: 'default' },
-  cancelled: { label: 'Cancelado', variant: 'destructive' },
+  completed: { label: 'Completado', variant: 'secondary' as const },
+  'in-progress': { label: 'En Progreso', variant: 'default' as const },
+  cancelled: { label: 'Cancelado', variant: 'destructive' as const },
 };
 
 
@@ -91,44 +92,50 @@ export default function RideHistory() {
   }
 
   return (
-    <ScrollArea className="h-96">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Ruta</TableHead>
-            <TableHead>Conductor</TableHead>
-            <TableHead className="text-right">Tarifa</TableHead>
-            <TableHead>Estado</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rides.map((ride) => (
-            <TableRow key={ride.id}>
-              <TableCell>
-                <div className="flex flex-col">
-                  <span className="font-medium truncate max-w-[150px]">{ride.pickup}</span>
-                  <span className="text-muted-foreground truncate max-w-[150px]">&rarr; {ride.dropoff}</span>
-                </div>
-              </TableCell>
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={ride.driver.avatarUrl} alt={ride.driver.name} />
-                    <AvatarFallback>{ride.driver.name.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm font-medium">{ride.driver.name}</span>
-                </div>
-              </TableCell>
-              <TableCell className="text-right font-bold text-primary">S/{ride.fare.toFixed(2)}</TableCell>
-              <TableCell>
+    <ScrollArea className="h-[28rem]">
+      <div className="space-y-4 pr-4">
+        {rides.map((ride) => (
+          <Card key={ride.id} className="shadow-none border">
+             <CardHeader className="flex flex-row items-center justify-between p-3 border-b">
+                <p className="text-xs text-muted-foreground">
+                    {format(new Date(ride.date), "dd 'de' MMM, yyyy", { locale: es })}
+                </p>
                 <Badge variant={statusConfig[ride.status].variant}>
-                  {statusConfig[ride.status].label}
+                    {statusConfig[ride.status].label}
                 </Badge>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+                <div className="space-y-3 text-sm">
+                    <div className="flex items-start gap-3">
+                        <MapPin className="h-4 w-4 mt-0.5 text-primary"/>
+                        <span className="font-medium">{ride.pickup}</span>
+                    </div>
+                     <div className="flex items-start gap-3">
+                        <MapPin className="h-4 w-4 mt-0.5 text-green-500"/>
+                        <span className="font-medium">{ride.dropoff}</span>
+                    </div>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                        <Avatar className="h-9 w-9">
+                            <AvatarImage src={ride.driver.avatarUrl} alt={ride.driver.name} />
+                            <AvatarFallback>{ride.driver.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                            <p className="text-sm font-semibold">{ride.driver.name}</p>
+                            <p className="text-xs text-muted-foreground">Conductor</p>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                         <p className="text-sm font-bold text-primary">S/{ride.fare.toFixed(2)}</p>
+                         <p className="text-xs text-muted-foreground">Tarifa Final</p>
+                    </div>
+                </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </ScrollArea>
   );
 }
