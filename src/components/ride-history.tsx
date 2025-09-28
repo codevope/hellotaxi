@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -5,53 +6,56 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, query, where } from 'firebase/firestore';
 import type { Ride, Driver, User } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
 type EnrichedRide = Omit<Ride, 'driver' | 'passenger'> & { driver: Driver; passenger: User };
-
-async function getRides(): Promise<EnrichedRide[]> {
-  const ridesCol = collection(db, 'rides');
-  const rideSnapshot = await getDocs(ridesCol);
-  const ridesList = rideSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
-
-  const enrichedRides: EnrichedRide[] = [];
-
-  for (const ride of ridesList) {
-    let driver: Driver | null = null;
-    let passenger: User | null = null;
-
-    if (ride.driver && typeof ride.driver.path === 'string') {
-        const driverSnap = await getDoc(doc(db, ride.driver.path));
-        if (driverSnap.exists()) {
-            driver = { id: driverSnap.id, ...driverSnap.data() } as Driver;
-        }
-    }
-
-    if (ride.passenger && typeof ride.passenger.path === 'string') {
-        const passengerSnap = await getDoc(doc(db, ride.passenger.path));
-        if (passengerSnap.exists()) {
-            passenger = { id: passengerSnap.id, ...passengerSnap.data() } as User;
-        }
-    }
-    
-    if (driver && passenger) {
-        enrichedRides.push({ ...ride, driver, passenger });
-    }
-  }
-
-  return enrichedRides.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-}
 
 export default function RideHistory() {
   const [rides, setRides] = useState<EnrichedRide[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
+    async function getRidesForUser(userId: string): Promise<EnrichedRide[]> {
+      const userDocRef = doc(db, 'users', userId);
+      const ridesCol = collection(db, 'rides');
+      const q = query(ridesCol, where('passenger', '==', userDocRef));
+      
+      const rideSnapshot = await getDocs(q);
+      const ridesList = rideSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
+      
+      const enrichedRides: EnrichedRide[] = [];
+
+      for (const ride of ridesList) {
+        let driver: Driver | null = null;
+        const passenger = (await getDoc(ride.passenger)).data() as User; // We already have the user
+
+        if (ride.driver && typeof ride.driver.path === 'string') {
+            const driverSnap = await getDoc(doc(db, ride.driver.path));
+            if (driverSnap.exists()) {
+                driver = { id: driverSnap.id, ...driverSnap.data() } as Driver;
+            }
+        }
+        
+        if (driver && passenger) {
+            enrichedRides.push({ ...ride, driver, passenger });
+        }
+      }
+
+      return enrichedRides.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+    
     async function loadRides() {
+        if (!user) {
+            setLoading(false);
+            return;
+        };
+
         try {
-            const fetchedRides = await getRides();
+            const fetchedRides = await getRidesForUser(user.uid);
             setRides(fetchedRides);
         } catch (error) {
             console.error("Error fetching ride history:", error);
@@ -60,7 +64,7 @@ export default function RideHistory() {
         }
     }
     loadRides();
-  }, []);
+  }, [user]);
 
   if (loading) {
     return (
