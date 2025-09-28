@@ -117,7 +117,7 @@ export default function DriverPage() {
                         </li>
                     </ul>
                 </div>
-                <img src="/img/sedan.png" alt="Sedan moderno" className="shadow-xl" />
+                <img src="/img/hatchback.png" alt="Sedan moderno" />
             </div>
         </section>
         
