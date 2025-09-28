@@ -12,6 +12,7 @@ import { db } from '@/lib/firebase';
 import { getDocumentStatus } from '@/lib/document-status';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
 
 interface DriverDocumentsProps {
     driver: Driver;
@@ -151,4 +152,3 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
         </>
     );
 }
-
