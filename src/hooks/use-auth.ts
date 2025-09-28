@@ -84,8 +84,11 @@ export function useAuth() {
   const signUpWithEmail = async (email: string, password: string) => {
     try {
         await createUserWithEmailAndPassword(auth, email, password);
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error signing up with email', error);
+         if (error.code === 'auth/email-already-in-use') {
+            throw new Error('Este correo electrónico ya está en uso. Por favor, intenta iniciar sesión o utiliza otro correo.');
+        }
         throw error;
     }
   };
