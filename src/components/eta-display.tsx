@@ -65,15 +65,15 @@ const ETADisplay: React.FC<ETADisplayProps> = ({
 
 
   return (
-    <div className={cn("rounded-xl overflow-hidden shadow-lg bg-gradient-to-br from-blue-600 to-blue-800 text-white", className)}>
+    <div className={cn("rounded-xl overflow-hidden shadow-lg bg-blue-600 text-white", className)}>
       <div className="p-6">
         <div className="flex justify-between items-start">
             <div>
                 <p className="text-sm opacity-80">Duración estimada</p>
                 <p className="text-4xl font-bold tracking-tighter">{formatDuration(duration.value)}</p>
-                <Badge variant="secondary" className={cn("mt-1 border-0 flex items-center gap-1.5", trafficInfo.className)}>
+                <Badge variant="secondary" className={cn("mt-2 border-0 flex items-center gap-1.5 text-xs", trafficInfo.className)}>
                     <CarFront className={cn("h-4 w-4", trafficInfo.iconColor)} />
-                    <span className="font-medium">{trafficInfo.text}</span>
+                    <span className="font-semibold">{trafficInfo.text}</span>
                 </Badge>
             </div>
              <CarFront className="w-12 h-12 text-white/50" />
@@ -95,3 +95,4 @@ const ETADisplay: React.FC<ETADisplayProps> = ({
 };
 
 export default ETADisplay;
+
