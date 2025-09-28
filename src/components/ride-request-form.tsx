@@ -39,6 +39,7 @@ import {
   Sparkles,
   ChevronRight,
   List,
+  Bot,
 } from 'lucide-react';
 import type {
   Ride,
@@ -92,7 +93,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
   Dialog,
@@ -107,6 +107,8 @@ import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
 import { LocationPicker, type Location } from '@/components/maps';
 import { Label } from './ui/label';
 import Image from 'next/image';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from './ui/sheet';
+import SupportChat from './support-chat';
 
 const formSchema = z.object({
   pickup: z.string().min(5, 'Por favor, introduce una ubicación de recojo válida.'),
@@ -233,6 +235,11 @@ export default function RideRequestForm({
 
   async function findDriver(serviceType: ServiceType): Promise<Driver | null> {
     const driversRef = collection(db, 'drivers');
+    
+    // La consulta busca un conductor que cumpla TODAS estas condiciones:
+    // 1. El tipo de servicio coincide con el solicitado ('economy', 'comfort', etc.).
+    // 2. Sus documentos están aprobados por un administrador.
+    // 3. Su estado es 'available', lo que garantiza que no está 'on-ride' (en otro viaje) ni 'unavailable' (desconectado).
     const q = query(
       driversRef,
       where('serviceType', '==', serviceType),
@@ -241,6 +248,7 @@ export default function RideRequestForm({
       limit(1)
     );
 
+    // Simula un pequeño retraso para la búsqueda
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const querySnapshot = await getDocs(q);
@@ -250,7 +258,7 @@ export default function RideRequestForm({
       return { id: driverDoc.id, ...driverDoc.data() } as Driver;
     }
 
-    return null;
+    return null; // No se encontró ningún conductor que cumpla los criterios.
   }
 
   async function handleSchedule() {
