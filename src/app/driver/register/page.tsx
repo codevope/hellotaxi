@@ -13,9 +13,10 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Loader2, LogIn } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { GoogleIcon } from '@/components/google-icon';
+import Link from 'next/link';
 
 function DriverRegistrationContent() {
   const [isLoading, setIsLoading] = useState(false);
@@ -83,7 +84,7 @@ function DriverRegistrationContent() {
 }
 
 export default function DriverRegistrationPage() {
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading } = useAuth();
 
   if (loading) {
     return (
@@ -107,9 +108,11 @@ export default function DriverRegistrationPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={signInWithGoogle} size="lg" variant="outline">
-                <GoogleIcon className="mr-2 h-5 w-5" />
-                Iniciar Sesión con Google
+              <Button asChild size="lg">
+                <Link href="/login">
+                  <LogIn className="mr-2" />
+                  Ir a Iniciar Sesión
+                </Link>
               </Button>
             </CardContent>
           </Card>

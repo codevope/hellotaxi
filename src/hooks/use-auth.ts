@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useContext, useEffect } from 'react';
@@ -7,6 +8,11 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   User as FirebaseUser,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
@@ -18,20 +24,27 @@ async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
   const userDoc = await getDoc(userRef);
 
   if (!userDoc.exists()) {
+    const name = user.displayName || user.email?.split('@')[0] || 'Usuario Anónimo';
     const newUser: User = {
       id: user.uid,
-      name: user.displayName || 'Usuario Anónimo',
+      name: name,
       email: user.email || '',
-      avatarUrl: user.photoURL || '',
+      avatarUrl: user.photoURL || '/img/avatar.png',
       role: 'passenger', // Default role
       signupDate: new Date().toISOString(),
       totalRides: 0,
       rating: 5.0, // Initial rating for new users
-      phone: '',
+      phone: user.phoneNumber || '',
       address: '',
       isAdmin: false, // Default to not admin
     };
     await setDoc(userRef, newUser);
+
+    // Update Firebase Auth profile if display name is missing
+    if (!user.displayName) {
+        await updateProfile(user, { displayName: name });
+    }
+
     return newUser;
   }
   // If user exists, just return their data
@@ -64,8 +77,40 @@ export function useAuth() {
       await signInWithPopup(auth, provider);
     } catch (error) {
       console.error('Error signing in with Google', error);
+      throw error;
     }
   };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    try {
+        await createUserWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+        console.error('Error signing up with email', error);
+        throw error;
+    }
+  };
+
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+        console.error('Error signing in with email', error);
+        throw error;
+    }
+  };
+
+  const signInWithPhone = async (phoneNumber: string) => {
+    try {
+      const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          'size': 'invisible',
+      });
+      return await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+    } catch (error) {
+      console.error('Error signing in with phone', error);
+      throw error;
+    }
+  };
+
 
   const signOut = async () => {
     try {
@@ -127,5 +172,14 @@ export function useAuth() {
   };
 
 
-  return { ...context, user: firebaseUser, signInWithGoogle, signOut, updateUserRole };
+  return { 
+      ...context, 
+      user: firebaseUser, 
+      signInWithGoogle, 
+      signOut, 
+      updateUserRole,
+      signInWithEmail,
+      signUpWithEmail,
+      signInWithPhone
+    };
 }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -13,14 +14,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 
 export default function AppHeader() {
-  const { user, appUser, signInWithGoogle, signOut } = useAuth();
+  const { user, appUser, signOut } = useAuth();
   const { isDriver } = useDriverAuth();
   const pathname = usePathname();
+  const router = useRouter();
   
   const isAdmin = appUser?.isAdmin || false;
 
@@ -88,12 +90,12 @@ export default function AppHeader() {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={signOut}>
                 <LogOut className="mr-2 h-4 w-4" />
-                <span>Cerrar sesión</span>
+                <span>Cerrar Sesión</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <Button onClick={signInWithGoogle}>Iniciar Sesión</Button>
+          <Button onClick={() => router.push('/login')}>Iniciar Sesión</Button>
         )}
       </div>
     </header>

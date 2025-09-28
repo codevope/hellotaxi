@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, User, Calendar, Mail, BarChart, Save, Phone, Home, LogOut, Star } from 'lucide-react';
+import { Loader2, User, Calendar, Mail, BarChart, Save, Phone, Home, LogOut, Star, LogIn } from 'lucide-react';
 import { format } from 'date-fns';
 import es from 'date-fns/locale/es';
 import { useForm } from 'react-hook-form';
@@ -36,6 +36,7 @@ import type { User as AppUser } from '@/lib/types';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { useRouter } from 'next/navigation';
 import { GoogleIcon } from '@/components/google-icon';
+import Link from 'next/link';
 
 const profileSchema = z.object({
   displayName: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
@@ -299,7 +300,7 @@ function ProfilePageContent() {
 }
 
 export default function ProfilePage() {
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading } = useAuth();
 
   if (loading) {
     return (
@@ -322,10 +323,12 @@ export default function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={signInWithGoogle} size="lg" variant="outline">
-                <GoogleIcon className="mr-2 h-5 w-5" />
-                Iniciar Sesión con Google
-              </Button>
+                <Button asChild size="lg">
+                    <Link href="/login">
+                        <LogIn className="mr-2"/>
+                        Ir a Iniciar Sesión
+                    </Link>
+                </Button>
             </CardContent>
           </Card>
         </main>

@@ -11,7 +11,7 @@ import MapView from '@/components/map-view';
 import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
 import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
-import { History, Car, Siren, LayoutDashboard, MessageCircle, Bot, X } from 'lucide-react';
+import { History, Car, Siren, LayoutDashboard, MessageCircle, Bot, X, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -500,7 +500,7 @@ function RidePageContent() {
 }
 
 export default function RidePage() {
-    const { user, loading, signInWithGoogle } = useAuth();
+    const { user, loading } = useAuth();
     const { isDriver, loading: driverLoading } = useDriverAuth();
     
     if (loading || driverLoading) {
@@ -515,7 +515,7 @@ export default function RidePage() {
         return (
             <>
             <AppHeader />
-            <main className="flex flex-col items-center p-4 py-16 text-center md:py-24">
+            <main className="flex flex-col items-center justify-center p-4 py-16 text-center md:py-24">
                 <Card className="max-w-md p-8">
                     <CardHeader>
                         <CardTitle>Inicia sesión para viajar</CardTitle>
@@ -524,9 +524,11 @@ export default function RidePage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                         <Button onClick={signInWithGoogle} size="lg" variant="outline">
-                            <GoogleIcon className="mr-2 h-5 w-5" />
-                            Iniciar Sesión con Google
+                         <Button asChild size="lg">
+                            <Link href="/login">
+                                <LogIn className="mr-2"/>
+                                Ir a Iniciar Sesión
+                            </Link>
                          </Button>
                     </CardContent>
                 </Card>

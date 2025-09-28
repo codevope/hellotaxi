@@ -1,11 +1,10 @@
 
-
 'use client';
 
 import AppHeader from '@/components/app-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Car, ShieldAlert, FileText, Star, UserCog, Wallet, History, MessageCircle } from 'lucide-react';
+import { Loader2, Car, ShieldAlert, FileText, Star, UserCog, Wallet, History, MessageCircle, LogIn } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -29,6 +28,7 @@ import { es } from 'date-fns/locale';
 import { useRouteSimulator } from '@/hooks/use-route-simulator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import Chat from '@/components/chat';
+import Link from 'next/link';
 
 const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
     available: { label: 'Disponible', variant: 'default' },
@@ -250,7 +250,7 @@ setDropoffLocation(dropoff);
     setIsRatingSubmitting(true);
     try {
       await processRating({
-        ratedUserId: completedRideForRating.passenger.id,
+        ratedUserId: passenger.id,
         isDriver: false,
         rating,
         comment,
@@ -574,9 +574,10 @@ setDropoffLocation(dropoff);
 
 
 export default function DriverDashboardPage() {
-    const { user, loading: authLoading, signInWithGoogle, isDriver } = useDriverAuth();
+    const { user, loading: authLoading } = useDriverAuth();
+    const { isDriver, loading: driverAuthLoading } = useDriverAuth();
 
-    if (authLoading) {
+    if (authLoading || driverAuthLoading) {
         return (
             <div className="flex h-screen w-full items-center justify-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -597,9 +598,11 @@ export default function DriverDashboardPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Button onClick={signInWithGoogle} size="lg" variant="outline">
-                               <GoogleIcon className="mr-2 h-5 w-5" />
-                                Iniciar Sesión con Google
+                            <Button asChild size="lg">
+                                <Link href="/login">
+                                    <LogIn className="mr-2"/>
+                                    Ir a Iniciar Sesión
+                                </Link>
                             </Button>
                         </CardContent>
                     </Card>
@@ -620,6 +623,13 @@ export default function DriverDashboardPage() {
                                 Esta sección es solo para conductores registrados.
                             </CardDescription>
                         </CardHeader>
+                         <CardContent>
+                            <Button asChild>
+                                <Link href="/driver/register">
+                                    ¡Regístrate como Conductor!
+                                </Link>
+                            </Button>
+                        </CardContent>
                     </Card>
                 </div>
             </>
