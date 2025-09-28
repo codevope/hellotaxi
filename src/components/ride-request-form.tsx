@@ -641,52 +641,50 @@ export default function RideRequestForm({
           onSubmit={form.handleSubmit(handleCalculateFare)}
           className="space-y-6"
         >
-
-          {status === 'calculated' && routeInfo && (
-            <ETADisplay
-              routeInfo={routeInfo}
-              isCalculating={isCalculating}
-              error={routeError}
-              startAddress={pickupLocation!.address}
-              endAddress={dropoffLocation!.address}
-              className="my-4"
-            />
-          )}
-
-          {status !== 'negotiating' && (
+          {status === 'idle' || status === 'calculated' ? (
             <>
-               <div className="space-y-2">
-                <Label>Punto de Recojo</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-start text-left font-normal"
-                  onClick={() => setLocationPickerFor('pickup')}
-                >
-                  <MapPin className="mr-2 h-4 w-4" />
-                  {pickupLocation
-                    ? <span className="truncate">{pickupLocation.address}</span>
-                    : 'Seleccionar punto de recojo'}
-                </Button>
-                <FormMessage>{form.formState.errors.pickup?.message}</FormMessage>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Punto de Recojo</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                    onClick={() => setLocationPickerFor('pickup')}
+                  >
+                    <MapPin className="mr-2 h-4 w-4" />
+                    {pickupLocation ? (
+                      <span className="truncate">{pickupLocation.address}</span>
+                    ) : (
+                      'Seleccionar punto de recojo'
+                    )}
+                  </Button>
+                  <FormMessage>
+                    {form.formState.errors.pickup?.message}
+                  </FormMessage>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Punto de Destino</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                    onClick={() => setLocationPickerFor('dropoff')}
+                  >
+                    <MapPin className="mr-2 h-4 w-4" />
+                    {dropoffLocation ? (
+                      <span className="truncate">{dropoffLocation.address}</span>
+                    ) : (
+                      'Seleccionar destino'
+                    )}
+                  </Button>
+                  <FormMessage>
+                    {form.formState.errors.dropoff?.message}
+                  </FormMessage>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Punto de Destino</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-start text-left font-normal"
-                  onClick={() => setLocationPickerFor('dropoff')}
-                >
-                  <MapPin className="mr-2 h-4 w-4" />
-                  {dropoffLocation
-                    ? <span className="truncate">{dropoffLocation.address}</span>
-                    : 'Seleccionar destino'}
-                </Button>
-                <FormMessage>{form.formState.errors.dropoff?.message}</FormMessage>
-              </div>
-              
               <FormField
                 control={form.control}
                 name="serviceType"
@@ -708,7 +706,7 @@ export default function RideRequestForm({
                                 className="peer sr-only"
                               />
                             </FormControl>
-                            <FormLabel
+                             <FormLabel
                               htmlFor={`service-${service.id}`}
                               className={cn(
                                 'flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer',
@@ -726,171 +724,46 @@ export default function RideRequestForm({
                   </FormItem>
                 )}
               />
-
-              <FormField
-                control={form.control}
-                name="paymentMethod"
-                render={({ field }) => (
-                  <FormItem className="space-y-3">
-                    <FormLabel>Método de Pago</FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        className="grid grid-cols-4 gap-4"
-                      >
-                        {(['cash', 'yape', 'plin', 'card'] as PaymentMethod[]).map(
-                          (method) => (
-                            <FormItem key={method} className="flex-1">
-                              <FormControl>
-                                <RadioGroupItem value={method} id={`payment-${method}`} className="sr-only peer" />
-                              </FormControl>
-                              <FormLabel
-                                htmlFor={`payment-${method}`}
-                                className={cn(
-                                  'flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground cursor-pointer',
-                                  field.value === method && "border-primary bg-primary/10"
-                                )}
-                              >
-                                {paymentMethodIcons[method]}
-                                <span className="font-semibold text-xs capitalize">
-                                  {method === 'cash' ? 'Efectivo' : method}
-                                </span>
-                              </FormLabel>
-                            </FormItem>
-                          )
-                        )}
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               
-              <div className="space-y-2">
-                <FormField
-                  control={form.control}
-                  name="couponCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cupón de Descuento (Opcional)</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input {...field} placeholder="Ej: BIENVENIDO10" className="pl-10"/>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+              {status === 'calculated' && routeInfo && (
+                <ETADisplay
+                  routeInfo={routeInfo}
+                  isCalculating={isCalculating}
+                  error={routeError}
                 />
-              </div>
+              )}
 
-
-              <FormField
-                control={form.control}
-                name="scheduledTime"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Agendar para después (opcional)</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            type="button"
-                            variant={'outline'}
-                            className={cn(
-                              'w-full pl-3 text-left font-normal',
-                              !field.value && 'text-muted-foreground'
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, 'PPP HH:mm')
-                            ) : (
-                              <span>Elige fecha y hora</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={(date) =>
-                            date < new Date() || date < new Date('1900-01-01')
-                          }
-                          initialFocus
-                        />
-                        <div className="p-3 border-t border-border">
-                          <Input
-                            type="time"
-                            defaultValue={
-                              field.value ? format(field.value, 'HH:mm') : ''
-                            }
-                            onChange={(e) => {
-                              const time = e.target.value.split(':');
-                              const date = field.value
-                                ? new Date(field.value)
-                                : new Date();
-                              date.setHours(
-                                parseInt(time[0] || '00'),
-                                parseInt(time[1] || '00')
-                              );
-                              field.onChange(date);
-                            }}
-                          />
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-2 pt-4">
-             {status === 'idle' && (
-                <Button
+              <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                {status === 'idle' && (
+                  <Button
                     type="submit"
                     className="w-full"
-                    disabled={isCalculating || !pickupLocation || !dropoffLocation}
-                >
-                    {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                    disabled={
+                      isCalculating || !pickupLocation || !dropoffLocation
+                    }
+                  >
+                    {isCalculating ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
                     {isCalculating ? 'Calculando...' : 'Calcular Tarifa'}
-                </Button>
-             )}
-            
-            {status === 'calculated' && (
-                 <Button
+                  </Button>
+                )}
+
+                {status === 'calculated' && (
+                  <Button
                     type="button"
                     className="w-full"
                     onClick={() => setStatus('negotiating')}
-                >
+                  >
                     Continuar a la Negociación
                     <ChevronRight className="ml-2 h-4 w-4" />
-                </Button>
-            )}
-
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full"
-              onClick={handleSchedule}
-              disabled={
-                !form.watch('scheduledTime') ||
-                form.formState.isSubmitting ||
-                status === 'scheduling'
-              }
-            >
-              {status === 'scheduling' && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Agendar Viaje
-            </Button>
-          </div>
+                  </Button>
+                )}
+              </div>
+            </>
+          ) : null}
         </form>
       </Form>
     </>
