@@ -30,7 +30,7 @@ import SupportChat from '@/components/support-chat';
 import { Loader2 } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import Link from 'next/link';
-import { doc, onSnapshot, getDoc, collection, query, where, addDoc, updateDoc, orderBy, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, collection, query, where, addDoc, updateDoc, orderBy, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getSettings } from '@/services/settings-service';

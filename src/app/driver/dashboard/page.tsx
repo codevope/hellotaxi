@@ -246,10 +246,11 @@ setDropoffLocation(dropoff);
 
 
   const handleRatingSubmit = async (passenger: User, rating: number, comment: string) => {
+    if (!completedRideForRating) return;
     setIsRatingSubmitting(true);
     try {
       await processRating({
-        ratedUserId: passenger.id,
+        ratedUserId: completedRideForRating.passenger.id,
         isDriver: false,
         rating,
         comment,
