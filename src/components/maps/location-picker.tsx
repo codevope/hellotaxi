@@ -95,7 +95,6 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
                  <InteractiveMap
                     center={selectedLocation}
                     zoom={16}
-                    interactive={false} // Make map non-clickable
                  >
                      <MapMarker
                         position={selectedLocation}
