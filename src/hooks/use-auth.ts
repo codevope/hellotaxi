@@ -108,9 +108,11 @@ export function useAuth() {
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
-       if (auth.currentUser && auth.currentUser.email === email) {
+       // Si el usuario ya está logueado (ej. con Google) y usa el mismo email, vinculamos la contraseña
+      if (auth.currentUser && auth.currentUser.email === email) {
         const credential = EmailAuthProvider.credential(email, password);
         await linkWithCredential(auth.currentUser, credential);
+        await checkAndCompleteProfile(); // Chequeamos si el perfil ya se completó
         return;
       }
       
@@ -232,10 +234,12 @@ export function useAuth() {
     if (!firebaseUser) throw new Error('Usuario no autenticado.');
     const provider = new GoogleAuthProvider();
     try {
+      // Forzamos la selección de cuenta
+      provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       if (credential) {
-         await linkWithCredential(firebaseUser, credential);
+         await linkWithCredential(auth.currentUser!, credential);
          await checkAndCompleteProfile();
       }
     } catch (error: any) {
