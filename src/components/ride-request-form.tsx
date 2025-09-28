@@ -641,16 +641,16 @@ export default function RideRequestForm({
           onSubmit={form.handleSubmit(handleCalculateFare)}
           className="space-y-6"
         >
-          {status === 'idle' || status === 'calculating' || status === 'calculated' ? (
-            <>
-               {status === 'calculated' && routeInfo && (
-                <ETADisplay
-                  routeInfo={routeInfo}
-                  isCalculating={isCalculating}
-                  error={routeError}
-                />
-              )}
+          {status === 'calculated' && routeInfo && (
+            <ETADisplay
+              routeInfo={routeInfo}
+              isCalculating={isCalculating}
+              error={routeError}
+            />
+          )}
 
+          {(status === 'idle' || status === 'calculating' || status === 'calculated') && (
+            <>
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Punto de Recojo</Label>
@@ -757,7 +757,7 @@ export default function RideRequestForm({
                              <FormLabel
                               htmlFor={`payment-${method}`}
                               className={cn(
-                                "flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all h-24",
+                                "flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all h-24",
                                 field.value === method && "border-primary bg-primary/10"
                               )}
                             >
@@ -799,7 +799,7 @@ export default function RideRequestForm({
                 )}
               </div>
             </>
-          ) : null}
+          )}
         </form>
       </Form>
     </>
