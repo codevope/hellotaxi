@@ -92,6 +92,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
   Dialog,
@@ -750,7 +751,6 @@ export default function RideRequestForm({
                 )}
               </div>
 
-
               <FormField
                 control={form.control}
                 name="paymentMethod"
@@ -788,7 +788,6 @@ export default function RideRequestForm({
                   </FormItem>
                 )}
               />
-
 
               {status === 'calculated' && routeInfo && (
                 <ETADisplay
