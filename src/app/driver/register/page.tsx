@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -48,7 +49,7 @@ function DriverRegistrationContent() {
   return (
     <div className="flex flex-col min-h-screen bg-secondary/30">
       <AppHeader />
-      <main className="flex-1 flex flex-col items-center justify-center p-4">
+      <main className="flex-1 flex flex-col items-center py-16 md:py-24 p-4">
         <Card className="max-w-lg w-full">
           <CardHeader>
             <CardTitle className="text-3xl font-headline text-center">
