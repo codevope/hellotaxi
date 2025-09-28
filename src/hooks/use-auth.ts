@@ -91,7 +91,10 @@ export function useAuth() {
             // For now, we'll guide the user.
             if (methods.includes('password')) {
                 throw new Error('Ya tienes una cuenta con este correo. Por favor, inicia sesión con tu contraseña para vincular tu cuenta de Google.');
-            } else {
+            } else if (credential) {
+                // For other providers like phone, we can attempt to link if we have a current user.
+                // This part of the logic is complex and usually requires a signed-in user.
+                // For now, we provide a generic error.
                 throw new Error('Ocurrió un error al intentar vincular tu cuenta de Google. Intenta de nuevo.');
             }
         }
