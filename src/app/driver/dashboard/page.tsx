@@ -82,7 +82,7 @@ function DriverDashboardPageContent() {
 
   // Listener for driver's active ride
   useEffect(() => {
-    if (!driver || status === 'requesting') return;
+    if (!driver) return;
     const driverRef = doc(db, 'drivers', driver.id);
 
     const q = query(
@@ -132,49 +132,56 @@ function DriverDashboardPageContent() {
         }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver, status]);
+  }, [driver]);
 
   // Listener for new ride requests
   useEffect(() => {
-    if (!driver || driver.status !== 'available' || activeRide) return;
+    if (!driver || driver.status !== 'available' || activeRide || requestedRide) return;
 
     let q = query(
         collection(db, 'rides'),
         where('status', '==', 'searching'),
-        where('serviceType', '==', driver.serviceType)
+        where('serviceType', '==', driver.serviceType),
+        where('offeredTo', '==', null),
     );
+     if (rejectedRideIds.length > 0) {
+        q = query(q, where('__name__', 'not-in', rejectedRideIds.slice(0, 10)));
+    }
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-        if (!snapshot.empty) {
-            const potentialRides = snapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as Ride))
-                .filter(ride => !(ride.rejectedBy || []).some(ref => ref.id === driver.id) && !rejectedRideIds.includes(ride.id));
+        if (!snapshot.empty && !useRideStore.getState().activeRide && !requestedRide) {
+            const rideDoc = snapshot.docs[0]; // Take the first available one
+            const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
+            const rideRef = doc(db, 'rides', rideData.id);
+            const driverRef = doc(db, 'drivers', driver.id);
+            
+            try {
+                // Atomically offer the ride to this driver
+                await runTransaction(db, async (transaction) => {
+                    const freshRideDoc = await transaction.get(rideRef);
+                    if (!freshRideDoc.exists() || freshRideDoc.data().offeredTo) {
+                        return; // Ride already taken or offered
+                    }
+                    transaction.update(rideRef, { offeredTo: driverRef });
+                });
 
-            if (potentialRides.length > 0) {
-                const rideData = potentialRides[0];
+                // If transaction was successful, show the request
                 const passengerSnap = await getDoc(rideData.passenger);
                 if (passengerSnap.exists()) {
                     const passengerData = passengerSnap.data() as User;
                     setRequestedRide({ ...rideData, passenger: passengerData });
                     startRequesting();
                 }
-            } else {
-                 setRequestedRide(null);
-                 if (useRideStore.getState().status === 'requesting') {
-                    resetRide();
-                 }
-            }
-        } else {
-            setRequestedRide(null);
-            if (useRideStore.getState().status === 'requesting') {
-                resetRide();
+
+            } catch (error) {
+                console.log("Could not secure ride offer, another driver was faster.", error);
             }
         }
     });
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver?.status, activeRide, driver?.id, rejectedRideIds]);
+  }, [driver, activeRide, rejectedRideIds, requestedRide]);
 
     // Listener for chat messages
   useEffect(() => {
@@ -216,7 +223,8 @@ function DriverDashboardPageContent() {
     if (!requestedRide || !driver) return;
     const rideId = requestedRide.id;
     const rideRef = doc(db, 'rides', rideId);
-    setRequestedRide(null); // Clear request immediately from UI
+    
+    setRequestedRide(null); // Clear request from UI immediately
     resetRide();
 
     if (accepted) {
@@ -229,7 +237,8 @@ function DriverDashboardPageContent() {
                 
                 transaction.update(rideRef, {
                     status: 'accepted',
-                    driver: doc(db, 'drivers', driver.id)
+                    driver: doc(db, 'drivers', driver.id),
+                    offeredTo: null, // Clear the offer field
                 });
                 transaction.update(doc(db, 'drivers', driver.id), { status: 'on-ride' });
             });
@@ -240,10 +249,11 @@ function DriverDashboardPageContent() {
             toast({ variant: 'destructive', title: 'Error', description: e.message || "No se pudo aceptar el viaje."});
         }
     } else {
-        // Add to rejected list locally and in Firestore
+        // Add to rejected list locally and in Firestore to ignore it
         setRejectedRideIds(prev => [...prev, rideId]);
         await updateDoc(rideRef, {
-            rejectedBy: arrayUnion(doc(db, 'drivers', driver.id))
+            rejectedBy: arrayUnion(doc(db, 'drivers', driver.id)),
+            offeredTo: null, // Reset the offer so others can see it
         });
     }
   };
@@ -731,6 +741,3 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
-
-    
-    
