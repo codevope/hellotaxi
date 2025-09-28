@@ -1,6 +1,7 @@
+
 'use server';
 
-import { collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Driver, Ride, Settings } from '@/lib/types';
 import { getSettings } from './settings-service';
@@ -16,16 +17,27 @@ export interface FinancialReportRow {
 }
 
 
-export async function generateFinancialReport(): Promise<FinancialReportRow[]> {
+export async function generateFinancialReport(startDate?: Date, endDate?: Date): Promise<FinancialReportRow[]> {
     const settings = await getSettings();
 
-    // 1. Fetch all drivers and rides
+    // 1. Fetch all drivers and completed rides within the date range
     const driversCol = collection(db, 'drivers');
-    const ridesCol = collection(db, 'rides');
+    
+    let ridesQuery = query(collection(db, 'rides'), where('status', '==', 'completed'));
+    
+    if (startDate) {
+        ridesQuery = query(ridesQuery, where('date', '>=', startDate.toISOString()));
+    }
+    if (endDate) {
+        // Adjust end date to include the whole day
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        ridesQuery = query(ridesQuery, where('date', '<=', endOfDay.toISOString()));
+    }
 
     const [driverSnapshot, rideSnapshot] = await Promise.all([
         getDocs(driversCol),
-        getDocs(query(ridesCol, where('status', '==', 'completed')))
+        getDocs(ridesQuery)
     ]);
 
     const drivers = driverSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
@@ -48,6 +60,9 @@ export async function generateFinancialReport(): Promise<FinancialReportRow[]> {
     for (const driver of drivers) {
         const driverRides = ridesByDriver.get(driver.id) || [];
         const totalRides = driverRides.length;
+        
+        if (totalRides === 0) continue; // Only include drivers with rides in the period
+
         const totalFares = driverRides.reduce((sum, ride) => sum + ride.fare, 0);
         
         let platformEarnings = 0;
@@ -55,7 +70,8 @@ export async function generateFinancialReport(): Promise<FinancialReportRow[]> {
             // Assume a 20% commission for this model
             platformEarnings = totalFares * 0.20;
         } else if (driver.paymentModel === 'membership') {
-            // Use the membership fee from settings based on the driver's service type
+            // Use the monthly membership fee from settings, but consider it for the whole period for simplicity.
+            // A real-world app would prorate this or check if a payment was made in the period.
             switch (driver.serviceType) {
                 case 'economy':
                     platformEarnings = settings.membershipFeeEconomy;
