@@ -134,6 +134,8 @@ export default function RideRequestForm({
 }: RideRequestFormProps) {
   const [status, setStatus] = useState<
     | 'idle'
+    | 'calculating'
+    | 'calculated'
     | 'negotiating'
     | 'searching'
     | 'assigned'
@@ -150,7 +152,6 @@ export default function RideRequestForm({
     useState(false);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
-  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [locationPickerFor, setLocationPickerFor] = useState<
     'pickup' | 'dropoff' | null
   >(null);
@@ -159,9 +160,8 @@ export default function RideRequestForm({
   const { pickupLocation, dropoffLocation, setPickupLocation, setDropoffLocation } =
     useMap();
   const { toast } = useToast();
-  const { calculateRoute } = useETACalculator();
-  const serviceType = useForm().watch('serviceType');
-
+  const { calculateRoute, isCalculating, error: routeError } = useETACalculator();
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -172,6 +172,8 @@ export default function RideRequestForm({
       couponCode: '',
     },
   });
+
+  const serviceType = form.watch('serviceType');
 
   const handleLocationSelect = (location: Location) => {
     if (locationPickerFor === 'pickup') {
@@ -207,31 +209,23 @@ export default function RideRequestForm({
       form.setValue('dropoff', '', { shouldValidate: true });
     }
   }, [dropoffLocation, form]);
+  
+  const handleCalculateFare = async () => {
+    if (!pickupLocation || !dropoffLocation) return;
+    setStatus('calculating');
+    const route = await calculateRoute(
+      pickupLocation.coordinates,
+      dropoffLocation.coordinates,
+      { serviceType: form.getValues('serviceType') }
+    );
+    if (route) {
+      setRouteInfo(route);
+      setStatus('calculated');
+    } else {
+      setStatus('idle'); // O mostrar un error
+    }
+  };
 
-  useEffect(() => {
-    const calculateETA = async () => {
-      if (pickupLocation && dropoffLocation) {
-        setIsCalculatingRoute(true);
-        try {
-          const route = await calculateRoute(
-            pickupLocation.coordinates,
-            dropoffLocation.coordinates,
-            { serviceType: form.getValues('serviceType') }
-          );
-          setRouteInfo(route);
-        } catch (error) {
-          console.error('Error calculating ETA:', error);
-          setRouteInfo(null);
-        } finally {
-          setIsCalculatingRoute(false);
-        }
-      } else {
-        setRouteInfo(null);
-      }
-    };
-
-    calculateETA();
-  }, [pickupLocation, dropoffLocation, calculateRoute, form, serviceType]);
 
   async function findDriver(serviceType: ServiceType): Promise<Driver | null> {
     const driversRef = collection(db, 'drivers');
@@ -592,16 +586,21 @@ export default function RideRequestForm({
     );
   }
 
-  if (status === 'negotiating') {
+  if (status === 'calculated' && routeInfo) {
     return (
       <FareNegotiation
         rideDetails={{
-          ...form.getValues(),
-          distanceKm: routeInfo ? routeInfo.distance.value / 1000 : 10,
-          durationMinutes: routeInfo ? routeInfo.duration.value / 60 : 20,
+          pickup: pickupLocation!.address,
+          dropoff: dropoffLocation!.address,
+          serviceType: form.getValues('serviceType'),
+          distanceKm: routeInfo.distance.value / 1000,
+          durationMinutes: routeInfo.duration.value / 60,
         }}
         onNegotiationComplete={handleNegotiationComplete}
-        onCancel={() => setStatus('idle')}
+        onCancel={() => {
+          setStatus('idle');
+          setRouteInfo(null);
+        }}
       />
     );
   }
@@ -613,8 +612,6 @@ export default function RideRequestForm({
       </div>
     );
   }
-
-  const { pickup, dropoff } = form.getValues();
 
   return (
     <>
@@ -640,7 +637,7 @@ export default function RideRequestForm({
 
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit(() => setStatus('negotiating'))}
+          onSubmit={form.handleSubmit(handleCalculateFare)}
           className="space-y-6"
         >
           <div className="space-y-2">
@@ -674,18 +671,7 @@ export default function RideRequestForm({
             </Button>
             <FormMessage>{form.formState.errors.dropoff?.message}</FormMessage>
           </div>
-
-          {pickupLocation && dropoffLocation && (
-            <div className="my-4">
-              <ETADisplay
-                routeInfo={routeInfo}
-                isCalculating={isCalculatingRoute}
-                startAddress={pickup}
-                endAddress={dropoff}
-              />
-            </div>
-          )}
-
+          
           <FormField
             control={form.control}
             name="serviceType"
@@ -699,23 +685,23 @@ export default function RideRequestForm({
                     className="grid grid-cols-3 gap-4"
                   >
                     {appSettings.serviceTypes.map((service) => (
-                      <FormItem key={service.id} className="flex-1">
+                       <FormItem key={service.id}>
                         <FormControl>
                           <RadioGroupItem
                             value={service.id}
                             id={`service-${service.id}`}
-                            className="sr-only"
+                            className="peer sr-only"
                           />
                         </FormControl>
                         <FormLabel
                           htmlFor={`service-${service.id}`}
-                           className={cn(
-                            'flex flex-col items-center justify-center gap-2 rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer',
-                            field.value === service.id && 'border-primary bg-primary/10'
+                          className={cn(
+                            'flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 [&:has([data-state=checked])]:border-primary',
+                            field.value === service.id && "border-primary bg-primary/10"
                           )}
                         >
                           {serviceTypeIcons[service.id]}
-                          <span className="font-semibold">{service.name}</span>
+                          <span className="font-semibold mt-2">{service.name}</span>
                         </FormLabel>
                       </FormItem>
                     ))}
@@ -742,13 +728,13 @@ export default function RideRequestForm({
                       (method) => (
                         <FormItem key={method} className="flex-1">
                           <FormControl>
-                            <RadioGroupItem value={method} id={`payment-${method}`} className="sr-only" />
+                            <RadioGroupItem value={method} id={`payment-${method}`} className="sr-only peer" />
                           </FormControl>
                            <FormLabel
                             htmlFor={`payment-${method}`}
                              className={cn(
-                              'flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground cursor-pointer',
-                              field.value === method && 'border-primary bg-primary/10'
+                              'flex flex-col h-20 items-center justify-center gap-1 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 [&:has([data-state=checked])]:border-primary',
+                               field.value === method && "border-primary bg-primary/10"
                             )}
                           >
                             {paymentMethodIcons[method]}
@@ -854,11 +840,15 @@ export default function RideRequestForm({
               className="w-full"
               disabled={
                 form.formState.isSubmitting ||
+                isCalculating ||
                 status === 'scheduling' ||
-                !routeInfo
+                !pickupLocation || !dropoffLocation
               }
             >
-              Pedir Ahora y Negociar
+              {isCalculating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              {isCalculating ? 'Calculando...' : 'Calcular Tarifa y Continuar'}
             </Button>
             <Button
               type="button"

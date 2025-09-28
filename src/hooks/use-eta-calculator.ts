@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useCallback } from 'react';
@@ -26,7 +27,6 @@ export interface ETACalculationOptions {
 }
 
 export interface UseETACalculatorReturn {
-  routeInfo: RouteInfo | null;
   isCalculating: boolean;
   error: string | null;
   calculateRoute: (
@@ -39,7 +39,6 @@ export interface UseETACalculatorReturn {
 }
 
 export function useETACalculator(): UseETACalculatorReturn {
-  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -142,7 +141,6 @@ export function useETACalculator(): UseETACalculatorReturn {
         fareBreakdown: fareResult.breakdown,
       };
 
-      setRouteInfo(finalRouteInfo);
       return finalRouteInfo;
 
     } catch (err) {
@@ -156,7 +154,6 @@ export function useETACalculator(): UseETACalculatorReturn {
   }, [formatDistance, formatDuration]);
 
   return {
-    routeInfo,
     isCalculating,
     error,
     calculateRoute,
