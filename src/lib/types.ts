@@ -12,7 +12,7 @@ export type DocumentName = 'license' | 'insurance' | 'technicalReview' | 'backgr
 export type DocumentStatus = 'pending' | 'approved' | 'rejected';
 
 export interface Location {
-  id: string;
+  id?: string; // Hacer opcional para mayor flexibilidad
   lat: number;
   lng: number;
   address?: string;
@@ -43,10 +43,25 @@ export interface Driver {
   backgroundCheckExpiry: string; // ISO Date string
   paymentModel: PaymentModel;
   membershipStatus: MembershipStatus;
+  serviceType: ServiceType; // Tipo de servicio que maneja el conductor
   documentStatus?: Record<DocumentName, DocumentStatus>;
   totalRides?: number;
   location?: Location;
   vehicle: DocumentReference;
+}
+
+// EnrichedDriver has the full vehicle object instead of just a reference
+export interface EnrichedDriver extends Omit<Driver, 'vehicle'> {
+  vehicle: Vehicle;
+}
+
+// DriverWithVehicleInfo extends Driver with vehicle information for UI display
+export interface DriverWithVehicleInfo extends Driver {
+  vehicleBrand: string;
+  vehicleModel: string;
+  licensePlate: string;
+  vehicleColor?: string;
+  vehicleYear?: number;
 }
 
 export interface User {

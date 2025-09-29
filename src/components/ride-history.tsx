@@ -25,6 +25,7 @@ const statusConfig = {
   arrived: { label: 'Ha llegado', variant: 'default' as const },
   'in-progress': { label: 'En Progreso', variant: 'default' as const },
   cancelled: { label: 'Cancelado', variant: 'destructive' as const },
+  'counter-offered': { label: 'Contraoferta', variant: 'default' as const },
 };
 
 

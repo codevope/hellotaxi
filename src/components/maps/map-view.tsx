@@ -76,11 +76,11 @@ const MapView: React.FC<MapViewProps> & { Marker: typeof MapMarker } = ({
     if (!interactive || !onLocationSelect) return;
 
     try {
-        const geocoded = await GeocodingService.reverseGeocode(location.lat, location.lng);
+        const geocodedAddress = await GeocodingService.reverseGeocode(location.lat, location.lng);
         const mapLocation = {
-            lat: geocoded.lat,
-            lng: geocoded.lng,
-            address: geocoded.formattedAddress,
+            lat: location.lat,
+            lng: location.lng,
+            address: geocodedAddress,
         };
 
         if (!pickupLocation) {

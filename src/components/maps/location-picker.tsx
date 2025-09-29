@@ -34,7 +34,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   isPickup = false,
 }) => {
   const [selectedLocation, setSelectedLocation] =
-    useState<Location | null>(initialLocation);
+    useState<Location | null>(initialLocation || null);
   const { location: userLocation, requestLocation, loading: isLoadingLocation, error } = useGeolocation();
   const { toast } = useToast();
 

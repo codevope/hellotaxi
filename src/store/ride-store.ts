@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import type { Ride, Driver, ChatMessage, Location } from '@/lib/types';
+import type { Ride, Driver, DriverWithVehicleInfo, ChatMessage, Location } from '@/lib/types';
 import type { RouteInfo } from '@/hooks/use-eta-calculator';
 
 export type RideStoreStatus =
@@ -16,7 +16,7 @@ export type RideStoreStatus =
 interface RideState {
   status: RideStoreStatus;
   activeRide: Ride | null;
-  assignedDriver: Driver | null;
+  assignedDriver: DriverWithVehicleInfo | null;
   chatMessages: ChatMessage[];
   isSupportChatOpen: boolean;
   pickupLocation: Location | null;
@@ -29,7 +29,7 @@ interface RideState {
 interface RideActions {
   setStatus: (status: RideStoreStatus) => void;
   setActiveRide: (ride: Ride | null) => void;
-  setAssignedDriver: (driver: Driver | null) => void;
+  setAssignedDriver: (driver: DriverWithVehicleInfo | null) => void;
   setChatMessages: (messages: ChatMessage[]) => void;
   setPickupLocation: (location: Location | null) => void;
   setDropoffLocation: (location: Location | null) => void;
@@ -38,8 +38,8 @@ interface RideActions {
   setCounterOffer: (value: number | null) => void;
   toggleSupportChat: () => void;
   startNegotiation: () => void;
-  assignDriver: (driver: Driver) => void;
-  completeRideForRating: (driver: Driver) => void;
+  assignDriver: (driver: DriverWithVehicleInfo) => void;
+  completeRideForRating: (driver: DriverWithVehicleInfo) => void;
   resetRide: () => void;
 }
 

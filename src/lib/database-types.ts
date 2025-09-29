@@ -14,7 +14,8 @@ import type {
   Notification, 
   Coupon, 
   ScheduledRide,
-  SpecialFareRule 
+  SpecialFareRule,
+  ServiceType 
 } from './types';
 
 // ================================================================
@@ -90,7 +91,7 @@ export interface CreateSOSAlertData extends Omit<SOSAlert, 'id' | 'driver' | 'pa
  */
 export interface DriverSearchFilters {
   status?: Driver['status'];
-  serviceType?: Driver['serviceType'];
+  serviceType?: ServiceType; // Filtrar por tipo de servicio
   documentsStatus?: Driver['documentsStatus'];
   paymentModel?: Driver['paymentModel'];
   membershipStatus?: Driver['membershipStatus'];

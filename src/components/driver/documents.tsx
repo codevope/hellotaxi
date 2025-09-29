@@ -5,7 +5,7 @@ import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, FileText, ShieldCheck, ShieldAlert, ShieldX, Upload } from 'lucide-react';
-import type { Driver, DocumentName, DocumentStatus } from '@/lib/types';
+import type { Driver, DocumentName, DocumentStatus, EnrichedDriver } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -15,8 +15,8 @@ import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 
 interface DriverDocumentsProps {
-    driver: Driver;
-    onUpdate: (updatedDriver: Driver) => void;
+    driver: EnrichedDriver;
+    onUpdate: (updatedDriver: EnrichedDriver) => void;
 }
 
 const docNameMap: Record<DocumentName, string> = {
@@ -46,8 +46,12 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
         setTimeout(async () => {
             if (!driver) return;
             
+            const currentDocumentStatus = driver.documentStatus || {} as Partial<Record<DocumentName, DocumentStatus>>;
             const newDocumentStatus: Record<DocumentName, DocumentStatus> = {
-                ...driver.documentStatus,
+                license: currentDocumentStatus.license || 'pending',
+                insurance: currentDocumentStatus.insurance || 'pending',
+                technicalReview: currentDocumentStatus.technicalReview || 'pending',
+                backgroundCheck: currentDocumentStatus.backgroundCheck || 'pending',
                 [docName]: 'pending',
             };
 

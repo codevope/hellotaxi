@@ -30,8 +30,8 @@ export default function FinancialReportTable({ reportData, loading }: FinancialR
   return (
     <Card>
     <CardHeader>
-        <CardTitle>Desglose por Conductor</CardTitle>
-        <CardDescription>Análisis de ingresos generados por cada conductor en el periodo seleccionado.</CardDescription>
+        <CardTitle>Desglose Mensual por Conductor</CardTitle>
+        <CardDescription>Ingresos mensuales generados por cada conductor. Las membresías son tarifas fijas mensuales.</CardDescription>
     </CardHeader>
     <CardContent>
         {loading ? (
@@ -46,6 +46,8 @@ export default function FinancialReportTable({ reportData, loading }: FinancialR
                 <TableHead>Modelo de Pago</TableHead>
                 <TableHead className="text-right">Viajes Totales</TableHead>
                 <TableHead className="text-right">Total Generado</TableHead>
+                <TableHead className="text-right">Promedio por Viaje</TableHead>
+                <TableHead className="text-right">Modelo de Ingreso</TableHead>
                 <TableHead className="text-right">Ganancia Plataforma</TableHead>
             </TableRow>
             </TableHeader>
@@ -66,12 +68,19 @@ export default function FinancialReportTable({ reportData, loading }: FinancialR
                 </TableCell>
                 <TableCell className="text-right font-medium">{row.totalRides}</TableCell>
                 <TableCell className="text-right">S/{row.totalFares.toFixed(2)}</TableCell>
+                <TableCell className="text-right">S/{row.averageFarePerRide.toFixed(2)}</TableCell>
+                <TableCell className="text-right">
+                    {row.paymentModel === 'commission' 
+                        ? `${(row.effectiveCommissionRate * 100).toFixed(1)}%`
+                        : 'Membresía Fija'
+                    }
+                </TableCell>
                 <TableCell className="text-right font-bold text-primary">S/{row.platformEarnings.toFixed(2)}</TableCell>
                 </TableRow>
             ))}
              {reportData.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground h-24">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
                         No se encontraron datos para el periodo seleccionado.
                     </TableCell>
                 </TableRow>

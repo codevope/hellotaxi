@@ -63,6 +63,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     status: 'available',
     documentsStatus: 'approved',
     kycVerified: true,
+    serviceType: 'economy', // Maneja vehículos económicos
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString(),
     insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
     technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
@@ -85,6 +86,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     status: 'unavailable',
     documentsStatus: 'approved',
     kycVerified: true,
+    serviceType: 'comfort', // Maneja vehículos de confort
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 3)).toISOString(),
     insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
     technicalReviewExpiry: new Date(new Date().setDate(new Date().getDate() + 20)).toISOString(), // Expires soon
@@ -107,6 +109,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     status: 'available',
     documentsStatus: 'pending',
     kycVerified: false,
+    serviceType: 'economy', // Maneja vehículos económicos
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
     insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
     technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
@@ -129,6 +132,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     status: 'available',
     documentsStatus: 'rejected',
     kycVerified: false,
+    serviceType: 'exclusive', // Maneja vehículos exclusivos
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString(),
     insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString(), // Expired
     technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString(), // Expired
@@ -155,7 +159,7 @@ export const users: (Omit<User, 'id'>)[] = [
         email: 'lucia.f@example.com',
         avatarUrl: defaultAvatar,
         role: 'passenger',
-        signupDate: '2023-01-15T10:00:00Z',
+        signupDate: '2025-01-15T10:00:00Z',
         totalRides: 25,
         rating: 4.9,
         phone: '+51 999 888 777',
@@ -166,7 +170,7 @@ export const users: (Omit<User, 'id'>)[] = [
         email: 'miguel.c@example.com',
         avatarUrl: defaultAvatar,
         role: 'passenger',
-        signupDate: '2023-03-20T14:30:00Z',
+        signupDate: '2025-03-20T14:30:00Z',
         totalRides: 12,
         rating: 4.7,
         phone: '+51 911 222 333',
@@ -177,7 +181,7 @@ export const users: (Omit<User, 'id'>)[] = [
         email: 'sofia.v@example.com',
         avatarUrl: defaultAvatar,
         role: 'passenger',
-        signupDate: '2023-05-10T09:00:00Z',
+        signupDate: '2025-05-10T09:00:00Z',
         totalRides: 5,
         rating: 5.0,
         phone: '',
@@ -193,7 +197,7 @@ export const rides: (Omit<Ride, 'id' | 'driver' | 'passenger' | 'vehicle'> & { d
     {
         pickup: 'Av. Pardo 560, Miraflores',
         dropoff: 'Jirón de la Unión 899, Lima',
-        date: '2023-10-26T14:30:00Z',
+        date: '2025-09-26T14:30:00Z',
         fare: 25.50,
         driverName: 'Maria Rodriguez',
         passengerEmail: 'lucia.f@example.com',
@@ -204,7 +208,7 @@ export const rides: (Omit<Ride, 'id' | 'driver' | 'passenger' | 'vehicle'> & { d
     {
         pickup: 'Aeropuerto Jorge Chávez',
         dropoff: 'Parque Kennedy, Miraflores',
-        date: '2023-10-25T18:00:00Z',
+        date: '2025-09-25T18:00:00Z',
         fare: 45.00,
         driverName: 'Ana Torres',
         passengerEmail: 'miguel.c@example.com',
@@ -216,20 +220,20 @@ export const rides: (Omit<Ride, 'id' | 'driver' | 'passenger' | 'vehicle'> & { d
     {
         pickup: 'Real Plaza Salaverry',
         dropoff: 'Estadio Nacional',
-        date: '2023-10-24T20:00:00Z',
+        date: '2025-09-24T20:00:00Z',
         fare: 18.00,
         driverName: 'Juan Perez',
         passengerEmail: 'lucia.f@example.com',
         status: 'completed',
         serviceType: 'economy',
         paymentMethod: 'cash',
-        assignmentTimestamp: '2023-10-24T19:58:00Z',
+        assignmentTimestamp: '2025-09-24T19:58:00Z',
         peakTime: true,
     },
      {
         pickup: 'Plaza de Armas de Barranco',
         dropoff: 'CC Jockey Plaza',
-        date: '2023-10-23T11:00:00Z',
+        date: '2025-09-23T11:00:00Z',
         fare: 30.00,
         driverName: 'Juan Perez',
         passengerEmail: 'sofia.v@example.com',
@@ -242,7 +246,7 @@ export const rides: (Omit<Ride, 'id' | 'driver' | 'passenger' | 'vehicle'> & { d
     {
         pickup: 'Museo de la Nación',
         dropoff: 'Parque de la Amistad, Surco',
-        date: '2023-10-22T15:00:00Z',
+        date: '2025-09-22T15:00:00Z',
         fare: 22.00,
         driverName: 'Maria Rodriguez',
         passengerEmail: 'miguel.c@example.com',
@@ -261,7 +265,7 @@ export const claims: (Omit<Claim, 'id' | 'claimant'> & { rideId: string, claiman
     {
         rideId: 'ride-2', 
         claimantEmail: 'miguel.c@example.com',
-        date: '2023-10-25T19:00:00Z',
+        date: '2025-10-25T19:00:00Z',
         reason: 'Objeto Olvidado',
         details: 'Olvidé mi billetera en el asiento trasero del vehículo.',
         status: 'open',
@@ -269,7 +273,7 @@ export const claims: (Omit<Claim, 'id' | 'claimant'> & { rideId: string, claiman
     {
         rideId: 'ride-1', 
         claimantEmail: 'lucia.f@example.com',
-        date: '2023-10-26T15:00:00Z',
+        date: '2025-10-26T15:00:00Z',
         reason: 'Problema con la Tarifa',
         details: 'El conductor cobró un monto diferente al acordado.',
         status: 'in-progress',
@@ -285,7 +289,7 @@ export const sosAlerts: (Omit<SOSAlert, 'id' | 'driver' | 'passenger'> & { rideI
         rideId: 'ride-3', 
         passengerEmail: 'lucia.f@example.com',
         driverName: 'Juan Perez',
-        date: '2023-10-24T20:15:00Z',
+        date: '2025-10-24T20:15:00Z',
         status: 'pending',
         triggeredBy: 'passenger',
     }
@@ -298,14 +302,14 @@ export const notifications: Omit<Notification, 'id'>[] = [
     {
         title: '¡Promoción de Octubre!',
         message: 'Disfruta de un 20% de descuento en todos tus viajes este fin de semana.',
-        date: '2023-10-20T10:00:00Z',
+        date: '2025-10-20T10:00:00Z',
         target: 'all-passengers',
         status: 'sent',
     },
     {
         title: 'Actualización de App para Conductores',
         message: 'Hemos lanzado una nueva versión con mejoras de rendimiento. Por favor, actualiza tu aplicación.',
-        date: '2023-10-18T15:00:00Z',
+        date: '2025-10-18T15:00:00Z',
         target: 'all-drivers',
         status: 'sent',
     }
@@ -339,7 +343,7 @@ export const coupons: Omit<Coupon, 'id'>[] = [
         code: 'VERANO2023',
         discountType: 'percentage',
         value: 20,
-        expiryDate: new Date('2023-03-31').toISOString(),
+        expiryDate: new Date('2025-03-31').toISOString(),
         status: 'expired',
         minSpend: 0,
         usageLimit: 500,

@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
-import type { Ride, Driver, User, Review, Vehicle } from '@/lib/types';
+import type { Ride, Driver, User, Review, Vehicle, RideStatus } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, query, orderBy, DocumentReference } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
@@ -77,7 +77,7 @@ export default function RideDetailsPage() {
 
     async function fetchRideData() {
       try {
-        const rideDocRef = doc(db, 'rides', id);
+        const rideDocRef = doc(db, 'rides', id as string);
         const rideSnap = await getDoc(rideDocRef);
 
         if (rideSnap.exists()) {

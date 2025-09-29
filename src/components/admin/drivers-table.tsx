@@ -30,24 +30,24 @@ const documentStatusConfig = {
   approved: {
     label: 'Aprobado',
     icon: <ShieldCheck className="text-green-500" />,
-    variant: 'secondary',
+    variant: 'secondary' as const,
   },
   pending: {
     label: 'Pendiente',
     icon: <ShieldAlert className="text-yellow-500" />,
-    variant: 'outline',
+    variant: 'outline' as const,
   },
   rejected: {
     label: 'Rechazado',
     icon: <ShieldX className="text-red-500" />,
-    variant: 'destructive',
+    variant: 'destructive' as const,
   },
 };
 
 const statusConfig = {
-  available: { label: 'Disponible', variant: 'default' },
-  unavailable: { label: 'No Disponible', variant: 'secondary' },
-  'on-ride': { label: 'En Viaje', variant: 'outline' },
+  available: { label: 'Disponible', variant: 'default' as const },
+  unavailable: { label: 'No Disponible', variant: 'secondary' as const },
+  'on-ride': { label: 'En Viaje', variant: 'outline' as const },
 };
 
 const paymentModelConfig: Record<PaymentModel, string> = {

@@ -1,19 +1,20 @@
 import { create } from 'zustand';
-import type { Ride, Driver, User } from '@/lib/types';
+import type { Ride, Driver, User, EnrichedDriver } from '@/lib/types';
 
-type IncomingRequest = Ride & { passenger: User };
+type IncomingRequest = Omit<Ride, 'passenger'> & { passenger: User };
+type DriverActiveRide = Omit<Ride, 'passenger' | 'driver'> & { passenger: User; driver: EnrichedDriver };
 
 interface DriverRideState {
   isAvailable: boolean;
   incomingRequest: IncomingRequest | null;
-  activeRide: (Ride & { passenger: User; driver: Driver }) | null;
+  activeRide: DriverActiveRide | null;
   isCountering: boolean; 
 }
 
 interface DriverRideActions {
   setAvailability: (isAvailable: boolean) => void;
   setIncomingRequest: (request: IncomingRequest | null) => void;
-  setActiveRide: (ride: (Ride & { passenger: User; driver: Driver }) | null) => void;
+  setActiveRide: (ride: DriverActiveRide | null) => void;
   setIsCountering: (isCountering: boolean) => void;
   resetDriverState: () => void;
 }

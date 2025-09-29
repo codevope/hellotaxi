@@ -26,6 +26,7 @@ const defaultCancellationReasons: CancellationReason[] = [
 
 // Default settings, in case the document doesn't exist in Firestore
 const defaultSettings: Omit<Settings, 'specialFareRules'> = {
+    id: 'main',
     baseFare: 3.5,
     perKmFare: 1.0,
     perMinuteFare: 0.20,

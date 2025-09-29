@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -19,6 +19,12 @@ const firebaseConfig = {
   databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
 };
 
+console.log('Firebase Config:', {
+  projectId: firebaseConfig.projectId,
+  authDomain: firebaseConfig.authDomain,
+  apiKey: firebaseConfig.apiKey ? firebaseConfig.apiKey.substring(0, 20) + '...' : 'Missing'
+});
+
 // Initialize Firebase
 let app;
 if (!getApps().length) {
@@ -28,5 +34,14 @@ if (!getApps().length) {
 }
 
 export const auth = getAuth(app);
+
+// Configuración específica para desarrollo
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  // Log para debugging
+  console.log('Auth domain:', auth.config.authDomain);
+  console.log('API Key:', auth.config.apiKey?.substring(0, 20) + '...');
+  console.log('Firebase Config:', firebaseConfig);
+}
+
 export const db = getFirestore(app);
 export default app;

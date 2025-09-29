@@ -69,7 +69,7 @@ export default function ClaimDetailsPage() {
 
     async function fetchClaimData() {
       try {
-        const claimDocRef = doc(db, 'claims', id);
+        const claimDocRef = doc(db, 'claims', id as string);
         const claimSnap = await getDoc(claimDocRef);
 
         if (claimSnap.exists()) {

@@ -28,9 +28,9 @@ import { cn } from '@/lib/utils';
 
 
 const statusConfig = {
-  active: { label: 'Activo', variant: 'default' },
-  expired: { label: 'Expirado', variant: 'secondary' },
-  disabled: { label: 'Desactivado', variant: 'destructive' },
+  active: { label: 'Activo', variant: 'default' as const },
+  expired: { label: 'Expirado', variant: 'secondary' as const },
+  disabled: { label: 'Desactivado', variant: 'destructive' as const },
 };
 
 

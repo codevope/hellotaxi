@@ -14,114 +14,161 @@ export interface FinancialReportRow {
     totalRides: number;
     totalFares: number;
     platformEarnings: number;
+    averageFarePerRide: number;
+    effectiveCommissionRate: number;
+    membershipFeeApplied: number;
+}
+
+export interface FinancialSummary {
+    totalPlatformEarnings: number;
+    totalFaresGenerated: number;
+    totalRides: number;
+    averageEarningsPerRide: number;
+    commissionBasedEarnings: number;
+    membershipBasedEarnings: number;
+    activeDrivers: number;
 }
 
 
-export async function generateFinancialReport(startDate?: Date, endDate?: Date): Promise<FinancialReportRow[]> {
+export async function generateFinancialReport(startDate?: Date, endDate?: Date): Promise<{ reportData: FinancialReportRow[]; summary: FinancialSummary }> {
     const settings = await getSettings();
 
-    // 1. Fetch all drivers and completed rides within the date range
-    const driversCol = collection(db, 'drivers');
-    
+    // 1. Construir consultas con fechas ISO string
     let ridesQuery = query(collection(db, 'rides'), where('status', '==', 'completed'));
     
     if (startDate) {
         ridesQuery = query(ridesQuery, where('date', '>=', startDate.toISOString()));
     }
     if (endDate) {
-        // Adjust end date to include the whole day
+        // Incluir todo el día final
         const endOfDay = new Date(endDate);
         endOfDay.setHours(23, 59, 59, 999);
         ridesQuery = query(ridesQuery, where('date', '<=', endOfDay.toISOString()));
     }
 
-    const [driverSnapshot, rideSnapshot] = await Promise.all([
-        getDocs(driversCol),
-        getDocs(ridesQuery)
-    ]);
-
-    const drivers = await Promise.all(driverSnapshot.docs.map(async (doc) => {
-        const driverData = { id: doc.id, ...doc.data() } as Driver;
-        if (driverData.vehicle instanceof DocumentReference) {
-            const vehicleSnap = await getDoc(driverData.vehicle);
-            if (vehicleSnap.exists()) {
-                return { ...driverData, vehicleData: vehicleSnap.data() as Vehicle };
-            }
-        }
-        return null;
-    }));
-
-    const validDrivers = drivers.filter(Boolean) as (Driver & { vehicleData: Vehicle })[];
-    
+    // 2. Obtener viajes completados en el período
+    const rideSnapshot = await getDocs(ridesQuery);
     const completedRides = rideSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
-    
-    // 2. Group rides by driver
-    const ridesByDriver = new Map<string, Ride[]>();
+
+    // 3. Agrupar viajes por conductor y obtener datos de conductores únicos
+    const driverRideMap = new Map<string, Ride[]>();
+    const driverIds = new Set<string>();
+
     for (const ride of completedRides) {
         if (ride.driver && ride.driver instanceof DocumentReference) {
             const driverId = ride.driver.id;
-            if (!ridesByDriver.has(driverId)) {
-                ridesByDriver.set(driverId, []);
+            driverIds.add(driverId);
+            
+            if (!driverRideMap.has(driverId)) {
+                driverRideMap.set(driverId, []);
             }
-            ridesByDriver.get(driverId)!.push(ride);
+            driverRideMap.get(driverId)!.push(ride);
         }
     }
-    
-    // 3. Calculate report for each driver
-    const report: FinancialReportRow[] = [];
 
-    for (const driver of validDrivers) {
-        const driverRides = ridesByDriver.get(driver.id) || [];
-        const totalRides = driverRides.length;
-        
-        // Only include drivers with rides in the period
-        if (totalRides === 0) {
-            const row: FinancialReportRow = {
-                driverId: driver.id,
-                driverName: driver.name,
-                driverAvatarUrl: driver.avatarUrl,
-                paymentModel: driver.paymentModel,
-                totalRides: 0,
-                totalFares: 0,
-                platformEarnings: 0,
-            };
-            report.push(row);
-            continue;
-        };
+    // 4. Obtener información de conductores que tuvieron viajes
+    const reportData: FinancialReportRow[] = [];
+    let totalPlatformEarnings = 0;
+    let totalFaresGenerated = 0;
+    let totalRides = 0;
+    let commissionBasedEarnings = 0;
+    let membershipBasedEarnings = 0;
 
-        const totalFares = driverRides.reduce((sum, ride) => sum + ride.fare, 0);
-        
-        let platformEarnings = 0;
-        if (driver.paymentModel === 'commission') {
-            // Assume a 20% commission for this model
-            platformEarnings = totalFares * 0.20;
-        } else if (driver.paymentModel === 'membership') {
-            // Use the monthly membership fee from settings, but consider it for the whole period for simplicity.
-            // A real-world app would prorate this or check if a payment was made in the period.
-            const serviceType = driver.vehicleData.serviceType;
-            switch (serviceType) {
-                case 'economy':
-                    platformEarnings = settings.membershipFeeEconomy;
-                    break;
-                case 'comfort':
-                    platformEarnings = settings.membershipFeeComfort;
-                    break;
-                case 'exclusive':
-                    platformEarnings = settings.membershipFeeExclusive;
-                    break;
+    // Para reporte mensual - sin prorrateo, usamos tarifas fijas mensuales
+
+    for (const driverId of driverIds) {
+        try {
+            // Obtener datos del conductor
+            const driverDoc = await getDoc(doc(db, 'drivers', driverId));
+            if (!driverDoc.exists()) continue;
+
+            const driverData = { id: driverDoc.id, ...driverDoc.data() } as Driver;
+            
+            // Obtener datos del vehículo
+            let vehicleData: Vehicle | null = null;
+            if (driverData.vehicle instanceof DocumentReference) {
+                const vehicleDoc = await getDoc(driverData.vehicle);
+                if (vehicleDoc.exists()) {
+                    vehicleData = vehicleDoc.data() as Vehicle;
+                }
             }
-        }
 
-        report.push({
-            driverId: driver.id,
-            driverName: driver.name,
-            driverAvatarUrl: driver.avatarUrl,
-            paymentModel: driver.paymentModel,
-            totalRides,
-            totalFares,
-            platformEarnings,
-        });
+            const driverRides = driverRideMap.get(driverId) || [];
+            const driverTotalRides = driverRides.length;
+            const driverTotalFares = driverRides.reduce((sum, ride) => sum + ride.fare, 0);
+
+            // Calcular ganancias de la plataforma
+            let platformEarnings = 0;
+            let membershipFeeApplied = 0;
+            let effectiveCommissionRate = 0;
+
+            if (driverData.paymentModel === 'commission') {
+                // Usar configuración de comisión de settings (asumiendo 20% por defecto)
+                const commissionRate = 0.20; // TODO: Obtener de settings
+                platformEarnings = driverTotalFares * commissionRate;
+                effectiveCommissionRate = commissionRate;
+                commissionBasedEarnings += platformEarnings;
+            } else if (driverData.paymentModel === 'membership' && vehicleData) {
+                // Reporte mensual: usar tarifa fija mensual sin prorrateo
+                let monthlyFee = 0;
+                switch (vehicleData.serviceType) {
+                    case 'economy':
+                        monthlyFee = settings.membershipFeeEconomy;
+                        break;
+                    case 'comfort':
+                        monthlyFee = settings.membershipFeeComfort;
+                        break;
+                    case 'exclusive':
+                        monthlyFee = settings.membershipFeeExclusive;
+                        break;
+                }
+                
+                // Usar tarifa mensual completa
+                membershipFeeApplied = monthlyFee;
+                platformEarnings = membershipFeeApplied;
+                // Para membresías, la tasa efectiva es 0 ya que es un costo fijo, no porcentual
+                effectiveCommissionRate = 0;
+                membershipBasedEarnings += platformEarnings;
+            }
+
+            const averageFarePerRide = driverTotalRides > 0 ? driverTotalFares / driverTotalRides : 0;
+
+            reportData.push({
+                driverId: driverData.id,
+                driverName: driverData.name,
+                driverAvatarUrl: driverData.avatarUrl,
+                paymentModel: driverData.paymentModel,
+                totalRides: driverTotalRides,
+                totalFares: driverTotalFares,
+                platformEarnings,
+                averageFarePerRide,
+                effectiveCommissionRate,
+                membershipFeeApplied,
+            });
+
+            // Acumular totales
+            totalPlatformEarnings += platformEarnings;
+            totalFaresGenerated += driverTotalFares;
+            totalRides += driverTotalRides;
+
+        } catch (error) {
+            console.error(`Error processing driver ${driverId}:`, error);
+        }
     }
 
-    return report.sort((a,b) => b.platformEarnings - a.platformEarnings);
+    // 5. Crear resumen financiero
+    const summary: FinancialSummary = {
+        totalPlatformEarnings,
+        totalFaresGenerated,
+        totalRides,
+        averageEarningsPerRide: totalRides > 0 ? totalPlatformEarnings / totalRides : 0,
+        commissionBasedEarnings,
+        membershipBasedEarnings,
+        activeDrivers: driverIds.size,
+    };
+
+    // 6. Ordenar por ganancias de plataforma descendente
+    reportData.sort((a, b) => b.platformEarnings - a.platformEarnings);
+
+    return { reportData, summary };
 }

@@ -220,6 +220,7 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
         fare: fare,
         driver: null,
         passenger: passengerRef,
+        vehicle: null, // Se asignará cuando se asigne un conductor
         serviceType: form.getValues('serviceType'),
         paymentMethod: form.getValues('paymentMethod'),
         couponCode: form.getValues('couponCode') || '',

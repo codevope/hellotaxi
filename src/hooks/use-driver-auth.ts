@@ -6,10 +6,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
 import { doc, getDoc, onSnapshot, Unsubscribe, DocumentReference } from 'firebase/firestore';
-import type { Driver, Vehicle } from '@/lib/types';
+import type { Driver, Vehicle, EnrichedDriver } from '@/lib/types';
 import { useAuth as useBaseAuth } from './use-auth';
-
-export type EnrichedDriver = Omit<Driver, 'vehicle'> & { vehicle: Vehicle };
 
 export function useDriverAuth() {
   const baseAuth = useBaseAuth();

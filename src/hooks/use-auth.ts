@@ -8,16 +8,12 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   User as FirebaseUser,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
   fetchSignInMethodsForEmail,
   linkWithCredential,
   EmailAuthProvider,
-  PhoneAuthProvider,
-  ConfirmationResult,
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
@@ -32,11 +28,13 @@ async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
   const providerIds = user.providerData.map((p) => p.providerId);
   const hasPassword = providerIds.includes('password');
   const hasGoogle = providerIds.includes('google.com');
-  const hasPhone = providerIds.includes('phone');
 
-  // If the user has all 3, they are active. Otherwise, incomplete.
-  const status = hasPassword && hasGoogle && hasPhone ? 'active' : 'incomplete';
+  // Get current user profile to check phone number
+  const existingData = userDoc.exists() ? userDoc.data() : {};
+  const hasPhoneInProfile = existingData.phone && existingData.phone.trim().length > 0;
 
+  // User is active if they have: Google AND password AND phone in profile
+  const status = hasPassword && hasGoogle && hasPhoneInProfile ? 'active' : 'incomplete';
 
   if (!userDoc.exists()) {
     const name = user.displayName || user.email?.split('@')[0] || 'Usuario Anónimo';
@@ -163,23 +161,17 @@ export function useAuth() {
     }
   };
 
-  const setupRecaptcha = (containerId: string): RecaptchaVerifier => {
-    return new RecaptchaVerifier(auth, containerId, {
-      'size': 'invisible',
-      'callback': (response: any) => {
-        console.log("reCAPTCHA solved");
-      },
-      'expired-callback': () => {
-        console.log("reCAPTCHA expired");
-      }
-    });
+  const updatePhoneNumber = async (phoneNumber: string) => {
+    if (!auth.currentUser) throw new Error("No hay un usuario autenticado.");
+    
+    const userRef = doc(db, 'users', auth.currentUser.uid);
+    await updateDoc(userRef, { phone: phoneNumber });
+    
+    // Refresh the user profile to update status
+    const updatedProfile = await createOrUpdateUserProfile(auth.currentUser);
+    setAppUser(updatedProfile);
   };
 
-  const signInWithPhone = async (phoneNumber: string, verifier: RecaptchaVerifier): Promise<ConfirmationResult> => {
-      console.log("Calling signInWithPhoneNumber");
-      return await signInWithPhoneNumber(auth, phoneNumber, verifier);
-  };
-  
   const linkGoogleAccount = async () => {
     if (!auth.currentUser) throw new Error("No hay un usuario autenticado.");
     const provider = new GoogleAuthProvider();
@@ -196,27 +188,21 @@ export function useAuth() {
     }
   };
 
-  const linkPhoneNumber = async (phoneNumber: string, confirmationResult: ConfirmationResult, otp: string) => {
-    if (!auth.currentUser) throw new Error("No hay un usuario autenticado.");
-    const credential = PhoneAuthProvider.credential(confirmationResult.verificationId, otp);
-    await linkWithCredential(auth.currentUser, credential);
-    
-    const userRef = doc(db, 'users', auth.currentUser.uid);
-    await updateDoc(userRef, { phone: phoneNumber });
-  };
-  
   const checkAndCompleteProfile = async (userId: string) => {
     if (!auth.currentUser) return;
     const user = auth.currentUser;
     const providerIds = user.providerData.map((p) => p.providerId);
     const hasPassword = providerIds.includes('password');
     const hasGoogle = providerIds.includes('google.com');
-    const hasPhone = providerIds.includes('phone');
 
-    if (hasPassword && hasGoogle && hasPhone) {
-        const userRef = doc(db, 'users', userId);
+    // Get user profile to check phone
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    const userData = userSnap.exists() ? userSnap.data() : {};
+    const hasPhoneInProfile = userData.phone && userData.phone.trim().length > 0;
+
+    if (hasPassword && hasGoogle && hasPhoneInProfile) {
         await updateDoc(userRef, { status: 'active' });
-        const userSnap = await getDoc(userRef);
         if(userSnap.exists()){
             setAppUser({ id: userSnap.id, ...userSnap.data() } as User);
         }
@@ -298,11 +284,9 @@ export function useAuth() {
       updateUserRole,
       signInWithEmail,
       signUpWithEmail,
-      signInWithPhone,
-      setupRecaptcha,
       setPasswordForUser,
       linkGoogleAccount,
-      linkPhoneNumber,
+      updatePhoneNumber,
       checkAndCompleteProfile,
     };
 }

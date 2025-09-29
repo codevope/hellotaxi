@@ -22,8 +22,6 @@ export default function LoginPage() {
     signInWithGoogle, 
     signInWithEmail, 
     signUpWithEmail, 
-    signInWithPhone, 
-    setupRecaptcha,
     loading 
   } = useAuth();
   const router = useRouter();
@@ -38,38 +36,6 @@ export default function LoginPage() {
   const [confirmationResult, setConfirmationResult] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
-  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
-
-  useEffect(() => {
-    // This ensures the container exists before initializing reCAPTCHA
-    if (document.getElementById('recaptcha-container')) {
-      if (!recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current = setupRecaptcha('recaptcha-container');
-      }
-    }
-  }, [setupRecaptcha]);
-  
-  const handlePhoneSignIn = async () => {
-    if (!recaptchaVerifierRef.current) {
-      toast({ variant: 'destructive', title: 'Error', description: 'reCAPTCHA no está listo.' });
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const result = await signInWithPhone(`+51${phone}`, recaptchaVerifierRef.current);
-      setConfirmationResult(result);
-      toast({ title: 'Código de verificación enviado', description: 'Revisa tus mensajes SMS.' });
-    } catch (error: any) {
-       let description = error.message;
-       if (error.code === 'auth/too-many-requests') {
-           description = 'Has intentado demasiadas veces. Por favor, intenta de nuevo más tarde.';
-       }
-      toast({ variant: 'destructive', title: 'Error al enviar código', description: description });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
 
   if (loading) {
@@ -144,10 +110,9 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="email-login">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="email-login">Ingresar</TabsTrigger>
                 <TabsTrigger value="email-register">Registrarse</TabsTrigger>
-                <TabsTrigger value="phone-login">Teléfono</TabsTrigger>
               </TabsList>
               <TabsContent value="email-login" className="space-y-4 pt-4">
                  <form onSubmit={handleEmailLogin} className="space-y-4">
@@ -186,46 +151,6 @@ export default function LoginPage() {
                       <Mail className="mr-2" /> Registrarme
                     </Button>
                  </form>
-              </TabsContent>
-              <TabsContent value="phone-login" className="space-y-4 pt-4">
-                 <div id="recaptcha-container"></div>
-                {!confirmationResult ? (
-                  <div className="space-y-4">
-                     <div className="space-y-2">
-                        <Label htmlFor="phone">Número de Teléfono</Label>
-                        <div className="flex items-center">
-                            <span className="p-2 border rounded-l-md bg-muted text-muted-foreground text-sm">+51</span>
-                            <Input id="phone" type="tel" placeholder="987654321" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-l-none" disabled={isSubmitting} />
-                        </div>
-                     </div>
-                     <Button onClick={handlePhoneSignIn} className="w-full" disabled={isSubmitting || !phone}>
-                       {isSubmitting && <Loader2 className="mr-2 animate-spin" />}
-                       Enviar Código de Verificación
-                    </Button>
-                  </div>
-                ) : (
-                   <div className="space-y-4 flex flex-col items-center">
-                     <Label htmlFor="otp">Código de Verificación</Label>
-                      <InputOTP maxLength={6} value={otp} onChange={setOtp}>
-                        <InputOTPGroup>
-                          <InputOTPSlot index={0} />
-                          <InputOTPSlot index={1} />
-                          <InputOTPSlot index={2} />
-                        </InputOTPGroup>
-                        <InputOTPSeparator />
-                        <InputOTPGroup>
-                          <InputOTPSlot index={3} />
-                          <InputOTPSlot index={4} />
-                          <InputOTPSlot index={5} />
-                        </InputOTPGroup>
-                      </InputOTP>
-                     <Button onClick={handleOtpConfirm} className="w-full" disabled={isSubmitting || otp.length < 6}>
-                       {isSubmitting && <Loader2 className="mr-2 animate-spin" />}
-                       Verificar e Ingresar
-                    </Button>
-                    <Button variant="link" onClick={() => setConfirmationResult(null)}>Usar otro número</Button>
-                  </div>
-                )}
               </TabsContent>
             </Tabs>
              <div className="relative my-4">

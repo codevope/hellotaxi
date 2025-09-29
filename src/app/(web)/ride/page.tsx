@@ -10,7 +10,7 @@ import MapView from '@/components/map-view';
 import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
 import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
-import { History, Car, Siren, LayoutDashboard, MessageCircle, Bot, X, LogIn } from 'lucide-react';
+import { History, Car, Siren, LayoutDashboard, MessageCircle, Bot, X, LogIn, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -21,6 +21,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
@@ -40,6 +41,35 @@ import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
 import { useRideStore } from '@/store/ride-store';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import type { EnrichedDriver, Vehicle, DriverWithVehicleInfo } from '@/lib/types';
+
+// Helper function to enrich driver with vehicle information
+async function enrichDriverWithVehicle(driver: Driver): Promise<DriverWithVehicleInfo> {
+  try {
+    const vehicleSnap = await getDoc(driver.vehicle);
+    if (vehicleSnap.exists()) {
+      const vehicleData = vehicleSnap.data() as Vehicle;
+      return {
+        ...driver,
+        vehicleBrand: vehicleData.brand,
+        vehicleModel: vehicleData.model,
+        licensePlate: vehicleData.licensePlate,
+        vehicleColor: vehicleData.color,
+        vehicleYear: vehicleData.year,
+      };
+    }
+  } catch (error) {
+    console.error('Error loading vehicle data:', error);
+  }
+  
+  // Fallback if vehicle data can't be loaded
+  return {
+    ...driver,
+    vehicleBrand: 'N/A',
+    vehicleModel: 'N/A',
+    licensePlate: 'N/A',
+  };
+}
 
 function RidePageContent() {
   const {
@@ -126,7 +156,8 @@ function RidePageContent() {
                     const driverSnap = await getDoc(rideData.driver);
                     if (driverSnap.exists()) {
                         const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
-                        assignDriver(driverData);
+                        const enrichedDriver = await enrichDriverWithVehicle(driverData);
+                        assignDriver(enrichedDriver);
                         if (driverData.location) {
                             setDriverLocation(driverData.location);
                         }
@@ -140,7 +171,8 @@ function RidePageContent() {
                         const driverSnap = await getDoc(rideData.driver);
                          if (driverSnap.exists()) {
                             const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
-                            completeRideForRating(driverData);
+                            const enrichedDriver = await enrichDriverWithVehicle(driverData);
+                            completeRideForRating(enrichedDriver);
                         }
                     }
                  }
@@ -531,7 +563,7 @@ function RidePageContent() {
 }
 
 export default function RidePage() {
-    const { user, loading } = useAuth();
+    const { user, appUser, loading } = useAuth();
     const { isDriver, loading: driverLoading } = useDriverAuth();
     
     if (loading || driverLoading) {
@@ -561,6 +593,74 @@ export default function RidePage() {
                                 Ir a Iniciar Sesión
                             </Link>
                          </Button>
+                    </CardContent>
+                </Card>
+            </main>
+            </>
+        )
+    }
+
+    // Check if user has complete profile (Google + Password + Phone)
+    const providerIds = user.providerData.map((p) => p.providerId);
+    const hasGoogle = providerIds.includes('google.com');
+    const hasPassword = providerIds.includes('password');
+    const hasPhoneInProfile = appUser?.phone && appUser.phone.trim().length > 0;
+    const isProfileComplete = hasGoogle && hasPassword && hasPhoneInProfile;
+
+    if (!isProfileComplete) {
+        return (
+            <>
+            <AppHeader />
+            <main className="flex flex-col items-center justify-center p-4 py-16 text-center md:py-24">
+                <Card className="max-w-md p-8">
+                    <CardHeader>
+                        <div className="flex flex-col items-center gap-4">
+                            <Shield className="h-16 w-16 text-amber-500" />
+                            <CardTitle>Perfil Incompleto</CardTitle>
+                        </div>
+                        <CardDescription>
+                            Para pedir un viaje necesitas completar tu perfil de seguridad:
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="text-left space-y-2">
+                            <div className="flex items-center gap-2 text-sm">
+                                {hasGoogle ? (
+                                    <div className="h-4 w-4 rounded-full bg-green-500" />
+                                ) : (
+                                    <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
+                                )}
+                                <span className={hasGoogle ? 'text-green-700' : 'text-gray-500'}>
+                                    Cuenta Google vinculada
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                                {hasPassword ? (
+                                    <div className="h-4 w-4 rounded-full bg-green-500" />
+                                ) : (
+                                    <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
+                                )}
+                                <span className={hasPassword ? 'text-green-700' : 'text-gray-500'}>
+                                    Contraseña configurada
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                                {hasPhoneInProfile ? (
+                                    <div className="h-4 w-4 rounded-full bg-green-500" />
+                                ) : (
+                                    <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
+                                )}
+                                <span className={hasPhoneInProfile ? 'text-green-700' : 'text-gray-500'}>
+                                    Teléfono registrado
+                                </span>
+                            </div>
+                        </div>
+                        <Button asChild size="lg" className="w-full">
+                            <Link href="/profile">
+                                <Shield className="mr-2 h-4 w-4"/>
+                                Completar mi Perfil
+                            </Link>
+                        </Button>
                     </CardContent>
                 </Card>
             </main>

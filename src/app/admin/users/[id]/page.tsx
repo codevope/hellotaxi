@@ -65,9 +65,13 @@ import {
 import { Badge } from '@/components/ui/badge';
 
 const rideStatusConfig = {
-  completed: { label: 'Completado', variant: 'secondary' },
-  'in-progress': { label: 'En Progreso', variant: 'default' },
-  cancelled: { label: 'Cancelado', variant: 'destructive' },
+  searching: { label: 'Buscando', variant: 'default' as const },
+  accepted: { label: 'Aceptado', variant: 'default' as const },
+  arrived: { label: 'Llegó', variant: 'default' as const },
+  'in-progress': { label: 'En Progreso', variant: 'default' as const },
+  completed: { label: 'Completado', variant: 'secondary' as const },
+  cancelled: { label: 'Cancelado', variant: 'destructive' as const },
+  'counter-offered': { label: 'Contraoferta', variant: 'default' as const },
 };
 
 export default function UserDetailsPage() {
@@ -92,7 +96,7 @@ export default function UserDetailsPage() {
     async function fetchData() {
       try {
         // Fetch user data
-        const userDocRef = doc(db, 'users', id);
+        const userDocRef = doc(db, 'users', id as string);
         const userSnap = await getDoc(userDocRef);
 
         if (userSnap.exists()) {
