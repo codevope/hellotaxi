@@ -58,12 +58,13 @@ export async function generateFinancialReport(startDate?: Date, endDate?: Date):
     // 2. Group rides by driver
     const ridesByDriver = new Map<string, Ride[]>();
     for (const ride of completedRides) {
-        if (!ride.driver) continue;
-        const driverId = (ride.driver as DocumentReference).id;
-        if (!ridesByDriver.has(driverId)) {
-            ridesByDriver.set(driverId, []);
+        if (ride.driver && ride.driver instanceof DocumentReference) {
+            const driverId = ride.driver.id;
+            if (!ridesByDriver.has(driverId)) {
+                ridesByDriver.set(driverId, []);
+            }
+            ridesByDriver.get(driverId)!.push(ride);
         }
-        ridesByDriver.get(driverId)!.push(ride);
     }
     
     // 3. Calculate report for each driver
@@ -73,7 +74,20 @@ export async function generateFinancialReport(startDate?: Date, endDate?: Date):
         const driverRides = ridesByDriver.get(driver.id) || [];
         const totalRides = driverRides.length;
         
-        if (totalRides === 0) continue; // Only include drivers with rides in the period
+        // Only include drivers with rides in the period
+        if (totalRides === 0) {
+            const row: FinancialReportRow = {
+                driverId: driver.id,
+                driverName: driver.name,
+                driverAvatarUrl: driver.avatarUrl,
+                paymentModel: driver.paymentModel,
+                totalRides: 0,
+                totalFares: 0,
+                platformEarnings: 0,
+            };
+            report.push(row);
+            continue;
+        };
 
         const totalFares = driverRides.reduce((sum, ride) => sum + ride.fare, 0);
         
