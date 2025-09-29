@@ -29,7 +29,6 @@ async function clearCollections() {
         const collectionRef = collection(db, collectionName);
         try {
             const querySnapshot = await getDocs(collectionRef);
-            console.log(`Found ${querySnapshot.docs.length} documents in ${collectionName} to delete.`);
             if (querySnapshot.empty) {
                 continue;
             }
@@ -37,6 +36,7 @@ async function clearCollections() {
             for (const doc of querySnapshot.docs) {
                 await deleteDoc(doc.ref);
             }
+             console.log(`Deleted ${querySnapshot.docs.length} documents from ${collectionName}.`);
         } catch (error) {
             console.warn(`Could not query or delete from collection ${collectionName}. It might not exist or be protected by rules. Skipping.`);
         }
@@ -57,7 +57,7 @@ export async function seedDatabase() {
   // --- PHASE 1: Seed independent collections and get their references ---
   const userRefsByEmail = new Map<string, DocumentReference>();
   for (const userData of users) {
-    const userRef = doc(db, 'users', userData.email); // Use email as ID for idempotency
+    const userRef = doc(collection(db, 'users'));
     batch.set(userRef, { ...userData, id: userRef.id });
     userRefsByEmail.set(userData.email, userRef);
   }
@@ -65,7 +65,7 @@ export async function seedDatabase() {
   
   const vehicleRefsByPlate = new Map<string, DocumentReference>();
   for (const vehicleData of vehicles) {
-      const vehicleRef = doc(db, 'vehicles', vehicleData.licensePlate); // Use plate as ID
+      const vehicleRef = doc(collection(db, 'vehicles'));
       batch.set(vehicleRef, { ...vehicleData, id: vehicleRef.id, driverId: '' }); // driverId will be updated later
       vehicleRefsByPlate.set(vehicleData.licensePlate, vehicleRef);
   }
@@ -73,7 +73,7 @@ export async function seedDatabase() {
 
   const driverRefsByName = new Map<string, DocumentReference>();
   for (const driverData of drivers) {
-    const driverRef = doc(db, 'drivers', driverData.name.toLowerCase().replace(' ', '-')); // Create a slug for ID
+    const driverRef = doc(collection(db, 'drivers'));
     const vehicleRef = vehicleRefsByPlate.get(driverData.licensePlate);
     if (!vehicleRef) {
         console.error(`Vehicle with plate ${driverData.licensePlate} not found for driver ${driverData.name}`);
@@ -96,8 +96,8 @@ export async function seedDatabase() {
   console.log(`${notifications.length} notifications prepared for batch.`);
   
   for (const couponData of coupons) {
-    const couponRef = doc(db, 'coupons', couponData.code);
-    batch.set(couponRef, { ...couponData, id: couponData.code });
+    const couponRef = doc(collection(db, 'coupons'));
+    batch.set(couponRef, { ...couponData, id: couponRef.id });
   }
   console.log(`${coupons.length} coupons prepared for batch.`);
 
@@ -113,7 +113,6 @@ export async function seedDatabase() {
 
 
   // --- PHASE 2: Seed dependent collections using the created references ---
-  let rideCounter = 1;
   for (const rideData of rides) {
     const { driverName, passengerEmail, ...rest } = rideData;
     const driverRef = driverRefsByName.get(driverName);
@@ -122,7 +121,7 @@ export async function seedDatabase() {
     const vehicleRef = driver ? vehicleRefsByPlate.get(driver.licensePlate) : null;
     
     if (driverRef && passengerRef && vehicleRef) {
-      const rideRef = doc(db, 'rides', `ride-${rideCounter++}`);
+      const rideRef = doc(collection(db, 'rides'));
       batch.set(rideRef, {
         ...rest,
         id: rideRef.id,
@@ -134,26 +133,24 @@ export async function seedDatabase() {
   }
   console.log(`${rides.length} rides prepared for batch.`);
 
-  let claimCounter = 1;
   for (const claimData of claims) {
     const { claimantEmail, ...rest } = claimData;
     const claimantRef = userRefsByEmail.get(claimantEmail);
 
     if (claimantRef) {
-        const claimRef = doc(db, 'claims', `claim-${claimCounter++}`);
+        const claimRef = doc(collection(db, 'claims'));
         batch.set(claimRef, { ...rest, id: claimRef.id, claimant: claimantRef });
     }
   }
   console.log(`${claims.length} claims prepared for batch.`);
   
-  let sosCounter = 1;
   for (const alertData of sosAlerts) {
     const { driverName, passengerEmail, ...rest } = alertData;
     const driverRef = driverRefsByName.get(driverName);
     const passengerRef = userRefsByEmail.get(passengerEmail);
 
     if (driverRef && passengerRef) {
-        const alertRef = doc(db, 'sosAlerts', `sos-${sosCounter++}`);
+        const alertRef = doc(collection(db, 'sosAlerts'));
         batch.set(alertRef, {
             ...rest,
             id: alertRef.id,
