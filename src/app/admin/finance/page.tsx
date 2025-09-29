@@ -15,7 +15,15 @@ import { useToast } from '@/hooks/use-toast';
 import { generateFinancialReport, type FinancialReportRow } from '@/services/financial-report';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+
+
+const chartConfig = {
+  earnings: {
+    label: 'Ingresos',
+    color: 'hsl(var(--chart-1))',
+  },
+} satisfies ChartConfig;
 
 
 export default function AdminFinancePage() {
@@ -139,8 +147,8 @@ export default function AdminFinancePage() {
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         </div>
                     ): (
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={topDriversData} layout="vertical" margin={{ left: 10, right: 30 }}>
+                         <ChartContainer config={chartConfig} className="w-full h-full">
+                            <BarChart accessibilityLayer data={topDriversData} layout="vertical" margin={{ left: 10, right: 30 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} width={60} />
@@ -151,9 +159,9 @@ export default function AdminFinancePage() {
                                         labelFormatter={(label) => `Ingresos de ${label}`}
                                     />}
                                 />
-                                <Bar dataKey="earnings" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={20} />
+                                <Bar dataKey="earnings" fill="var(--color-earnings)" radius={[0, 4, 4, 0]} barSize={20} />
                             </BarChart>
-                        </ResponsiveContainer>
+                        </ChartContainer>
                     )}
                  </CardContent>
             </Card>
