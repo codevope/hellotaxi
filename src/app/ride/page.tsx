@@ -40,6 +40,7 @@ import { Separator } from '@/components/ui/separator';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
 import { useRideStore } from '@/store/ride-store';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 
 function RidePageContent() {
   const {
@@ -61,6 +62,7 @@ function RidePageContent() {
     completeRideForRating,
     resetRide,
     toggleSupportChat,
+    setCounterOffer,
   } = useRideStore();
   
   const [activeTab, setActiveTab] = useState('book');
@@ -84,17 +86,21 @@ function RidePageContent() {
     const q = query(
         collection(db, 'rides'), 
         where('passenger', '==', doc(db, 'users', user.uid)), 
-        where('status', 'in', ['searching', 'accepted', 'arrived', 'in-progress', 'completed'])
+        where('status', 'in', ['searching', 'accepted', 'arrived', 'in-progress', 'completed', 'counter-offered'])
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
         const currentRideState = useRideStore.getState();
 
-        // Find the most relevant document (not completed or cancelled)
+        // If we are idle, don't do anything until a new ride is created by the user
+        if (currentRideState.status === 'idle' && snapshot.docs.every(doc => ['completed', 'cancelled'].includes(doc.data().status))) {
+            return;
+        }
+
         const rideDoc = snapshot.docs.find(doc => !['completed', 'cancelled'].includes(doc.data().status));
 
         if (!rideDoc) {
-             if (currentRideState.status !== 'idle' && currentRideState.status !== 'rating') {
+            if (currentRideState.status !== 'idle' && currentRideState.status !== 'rating') {
                 resetRide();
             }
             return;
@@ -109,9 +115,16 @@ function RidePageContent() {
             searchTimeoutRef.current = null;
         }
 
-        // Handle completed ride for rating
+        if (rideData.status === 'counter-offered') {
+          setCounterOffer(rideData.fare);
+          return;
+        } else if (currentRideState.status === 'negotiating' && rideData.status !== 'counter-offered') {
+          // If we were negotiating a counter-offer and it changed, reset
+          useRideStore.getState().setRouteInfo(null);
+        }
+
         if (rideData.status === 'completed') {
-            const isRated = (rideData as any).isRatedByPassenger === true;
+            const isRated = rideData.isRatedByPassenger === true;
             if (!isRated && rideData.driver) {
                 const driverSnap = await getDoc(rideData.driver);
                  if (driverSnap.exists()) {
@@ -126,7 +139,6 @@ function RidePageContent() {
             return;
         }
 
-        // Handle driver assignment and status updates
         if (rideData.driver) {
              const driverSnap = await getDoc(rideData.driver);
              if (driverSnap.exists()) {
@@ -135,7 +147,6 @@ function RidePageContent() {
                   assignDriver(driverData);
                 }
                 
-                // Set driver location from DB
                 if(driverData.location) {
                     setDriverLocation(driverData.location)
                 }
@@ -152,7 +163,6 @@ function RidePageContent() {
                 }
              }
         } else if(rideData.status === 'searching') {
-          // If we receive a document that is still searching, ensure the state is correct.
           if(currentRideState.status !== 'searching') {
              startSearch();
           }
@@ -212,16 +222,15 @@ function RidePageContent() {
   };
 
   const handleRideCreated = (ride: Ride) => {
-    setActiveRide(ride);
     startSearch();
+    setActiveRide(ride);
 
-    // Set a timeout to cancel the search if no driver is found
     searchTimeoutRef.current = setTimeout(async () => {
         const currentRideSnap = await getDoc(doc(db, 'rides', ride.id));
         if (currentRideSnap.exists() && currentRideSnap.data().status === 'searching') {
             await handleCancelRide({ code: 'NO_DRIVERS', reason: 'No se encontraron conductores' }, true);
         }
-    }, 60000); // 60 seconds
+    }, 60000); 
   }
 
   const handleCancelRide = async (reason: CancellationReason, isAutomatic: boolean = false) => {
@@ -280,7 +289,6 @@ function RidePageContent() {
         comment,
       });
 
-      // Mark the ride as rated by the passenger
       const rideRef = doc(db, 'rides', activeRide.id);
       await updateDoc(rideRef, { isRatedByPassenger: true });
       
@@ -314,7 +322,6 @@ function RidePageContent() {
                         dropoffLocation={dropoffLocation}
                     />
 
-                    {/* Floating Action Buttons */}
                     <Sheet open={isSupportChatOpen} onOpenChange={toggleSupportChat}>
                         <SheetTrigger asChild>
                             <Button
@@ -473,6 +480,22 @@ function RidePageContent() {
                                 </CardContent>
                             </Card>
                             )}
+                            {status === 'negotiating' && useRideStore.getState().counterOfferValue && (
+                                <Alert>
+                                  <AlertTitle>El conductor ha hecho una contraoferta de S/{useRideStore.getState().counterOfferValue?.toFixed(2)}</AlertTitle>
+                                  <div className='flex gap-2 mt-4'>
+                                    <Button className='w-full' onClick={() => {
+                                      if(activeRide){
+                                        const rideRef = doc(db, 'rides', activeRide.id);
+                                        updateDoc(rideRef, { status: 'searching' });
+                                      }
+                                    }}>Aceptar y Buscar</Button>
+                                    <Button className='w-full' variant={'destructive'} onClick={() => {
+                                       if(activeRide) handleCancelRide({code: 'REJECTED_COUNTER', reason: 'Contraoferta rechazada'})
+                                    }}>Rechazar</Button>
+                                  </div>
+                                </Alert>
+                            )}
                             {status !== 'searching' && status !== 'assigned' && status !== 'rating' && (
                                 <RideRequestForm 
                                     onRideCreated={handleRideCreated}
@@ -595,4 +618,5 @@ export default function RidePage() {
     
 
     
+
 

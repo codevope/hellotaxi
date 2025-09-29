@@ -73,7 +73,7 @@ export type CancellationReason = {
     reason: string;
 };
 
-export type RideStatus = 'searching' | 'accepted' | 'arrived' | 'in-progress' | 'completed' | 'cancelled';
+export type RideStatus = 'searching' | 'accepted' | 'arrived' | 'in-progress' | 'completed' | 'cancelled' | 'counter-offered';
 
 export interface Ride {
   id: string;

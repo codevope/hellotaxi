@@ -5,7 +5,7 @@
 import AppHeader from '@/components/app-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Car, ShieldAlert, FileText, Star, UserCog, Wallet, History, MessageCircle, LogIn, Siren } from 'lucide-react';
+import { Loader2, Car, ShieldAlert, FileText, Star, UserCog, Wallet, History, MessageCircle, LogIn, Siren, CircleDollarSign } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -31,6 +31,9 @@ import Chat from '@/components/chat';
 import Link from 'next/link';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useRideStore } from '@/store/ride-store';
+import { Dialog, DialogHeader, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { useDriverRideStore } from '@/store/driver-ride-store';
 
 
 const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
@@ -46,30 +49,28 @@ const rideStatusConfig: Record<Ride['status'], { label: string; variant: 'second
   'in-progress': { label: 'En Progreso', variant: 'default' },
   completed: { label: 'Completado', variant: 'secondary' },
   cancelled: { label: 'Cancelado', variant: 'destructive' },
+  'counter-offered': { label: 'Contraoferta', variant: 'default'}
 };
 
 type EnrichedRide = Omit<Ride, 'passenger' | 'driver'> & { passenger: User, driver: Driver };
 
 function DriverDashboardPageContent() {
-  const {
-    status,
+  const { 
+    isAvailable,
+    incomingRequest, 
     activeRide,
-    pickupLocation,
-    dropoffLocation,
+    isCountering,
+    setAvailability,
+    setIncomingRequest,
     setActiveRide,
-    setPickupLocation,
-    setDropoffLocation,
-    startRequesting,
-    completeRide,
-    resetRide,
-    setDriverAsOnRide
-  } = useRideStore();
+    resetDriverState,
+    setIsCountering,
+  } = useDriverRideStore();
 
   const { user, driver, setDriver, loading } = useDriverAuth();
   const { toast } = useToast();
   const [allRides, setAllRides] = useState<EnrichedRide[]>([]);
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
-  const [requestedRide, setRequestedRide] = useState<(Ride & {passenger: User}) | null>(null);
   const [completedRideForRating, setCompletedRideForRating] = useState<EnrichedRide | null>(null);
   const [isCompletingRide, setIsCompletingRide] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -77,8 +78,7 @@ function DriverDashboardPageContent() {
   const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [rejectedRideIds, setRejectedRideIds] = useState<string[]>([]);
-
-
+  const [counterOfferAmount, setCounterOfferAmount] = useState(0);
 
   // Listener for driver's active ride
   useEffect(() => {
@@ -105,10 +105,6 @@ function DriverDashboardPageContent() {
 
                 const pickup = { lat: -12.05, lng: -77.05, address: rideData.pickup }; // Fallback
                 const dropoff = { lat: -12.1, lng: -77.0, address: rideData.dropoff }; // Fallback
-
-                setPickupLocation(pickup);
-                setDropoffLocation(dropoff);
-                setDriverAsOnRide();
                 
                 if (rideData.status === 'accepted' || rideData.status === 'arrived') {
                     const driverInitialPos = (driver as any).location || { lat: -12.045, lng: -77.03 };
@@ -119,8 +115,8 @@ function DriverDashboardPageContent() {
             }
         }
       } else {
-         if (useRideStore.getState().status !== 'rating') {
-            resetRide();
+         if (useDriverRideStore.getState().activeRide === null) {
+            resetDriverState();
             stopSimulation();
          }
       }
@@ -136,40 +132,36 @@ function DriverDashboardPageContent() {
 
   // Listener for new ride requests
   useEffect(() => {
-    if (!driver || driver.status !== 'available' || activeRide || requestedRide) return;
+    if (!driver || !isAvailable || activeRide || incomingRequest) return;
+    
+    const driverRef = doc(db, 'drivers', driver.id);
 
     let q = query(
         collection(db, 'rides'),
         where('status', '==', 'searching'),
         where('offeredTo', '==', null),
+        where('rejectedBy', 'not-in', [driverRef])
     );
-     if (rejectedRideIds.length > 0) {
-        q = query(q, where('__name__', 'not-in', rejectedRideIds.slice(0, 10)));
-    }
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-        if (!snapshot.empty && !useRideStore.getState().activeRide && !requestedRide) {
+        if (!snapshot.empty && !activeRide && !incomingRequest) {
             const rideDoc = snapshot.docs[0]; // Take the first available one
             const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
             const rideRef = doc(db, 'rides', rideData.id);
-            const driverRef = doc(db, 'drivers', driver.id);
             
             try {
-                // Atomically offer the ride to this driver
                 await runTransaction(db, async (transaction) => {
                     const freshRideDoc = await transaction.get(rideRef);
                     if (!freshRideDoc.exists() || freshRideDoc.data().offeredTo) {
-                        return; // Ride already taken or offered
+                        return;
                     }
                     transaction.update(rideRef, { offeredTo: driverRef });
                 });
 
-                // If transaction was successful, show the request
                 const passengerSnap = await getDoc(rideData.passenger);
                 if (passengerSnap.exists()) {
                     const passengerData = passengerSnap.data() as User;
-                    setRequestedRide({ ...rideData, passenger: passengerData });
-                    startRequesting();
+                    setIncomingRequest({ ...rideData, passenger: passengerData });
                 }
 
             } catch (error) {
@@ -180,11 +172,11 @@ function DriverDashboardPageContent() {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver, activeRide, rejectedRideIds, requestedRide]);
+  }, [driver, isAvailable, activeRide, rejectedRideIds, incomingRequest]);
 
     // Listener for chat messages
   useEffect(() => {
-    if (!activeRide || status !== 'in-progress') return;
+    if (!activeRide) return;
 
     const chatQuery = query(collection(db, 'rides', activeRide.id, 'chatMessages'), orderBy('timestamp', 'asc'));
     const unsubscribe = onSnapshot(chatQuery, (querySnapshot) => {
@@ -194,7 +186,7 @@ function DriverDashboardPageContent() {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRide, status]);
+  }, [activeRide]);
 
 
   const handleAvailabilityChange = async (isAvailable: boolean) => {
@@ -206,6 +198,7 @@ function DriverDashboardPageContent() {
     try {
         await updateDoc(driverRef, { status: newStatus });
         setDriver({ ...driver, status: newStatus });
+        setAvailability(isAvailable);
         toast({
           title: `Estado actualizado: ${isAvailable ? 'Disponible' : 'No Disponible'}`,
           description: isAvailable ? 'Ahora recibirás solicitudes de viaje.' : 'Has dejado de recibir solicitudes.',
@@ -219,43 +212,60 @@ function DriverDashboardPageContent() {
   };
 
   const handleRideRequestResponse = async (accepted: boolean) => {
-    if (!requestedRide || !driver) return;
-    const rideId = requestedRide.id;
+    if (!incomingRequest || !driver) return;
+    const rideId = incomingRequest.id;
     const rideRef = doc(db, 'rides', rideId);
     
-    setRequestedRide(null); // Clear request from UI immediately
-    resetRide();
+    setIncomingRequest(null);
 
     if (accepted) {
         try {
             await runTransaction(db, async (transaction) => {
                 const rideDoc = await transaction.get(rideRef);
-                if (!rideDoc.exists() || rideDoc.data().status !== 'searching') {
+                if (!rideDoc.exists() || !['searching', 'counter-offered'].includes(rideDoc.data().status)) {
                     throw new Error("El viaje ya no está disponible.");
                 }
                 
                 transaction.update(rideRef, {
                     status: 'accepted',
                     driver: doc(db, 'drivers', driver.id),
-                    offeredTo: null, // Clear the offer field
+                    offeredTo: null, 
                 });
                 transaction.update(doc(db, 'drivers', driver.id), { status: 'on-ride' });
             });
             
-            setDriverAsOnRide();
+            setAvailability(false);
         } catch (e: any) {
             console.error("Error accepting ride:", e);
             toast({ variant: 'destructive', title: 'Error', description: e.message || "No se pudo aceptar el viaje."});
         }
     } else {
-        // Add to rejected list locally and in Firestore to ignore it
         setRejectedRideIds(prev => [...prev, rideId]);
         await updateDoc(rideRef, {
             rejectedBy: arrayUnion(doc(db, 'drivers', driver.id)),
-            offeredTo: null, // Reset the offer so others can see it
+            offeredTo: null,
         });
     }
   };
+
+  const handleCounterOffer = async () => {
+    if (!incomingRequest || !counterOfferAmount) return;
+    const rideRef = doc(db, 'rides', incomingRequest.id);
+
+    try {
+        await updateDoc(rideRef, {
+            fare: counterOfferAmount,
+            status: 'counter-offered'
+        });
+        toast({ title: 'Contraoferta Enviada', description: `Has propuesto una tarifa de S/${counterOfferAmount.toFixed(2)}`});
+        setIncomingRequest(null);
+        setIsCountering(false);
+    } catch(e) {
+        console.error('Error submitting counter offer:', e);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar la contraoferta.'})
+    }
+  }
+
 
   const handleUpdateRideStatus = async (newStatus: 'arrived' | 'in-progress' | 'completed') => {
     if (!activeRide) return;
@@ -276,7 +286,8 @@ function DriverDashboardPageContent() {
             
             stopSimulation();
             setCompletedRideForRating(activeRide);
-            completeRide();
+            setActiveRide(null);
+            setAvailability(true);
         } else {
             await updateDoc(rideRef, { status: newStatus });
             toast({ title: `¡Estado del viaje actualizado: ${newStatus}!`});
@@ -332,7 +343,7 @@ function DriverDashboardPageContent() {
         description: `Has calificado al pasajero con ${rating} estrellas.`,
       });
       setCompletedRideForRating(null);
-      resetRide();
+      resetDriverState();
     } catch (error) {
       console.error('Error submitting passenger rating:', error);
       toast({
@@ -356,7 +367,6 @@ function DriverDashboardPageContent() {
     });
   }
 
-
   
   if (loading || !driver) {
     return (
@@ -369,101 +379,111 @@ function DriverDashboardPageContent() {
   const isApproved = driver.documentsStatus === 'approved';
 
   const renderDashboardContent = () => {
-    switch (status) {
-        case 'requesting':
-             if (!requestedRide) return null;
-             return (
-                 <Card className="border-primary border-2 animate-pulse">
-                    <CardHeader>
-                        <CardTitle>¡Nueva Solicitud de Viaje!</CardTitle>
-                        <CardDescription>Tienes 30 segundos para responder.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="p-4 bg-muted rounded-lg">
-                           <div className="flex justify-between items-center">
-                                <div>
-                                    <p className="text-sm">De: <span className="font-medium">{requestedRide.pickup}</span></p>
-                                    <p className="text-sm">A: <span className="font-medium">{requestedRide.dropoff}</span></p>
-                                </div>
-                                <p className="font-bold text-lg">S/{requestedRide.fare.toFixed(2)}</p>
+    if(incomingRequest) {
+        return (
+            <Dialog open={!!incomingRequest} onOpenChange={() => { if(isCountering) return; handleRideRequestResponse(false)}}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>¡Nueva Solicitud de Viaje!</DialogTitle>
+                   <CardDescription>Tienes 30 segundos para responder.</CardDescription>
+                </DialogHeader>
+                 <div className="space-y-4 py-4">
+                    <div className="p-4 bg-muted rounded-lg">
+                       <div className="flex justify-between items-center">
+                            <div>
+                                <p className="text-sm">De: <span className="font-medium">{incomingRequest.pickup}</span></p>
+                                <p className="text-sm">A: <span className="font-medium">{incomingRequest.dropoff}</span></p>
                             </div>
+                            <p className="font-bold text-lg">S/{incomingRequest.fare.toFixed(2)}</p>
                         </div>
-                        <div className="flex gap-2">
-                             <Button className="w-full" onClick={() => handleRideRequestResponse(true)}>Aceptar</Button>
-                             <Button className="w-full" variant="destructive" onClick={() => handleRideRequestResponse(false)}>Rechazar</Button>
-                        </div>
-                    </CardContent>
-                </Card>
-             );
-        case 'in-progress':
-            if (!activeRide) return null;
-            return (
-                 <Card className="border-primary border-2">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-primary">
-                            <Car className="h-6 w-6" />
-                            <span>Viaje Activo</span>
-                        </CardTitle>
-                        <CardDescription>
-                            {activeRide.status === 'accepted' && 'Dirígete al punto de recojo del pasajero.'}
-                            {activeRide.status === 'arrived' && 'Esperando al pasajero.'}
-                            {activeRide.status === 'in-progress' && 'Llevando al pasajero a su destino.'}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
-                            <div className="flex items-center gap-4">
-                                <Avatar className="h-12 w-12">
-                                    <AvatarImage src={activeRide.passenger.avatarUrl} alt={activeRide.passenger.name} />
-                                    <AvatarFallback>{activeRide.passenger.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                    <p className="font-semibold">{activeRide.passenger.name}</p>
-                                    <p className="text-sm text-muted-foreground">Destino: <span className="font-medium truncate">{activeRide.dropoff}</span></p>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-sm text-muted-foreground">Tarifa</p>
-                                <p className="font-bold text-lg">S/{activeRide.fare.toFixed(2)}</p>
-                            </div>
-                        </div>
-                        {activeRide.status === 'accepted' && <Button className="w-full" onClick={() => handleUpdateRideStatus('arrived')} disabled={isCompletingRide}>He Llegado</Button>}
-                        {activeRide.status === 'arrived' && <Button className="w-full" onClick={() => handleUpdateRideStatus('in-progress')} disabled={isCompletingRide}>Iniciar Viaje</Button>}
-                        {activeRide.status === 'in-progress' && <Button className="w-full" onClick={() => handleUpdateRideStatus('completed')} disabled={isCompletingRide}>Finalizar Viaje</Button>}
-                    </CardContent>
-                </Card>
-            );
-        case 'rating':
-            if (!completedRideForRating) return null;
-            return (
-                 <RatingForm
-                    userToRate={completedRideForRating.passenger}
-                    isDriver={false}
-                    onSubmit={(rating, comment) => handleRatingSubmit(completedRideForRating!.passenger.id, rating, comment)}
-                    isSubmitting={isRatingSubmitting}
-                />
-            );
-        case 'idle':
-        default:
-             return (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Car className="h-6 w-6 text-primary" />
-                            <span>Esperando Solicitudes</span>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <Alert>
-                            <AlertTitle>No hay solicitudes pendientes</AlertTitle>
-                            <AlertDescription>
-                                Cuando un pasajero solicite un viaje, aparecerá aquí.
-                            </AlertDescription>
-                        </Alert>
-                    </CardContent>
-                </Card>
-             );
+                    </div>
+                    {isCountering ? (
+                      <div className='space-y-2'>
+                        <Label htmlFor='counter-offer'>Tu contraoferta (S/)</Label>
+                        <Input id='counter-offer' type='number' value={counterOfferAmount} onChange={e => setCounterOfferAmount(Number(e.target.value))} />
+                        <Button className='w-full' onClick={handleCounterOffer}>Enviar Contraoferta</Button>
+                        <Button className='w-full' variant={'ghost'} onClick={() => setIsCountering(false)}>Cancelar</Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                         <Button className="w-full" onClick={() => handleRideRequestResponse(true)}>Aceptar</Button>
+                         <Button className="w-full" variant="outline" onClick={() => setIsCountering(true)}>Contraofertar</Button>
+                         <Button className="w-full" variant="destructive" onClick={() => handleRideRequestResponse(false)}>Rechazar</Button>
+                    </div>
+                    )}
+                </div>
+              </DialogContent>
+            </Dialog>
+        )
     }
+    if (activeRide) {
+        return (
+             <Card className="border-primary border-2">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-primary">
+                        <Car className="h-6 w-6" />
+                        <span>Viaje Activo</span>
+                    </CardTitle>
+                    <CardDescription>
+                        {activeRide.status === 'accepted' && 'Dirígete al punto de recojo del pasajero.'}
+                        {activeRide.status === 'arrived' && 'Esperando al pasajero.'}
+                        {activeRide.status === 'in-progress' && 'Llevando al pasajero a su destino.'}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                            <Avatar className="h-12 w-12">
+                                <AvatarImage src={activeRide.passenger.avatarUrl} alt={activeRide.passenger.name} />
+                                <AvatarFallback>{activeRide.passenger.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <p className="font-semibold">{activeRide.passenger.name}</p>
+                                <p className="text-sm text-muted-foreground">Destino: <span className="font-medium truncate">{activeRide.dropoff}</span></p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-sm text-muted-foreground">Tarifa</p>
+                            <p className="font-bold text-lg">S/{activeRide.fare.toFixed(2)}</p>
+                        </div>
+                    </div>
+                    {activeRide.status === 'accepted' && <Button className="w-full" onClick={() => handleUpdateRideStatus('arrived')} disabled={isCompletingRide}>He Llegado</Button>}
+                    {activeRide.status === 'arrived' && <Button className="w-full" onClick={() => handleUpdateRideStatus('in-progress')} disabled={isCompletingRide}>Iniciar Viaje</Button>}
+                    {activeRide.status === 'in-progress' && <Button className="w-full" onClick={() => handleUpdateRideStatus('completed')} disabled={isCompletingRide}>Finalizar Viaje</Button>}
+                </CardContent>
+            </Card>
+        );
+    }
+
+    if (completedRideForRating) {
+       return (
+             <RatingForm
+                userToRate={completedRideForRating.passenger}
+                isDriver={false}
+                onSubmit={(rating, comment) => handleRatingSubmit(completedRideForRating!.passenger.id, rating, comment)}
+                isSubmitting={isRatingSubmitting}
+            />
+        );
+    }
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Car className="h-6 w-6 text-primary" />
+                    <span>Esperando Solicitudes</span>
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <Alert>
+                    <AlertTitle>No hay solicitudes pendientes</AlertTitle>
+                    <AlertDescription>
+                        Cuando un pasajero solicite un viaje, aparecerá aquí.
+                    </AlertDescription>
+                </Alert>
+            </CardContent>
+        </Card>
+     );
+    
   }
 
   return (
@@ -483,11 +503,11 @@ function DriverDashboardPageContent() {
                 <div className="lg:col-span-2 flex flex-col min-h-[60vh] rounded-xl overflow-hidden shadow-lg relative">
                      <MapView 
                         driverLocation={driverLocation}
-                        pickupLocation={pickupLocation}
-                        dropoffLocation={dropoffLocation}
+                        pickupLocation={activeRide ? {lat: 0, lng: 0, address: activeRide.pickup} : null}
+                        dropoffLocation={activeRide ? {lat: 0, lng: 0, address: activeRide.dropoff} : null}
                         interactive={false}
                     />
-                    {status === 'in-progress' && (
+                    {activeRide && (
                        <>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -556,9 +576,9 @@ function DriverDashboardPageContent() {
                             <div className="flex items-center space-x-2">
                             <Switch
                                 id="availability-switch"
-                                checked={driver.status === 'available'}
+                                checked={isAvailable}
                                 onCheckedChange={handleAvailabilityChange}
-                                disabled={!isApproved || driver.status === 'on-ride' || isUpdatingStatus}
+                                disabled={!isApproved || !!activeRide || isUpdatingStatus}
                                 aria-label="Estado de disponibilidad"
                             />
                             <Label htmlFor="availability-switch">

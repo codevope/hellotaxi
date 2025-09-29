@@ -22,7 +22,8 @@ interface RideState {
   pickupLocation: Location | null;
   dropoffLocation: Location | null;
   routeInfo: RouteInfo | null;
-  driverLocation: Location | null; // <-- NEW
+  driverLocation: Location | null;
+  counterOfferValue: number | null;
 }
 
 interface RideActions {
@@ -34,7 +35,8 @@ interface RideActions {
   setPickupLocation: (location: Location | null) => void;
   setDropoffLocation: (location: Location | null) => void;
   setRouteInfo: (info: RouteInfo | null) => void;
-  setDriverLocation: (location: Location | null) => void; // <-- NEW
+  setDriverLocation: (location: Location | null) => void;
+  setCounterOffer: (value: number | null) => void;
 
   // Complex Actions
   toggleSupportChat: () => void;
@@ -60,7 +62,8 @@ const initialState: RideState = {
   pickupLocation: null,
   dropoffLocation: null,
   routeInfo: null,
-  driverLocation: null, // <-- NEW
+  driverLocation: null,
+  counterOfferValue: null,
 };
 
 export const useRideStore = create<RideState & RideActions>((set, get) => ({
@@ -73,7 +76,8 @@ export const useRideStore = create<RideState & RideActions>((set, get) => ({
   setChatMessages: (messages) => set({ chatMessages: messages }),
   setPickupLocation: (location) => set({ pickupLocation: location }),
   setDropoffLocation: (location) => set({ dropoffLocation: location }),
-  setDriverLocation: (location) => set({ driverLocation: location }), // <-- NEW
+  setDriverLocation: (location) => set({ driverLocation: location }),
+  setCounterOffer: (value) => set({ status: 'negotiating', counterOfferValue: value}),
   setRouteInfo: (info) => {
     set({ routeInfo: info, status: info ? 'calculated' : 'idle' });
   },
@@ -81,7 +85,7 @@ export const useRideStore = create<RideState & RideActions>((set, get) => ({
   // Complex Actions
   toggleSupportChat: () => set((state) => ({ isSupportChatOpen: !state.isSupportChatOpen })),
   startSearch: () => set({ status: 'searching' }),
-  startNegotiation: () => set({ status: 'negotiating' }),
+  startNegotiation: () => set({ status: 'negotiating', counterOfferValue: null }),
   assignDriver: (driver) => set({ status: 'assigned', assignedDriver: driver }),
   updateRideStatus: (newStatus) => set({ status: newStatus }),
   completeRideForRating: (driver) => set({ status: 'rating', assignedDriver: driver }),
