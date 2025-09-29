@@ -16,7 +16,7 @@ import {
   type ProcessRatingInput,
   type ProcessRatingOutput,
 } from '@/ai/schemas/rating-schemas';
-import { doc, getDoc, updateDoc, runTransaction, collection, addDoc } from 'firebase/firestore';
+import { doc, runTransaction, collection, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { z } from 'zod';
 
@@ -56,6 +56,7 @@ const processRatingFlow = ai.defineFlow(
 
         // Guardar el comentario en una subcolección
         const reviewsColRef = collection(userDocRef, 'reviews');
+        // addDoc will generate an ID, but we don't need to store it back for reviews
         await addDoc(reviewsColRef, {
             rating,
             comment,

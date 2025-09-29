@@ -35,8 +35,8 @@ import { useDriverRideStore } from '@/store/driver-ride-store';
 import DriverVehicle from '@/components/driver/vehicle';
 
 const statusConfig: Record<Driver['status'], { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
-    available: { label: 'Disponible', variant: 'default' },
-    unavailable: { label: 'No Disponible', variant: 'secondary' },
+    'available': { label: 'Disponible', variant: 'default' },
+    'unavailable': { label: 'No Disponible', variant: 'secondary' },
     'on-ride': { label: 'En Viaje', variant: 'outline' },
 };
 
@@ -318,7 +318,9 @@ function DriverDashboardPageContent() {
     if (!activeRide || !user || !driver) return;
 
     try {
+        const newSosAlertRef = doc(collection(db, 'sosAlerts'));
         await addDoc(collection(db, 'sosAlerts'), {
+            id: newSosAlertRef.id,
             rideId: activeRide.id,
             passenger: doc(db, 'users', activeRide.passenger.id),
             driver: doc(db, 'drivers', driver.id),

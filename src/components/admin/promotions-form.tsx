@@ -36,7 +36,7 @@ import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Coupon } from '@/lib/types';
 
@@ -100,25 +100,26 @@ export default function PromotionsForm({ coupon, onFinished, isDialog = false }:
     try {
         if (isEditMode && coupon) {
              const couponRef = doc(db, "coupons", coupon.id);
-             await updateDoc(couponRef, {
+             const dataToUpdate = {
                 ...values,
-                id: coupon.id,
                 expiryDate: values.expiryDate.toISOString(),
-             });
+             };
+             await updateDoc(couponRef, dataToUpdate);
              toast({
                 title: '¡Cupón Actualizado!',
                 description: `El cupón "${values.code}" ha sido actualizado.`,
             });
         } else {
             const couponRef = doc(db, "coupons", values.code);
-            await setDoc(couponRef, {
+            const dataToSet = {
                 ...values,
-                id: values.code, // Use code as ID for idempotency
+                id: values.code, // Use code as ID and save it in the document
                 expiryDate: values.expiryDate.toISOString(),
                 status: 'active',
                 timesUsed: 0,
                 usageLimit: 1, // Default, could be a form field
-            });
+            };
+            await setDoc(couponRef, dataToSet);
             toast({
                 title: '¡Cupón Creado!',
                 description: `El cupón "${values.code}" ha sido creado exitosamente.`,
