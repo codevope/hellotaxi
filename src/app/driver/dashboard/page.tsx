@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import AppHeader from '@/components/app-header';
@@ -34,12 +33,11 @@ import { Dialog, DialogHeader, DialogContent, DialogTrigger, DialogTitle } from 
 import { Input } from '@/components/ui/input';
 import { useDriverRideStore } from '@/store/driver-ride-store';
 
-
-const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
+const statusConfig: Record<Driver['status'], { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
     available: { label: 'Disponible', variant: 'default' },
     unavailable: { label: 'No Disponible', variant: 'secondary' },
     'on-ride': { label: 'En Viaje', variant: 'outline' },
-}
+};
 
 const rideStatusConfig: Record<Ride['status'], { label: string; variant: 'secondary' | 'default' | 'destructive' }> = {
   searching: { label: 'Buscando', variant: 'default' },
@@ -62,7 +60,6 @@ function DriverDashboardPageContent() {
     setAvailability,
     setIncomingRequest,
     setActiveRide,
-    resetDriverState,
     setIsCountering,
   } = useDriverRideStore();
 
@@ -128,11 +125,7 @@ function DriverDashboardPageContent() {
   useEffect(() => {
     if (!driver || !isAvailable || activeRide || incomingRequest) return;
     
-    // Simpler query, filtering is done client-side
-    let q = query(
-        collection(db, 'rides'),
-        where('status', '==', 'searching')
-    );
+    const q = query(collection(db, 'rides'), where('status', '==', 'searching'));
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
         if (useDriverRideStore.getState().activeRide || useDriverRideStore.getState().incomingRequest) {
@@ -143,30 +136,28 @@ function DriverDashboardPageContent() {
             .map(doc => ({ id: doc.id, ...doc.data() } as Ride))
             .filter(ride => {
               const alreadyOffered = !!ride.offeredTo;
-              const alreadyRejected = rejectedRideIds.includes(ride.id) || ride.rejectedBy?.some(ref => ref.id === driver.id);
-              return !alreadyOffered && !alreadyRejected;
+              const alreadyRejectedByMe = rejectedRideIds.includes(ride.id) || ride.rejectedBy?.some(ref => ref.id === driver.id);
+              return !alreadyOffered && !alreadyRejectedByMe;
             });
         
         if (potentialRides.length === 0) return;
         
-        const rideData = potentialRides[0]; 
-        const rideRef = doc(db, 'rides', rideData.id);
+        const rideToOffer = potentialRides[0]; 
+        const rideRef = doc(db, 'rides', rideToOffer.id);
         
         try {
             await runTransaction(db, async (transaction) => {
                 const freshRideDoc = await transaction.get(rideRef);
-                if (!freshRideDoc.exists() || freshRideDoc.data().offeredTo) {
-                    // Ride was taken by another driver in the meantime
+                if (!freshRideDoc.exists() || freshRideDoc.data().status !== 'searching' || freshRideDoc.data().offeredTo) {
                     return; 
                 }
                 transaction.update(rideRef, { offeredTo: doc(db, 'drivers', driver.id) });
             });
 
-            // If transaction succeeds, set the incoming request
-            const passengerSnap = await getDoc(rideData.passenger);
+            const passengerSnap = await getDoc(rideToOffer.passenger);
             if (passengerSnap.exists()) {
                 const passengerData = passengerSnap.data() as User;
-                setIncomingRequest({ ...rideData, passenger: passengerData });
+                setIncomingRequest({ ...rideToOffer, passenger: passengerData });
             }
 
         } catch (error) {
@@ -238,7 +229,6 @@ function DriverDashboardPageContent() {
             });
             
             setAvailability(false);
-            // setActiveRide({ ...incomingRequest, driver: driver, status: 'accepted' });
 
         } catch (e: any) {
             console.error("Error accepting ride:", e);
@@ -296,8 +286,6 @@ function DriverDashboardPageContent() {
             setAvailability(true);
         } else {
             await updateDoc(rideRef, { status: newStatus });
-            // setActiveRide({...activeRide, status: newStatus}); 
-            toast({ title: `¡Estado del viaje actualizado: ${newStatus}!`});
         }
     } catch (error) {
         console.error('Error updating ride status:', error);
@@ -766,5 +754,3 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
-
-    

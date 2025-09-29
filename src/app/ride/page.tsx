@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -53,10 +52,8 @@ function RidePageContent() {
     dropoffLocation,
     driverLocation,
     setActiveRide,
-    setAssignedDriver,
     setChatMessages,
     setDriverLocation,
-    setRouteInfo,
     assignDriver,
     completeRideForRating,
     resetRide,
@@ -70,7 +67,6 @@ function RidePageContent() {
   const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
   const [appSettings, setAppSettings] = useState<Awaited<ReturnType<typeof getSettings>> | null>(null);
   const [isRatingSubmitting, setIsSubmittingRating] = useState(false);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -81,36 +77,37 @@ function RidePageContent() {
 
   // MASTER useEffect to listen for ride document changes and update UI state
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      // If user logs out, ensure state is clean
+      if (useRideStore.getState().status !== 'idle') {
+        resetRide();
+      }
+      return;
+    }
     
-    // Query for any active ride belonging to the user that is not in a final state
     const q = query(
         collection(db, 'rides'), 
         where('passenger', '==', doc(db, 'users', user.uid)), 
-        where('status', 'not-in', ['cancelled', 'completed']) // We handle completed for rating separately
+        where('status', 'not-in', ['cancelled']) // We handle completed for rating separately
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-        // If there are no active rides, reset the state unless we are in the middle of rating
         if (snapshot.empty) {
-            const currentStatus = useRideStore.getState().status;
-            if(currentStatus !== 'rating') {
+            if (useRideStore.getState().status !== 'rating') {
                resetRide();
             }
             return;
         }
         
-        const rideDoc = snapshot.docs[0];
+        const rideDoc = snapshot.docs[0]; // Assuming user has only one active ride
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-        
+        const currentStoreStatus = useRideStore.getState().status;
+
         setActiveRide(rideData);
 
         switch (rideData.status) {
             case 'searching':
-                // Avoid resetting to searching if already searching from the form submission
-                if (useRideStore.getState().status !== 'searching') {
-                    setStatus('searching');
-                }
+                if (currentStoreStatus !== 'searching') setStatus('searching');
                 break;
             
             case 'counter-offered':
@@ -133,46 +130,24 @@ function RidePageContent() {
                     }
                 }
                 break;
-        }
-
-        // Clear timeout if the ride is no longer searching
-        if (rideData.status !== 'searching' && searchTimeoutRef.current) {
-            clearTimeout(searchTimeoutRef.current);
-            searchTimeoutRef.current = null;
-        }
-    });
-
-    // Separately handle completed rides that need rating
-     const completedQuery = query(
-        collection(db, 'rides'),
-        where('passenger', '==', doc(db, 'users', user.uid)),
-        where('status', '==', 'completed'),
-        where('isRatedByPassenger', '==', false)
-    );
-
-    const unsubscribeCompleted = onSnapshot(completedQuery, async (snapshot) => {
-        if (!snapshot.empty) {
-            const rideDoc = snapshot.docs[0];
-            const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-            if (rideData.driver) {
-                const driverSnap = await getDoc(rideData.driver);
-                if (driverSnap.exists()) {
-                    const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
-                    completeRideForRating(driverData);
-                }
-            }
+            
+            case 'completed':
+                 if (rideData.isRatedByPassenger === false) {
+                     if (rideData.driver) {
+                        const driverSnap = await getDoc(rideData.driver);
+                        if (driverSnap.exists()) {
+                           completeRideForRating(driverSnap.data() as Driver);
+                        }
+                     }
+                 } else {
+                    resetRide();
+                 }
+                 break;
         }
     });
 
-
-    return () => {
-        unsubscribe();
-        unsubscribeCompleted();
-        if (searchTimeoutRef.current) {
-            clearTimeout(searchTimeoutRef.current);
-        }
-    };
-  }, [user?.uid]);
+    return () => unsubscribe();
+  }, [user?.uid, assignDriver, completeRideForRating, resetRide, setActiveRide, setCounterOffer, setDriverLocation, setStatus]);
 
 
   // Listener for chat messages
@@ -216,19 +191,7 @@ function RidePageContent() {
     }
   };
 
-  const handleRideCreated = (ride: Ride) => {
-    setActiveRide(ride);
-    setStatus('searching');
-    
-    searchTimeoutRef.current = setTimeout(async () => {
-        const currentRide = useRideStore.getState().activeRide;
-        if (currentRide && currentRide.status === 'searching') {
-            await handleCancelRide({ code: 'NO_DRIVERS', reason: 'No se encontraron conductores' }, true);
-        }
-    }, 60000); 
-  }
-
-  const handleCancelRide = async (reason: CancellationReason, isAutomatic: boolean = false) => {
+  const handleCancelRide = async (reason: CancellationReason) => {
     const currentRide = useRideStore.getState().activeRide;
     if (!currentRide) return;
 
@@ -238,21 +201,13 @@ function RidePageContent() {
         await updateDoc(rideRef, {
             status: 'cancelled',
             cancellationReason: reason,
-            cancelledBy: isAutomatic ? 'system' : 'passenger'
+            cancelledBy: 'passenger'
         });
         
-        if(isAutomatic) {
-             toast({
-                variant: 'destructive',
-                title: 'Búsqueda de Conductor Expirada',
-                description: 'No hemos encontrado conductores disponibles. Intenta ofrecer una tarifa más alta o prueba más tarde.',
-            });
-        } else {
-             toast({
-                title: 'Viaje Cancelado',
-                description: `Motivo: ${reason.reason}.`,
-            });
-        }
+        toast({
+            title: 'Viaje Cancelado',
+            description: `Motivo: ${reason.reason}.`,
+        });
         resetRide();
         setActiveTab('book');
 
@@ -520,9 +475,7 @@ function RidePageContent() {
                                 </Alert>
                             )}
                             {status !== 'searching' && status !== 'assigned' && status !== 'rating' && status !== 'negotiating' && (
-                                <RideRequestForm 
-                                    onRideCreated={handleRideCreated}
-                                />
+                                <RideRequestForm />
                             )}
                             {status === 'rating' && assignedDriver && (
                             <RatingForm
@@ -635,4 +588,3 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
-

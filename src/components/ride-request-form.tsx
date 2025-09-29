@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -15,7 +14,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Loader2,
   Car,
@@ -31,7 +29,6 @@ import {
 } from 'lucide-react';
 import type {
   Ride,
-  Driver,
   PaymentMethod,
   ServiceType,
   Settings,
@@ -46,8 +43,6 @@ import {
   collection,
   doc,
   addDoc,
-  increment,
-  writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getSettings } from '@/services/settings-service';
@@ -60,7 +55,7 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import ETADisplay from './eta-display';
-import { useETACalculator, type RouteInfo } from '@/hooks/use-eta-calculator';
+import { useETACalculator } from '@/hooks/use-eta-calculator';
 import { LocationPicker } from '@/components/maps';
 import { Label } from './ui/label';
 import Image from 'next/image';
@@ -79,10 +74,6 @@ const formSchema = z.object({
   scheduledTime: z.date().optional(),
 });
 
-type RideRequestFormProps = {
-  onRideCreated: (ride: Ride) => void;
-};
-
 
 const paymentMethodIcons: Record<Exclude<PaymentMethod, 'card'>, React.ReactNode> = {
   cash: <Image src="/img/cash.png" alt="Efectivo" width={40} height={40} className="object-contain h-10" />,
@@ -96,9 +87,7 @@ const serviceTypeIcons: Record<ServiceType, React.ReactNode> = {
   exclusive: <Rocket className="h-8 w-8" />,
 }
 
-export default function RideRequestForm({
-  onRideCreated,
-}: RideRequestFormProps) {
+export default function RideRequestForm() {
     const {
     status,
     pickupLocation,
@@ -109,6 +98,7 @@ export default function RideRequestForm({
     setRouteInfo,
     startNegotiation,
     resetRide,
+    setStatus,
   } = useRideStore();
   
   const [appSettings, setAppSettings] = useState<Settings | null>(null);
@@ -211,6 +201,8 @@ export default function RideRequestForm({
   ) {
     if (!user) return;
     
+    setStatus('searching'); // Optimistically set UI to searching
+
     const passengerRef = doc(db, 'users', user.uid);
     
     try {
@@ -231,11 +223,8 @@ export default function RideRequestForm({
         isRatedByPassenger: false,
       };
 
-      const rideDocRef = await addDoc(collection(db, 'rides'), newRideData);
-      
-      const createdRide: Ride = { id: rideDocRef.id, ...newRideData };
-      onRideCreated(createdRide);
-
+      await addDoc(collection(db, 'rides'), newRideData);
+      // No need to call onRideCreated, the master useEffect will pick it up
     } catch (error) {
       console.error('Error creating ride:', error);
       toast({ variant: 'destructive', title: 'Error al crear el viaje', description: 'No se pudo registrar el viaje. Inténtalo de nuevo.' });

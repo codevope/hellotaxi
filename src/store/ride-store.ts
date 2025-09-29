@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import type { Ride, Driver, ChatMessage, Location } from '@/lib/types';
 import type { RouteInfo } from '@/hooks/use-eta-calculator';
@@ -77,6 +78,8 @@ export const useRideStore = create<RideState & RideActions>((set, get) => ({
   completeRideForRating: (driver) => set({ status: 'rating', assignedDriver: driver }),
   
   resetRide: () => {
-    set({ ...initialState });
+    // Keep pickup and dropoff locations for convenience
+    const { pickupLocation, dropoffLocation } = get();
+    set({ ...initialState, pickupLocation, dropoffLocation });
   },
 }));
