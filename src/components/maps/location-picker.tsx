@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Target, Navigation, Loader2 } from 'lucide-react';
@@ -15,7 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useGeolocation } from '@/hooks/use-geolocation-improved';
-import { useEffect } from 'react';
+import { GeocodingService } from '@/services/geocoding-service';
 
 
 interface LocationPickerProps {
@@ -38,6 +38,35 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   const { location: userLocation, requestLocation, loading: isLoadingLocation, error } = useGeolocation();
   const { toast } = useToast();
 
+  // Efecto para reaccionar a la nueva ubicación del hook
+  useEffect(() => {
+    if (userLocation && isLoadingLocation === false) {
+      const geocodeAndUpdate = async () => {
+        try {
+          const address = await GeocodingService.reverseGeocode(userLocation.latitude, userLocation.longitude);
+          setSelectedLocation({
+            lat: userLocation.latitude,
+            lng: userLocation.longitude,
+            address: address,
+          });
+        } catch (geocodingError) {
+           toast({
+            variant: 'destructive',
+            title: 'Error de Geocodificación',
+            description: 'No se pudo obtener la dirección para tu ubicación.',
+          });
+          setSelectedLocation({
+            lat: userLocation.latitude,
+            lng: userLocation.longitude,
+            address: `Coords: ${userLocation.latitude.toFixed(4)}, ${userLocation.longitude.toFixed(4)}`,
+          });
+        }
+      }
+      geocodeAndUpdate();
+    }
+  }, [userLocation, isLoadingLocation, toast]);
+  
+
   useEffect(() => {
     if (error) {
       toast({
@@ -59,15 +88,10 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     }
   };
 
-  const handleCurrentLocation = async () => {
+  const handleCurrentLocation = () => {
+    // Llama al hook para forzar una nueva lectura de alta precisión.
+    // El useEffect se encargará de actualizar el estado cuando la tenga.
     requestLocation();
-    if (userLocation) {
-        setSelectedLocation({
-            lat: userLocation.latitude,
-            lng: userLocation.longitude,
-            address: userLocation.address || 'Mi ubicación actual',
-        })
-    }
   };
 
   return (

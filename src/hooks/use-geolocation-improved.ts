@@ -93,13 +93,12 @@ export function useGeolocation(
         const { latitude, longitude, accuracy } = position.coords;
         const timestamp = Date.now();
         
-        const address = await reverseGeocode(latitude, longitude);
-        
+        // No geocodificamos aquí para desacoplar la lógica.
+        // El componente que lo use decidirá si geocodificar o no.
         setLocation({ 
           latitude, 
           longitude, 
-          accuracy, 
-          address,
+          accuracy,
           timestamp 
         });
         setLoading(false);
