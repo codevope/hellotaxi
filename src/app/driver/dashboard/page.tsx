@@ -19,7 +19,7 @@ import { db } from '@/lib/firebase';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
-import MapView from '@/components/map-view';
+import MapView from '@/components/maps/map-view';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DriverDocuments from '@/components/driver/documents';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';

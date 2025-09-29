@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppHeader from '@/components/app-header';
-import MapView from '@/components/map-view';
+import MapView from '@/components/maps/map-view';
 import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
 import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
