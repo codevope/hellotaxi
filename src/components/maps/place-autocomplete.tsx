@@ -12,7 +12,6 @@ import { Button } from '../ui/button';
 
 interface PlaceAutocompleteProps {
   onPlaceSelect: (place: Location) => void;
-  onUseCurrentLocation: () => void;
   placeholder?: string;
   className?: string;
   defaultValue?: string;
@@ -21,7 +20,6 @@ interface PlaceAutocompleteProps {
 
 const PlaceAutocomplete = ({
   onPlaceSelect,
-  onUseCurrentLocation,
   placeholder = 'Buscar una dirección...',
   className,
   defaultValue = '',
@@ -48,6 +46,10 @@ const PlaceAutocomplete = ({
       geocoder.current = new geocoding.Geocoder();
     }
   }, [places, geocoding]);
+
+  useEffect(() => {
+    setInputValue(defaultValue);
+  }, [defaultValue]);
 
 
   const fetchSuggestions = useCallback((input: string) => {
