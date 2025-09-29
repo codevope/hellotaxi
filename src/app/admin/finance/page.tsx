@@ -6,7 +6,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import FinancialReportTable from '@/components/admin/financial-report-table';
 import { DateRange } from 'react-day-picker';
 import { addDays, format } from 'date-fns';
-import { Calendar as CalendarIcon, Loader2, BarChart, DollarSign, Wallet } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, BarChart as BarChartIcon, DollarSign, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { generateFinancialReport, type FinancialReportRow } from '@/services/financial-report';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bar, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
 
@@ -131,7 +131,7 @@ export default function AdminFinancePage() {
             </Card>
              <Card className="lg:col-span-2">
                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2"><BarChart className="h-5 w-5" />Top 5 Conductores por Ingresos</CardTitle>
+                    <CardTitle className="text-lg flex items-center gap-2"><BarChartIcon className="h-5 w-5" />Top 5 Conductores por Ingresos</CardTitle>
                  </CardHeader>
                  <CardContent className="h-48">
                     {loading ? (
