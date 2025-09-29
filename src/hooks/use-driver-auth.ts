@@ -9,7 +9,7 @@ import { doc, getDoc, onSnapshot, Unsubscribe, DocumentReference } from 'firebas
 import type { Driver, Vehicle } from '@/lib/types';
 import { useAuth as useBaseAuth } from './use-auth';
 
-type EnrichedDriver = Omit<Driver, 'vehicle'> & { vehicle: Vehicle };
+export type EnrichedDriver = Omit<Driver, 'vehicle'> & { vehicle: Vehicle };
 
 export function useDriverAuth() {
   const baseAuth = useBaseAuth();
@@ -32,7 +32,7 @@ export function useDriverAuth() {
             if(driverData.vehicle && driverData.vehicle instanceof DocumentReference) {
                 const vehicleSnap = await getDoc(driverData.vehicle);
                 if (vehicleSnap.exists()) {
-                    const vehicleData = vehicleSnap.data() as Vehicle;
+                    const vehicleData = {id: vehicleSnap.id, ...vehicleSnap.data()} as Vehicle;
                     setDriver({ ...driverData, vehicle: vehicleData });
                 }
             }
@@ -70,3 +70,5 @@ export function useDriverAuth() {
     loading: baseAuth.loading || loading,
   };
 }
+
+    

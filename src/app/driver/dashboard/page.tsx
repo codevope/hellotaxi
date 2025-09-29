@@ -32,6 +32,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogHeader, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useDriverRideStore } from '@/store/driver-ride-store';
+import DriverVehicle from '@/components/driver/vehicle';
 
 const statusConfig: Record<Driver['status'], { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
     available: { label: 'Disponible', variant: 'default' },
@@ -503,9 +504,10 @@ function DriverDashboardPageContent() {
       <AppHeader />
        <main className="flex-1 p-4 lg:p-8">
         <Tabs defaultValue="dashboard">
-          <TabsList className="grid w-full grid-cols-4 max-w-2xl mx-auto">
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl mx-auto">
             <TabsTrigger value="dashboard"><UserCog className="mr-2 h-4 w-4" />Panel</TabsTrigger>
             <TabsTrigger value="documents"><FileText className="mr-2 h-4 w-4" />Documentos</TabsTrigger>
+            <TabsTrigger value="vehicle"><Car className="mr-2 h-4 w-4" />Mi Vehículo</TabsTrigger>
             <TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Historial</TabsTrigger>
             <TabsTrigger value="profile"><Wallet className="mr-2 h-4 w-4" />Perfil</TabsTrigger>
           </TabsList>
@@ -624,6 +626,10 @@ function DriverDashboardPageContent() {
           <TabsContent value="documents">
              <DriverDocuments driver={driver} onUpdate={setDriver} />
           </TabsContent>
+          
+          <TabsContent value="vehicle">
+             <DriverVehicle driver={driver} onUpdate={setDriver} />
+          </TabsContent>
 
           <TabsContent value="history">
             <Card>
@@ -673,12 +679,12 @@ function DriverDashboardPageContent() {
                             </Avatar>
                             <div>
                                 <p className="text-2xl font-bold">{driver.name}</p>
-                                <p className="text-muted-foreground">{driver.serviceType} / {driver.paymentModel}</p>
+                                <p className="text-muted-foreground">{driver.vehicle.serviceType} / {driver.paymentModel}</p>
                             </div>
                         </div>
                         <h3 className="font-semibold text-lg mt-6">Vehículo</h3>
-                        <p>{driver.vehicleBrand} {driver.vehicleModel}</p>
-                        <p className="font-mono bg-muted p-2 rounded-md inline-block">{driver.licensePlate}</p>
+                        <p>{driver.vehicle.brand} {driver.vehicle.model}</p>
+                        <p className="font-mono bg-muted p-2 rounded-md inline-block">{driver.vehicle.licensePlate}</p>
                      </div>
                      <div className="space-y-4">
                         <h3 className="font-semibold text-lg">Estadísticas</h3>
@@ -772,3 +778,5 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
+
+    
