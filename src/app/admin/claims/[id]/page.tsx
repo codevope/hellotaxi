@@ -26,8 +26,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import type { Claim, Ride, Driver, User } from '@/lib/types';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import type { Claim, Ride, Driver, User, Vehicle } from '@/lib/types';
+import { doc, getDoc, updateDoc, DocumentReference } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -39,7 +39,7 @@ import { useToast } from '@/hooks/use-toast';
 import { assistClaimResolution } from '@/ai/flows/assist-claim-resolution';
 
 type EnrichedClaim = Omit<Claim, 'claimant'> & { claimant: User };
-type EnrichedRide = Omit<Ride, 'driver' | 'passenger'> & { driver: Driver; passenger: User };
+type EnrichedRide = Omit<Ride, 'driver' | 'passenger' | 'vehicle'> & { driver: Driver; passenger: User, vehicle: Vehicle };
 
 const statusConfig = {
   open: { label: 'Abierto', variant: 'destructive' as const },
@@ -75,7 +75,7 @@ export default function ClaimDetailsPage() {
         if (claimSnap.exists()) {
             const claimData = { id: claimSnap.id, ...claimSnap.data() } as Claim;
             
-            const claimantRef = claimData.claimant;
+            const claimantRef = claimData.claimant as DocumentReference;
             const claimantSnap = await getDoc(claimantRef);
             const claimantData = claimantSnap.exists() ? { id: claimantSnap.id, ...claimantSnap.data() } as User : null;
             
@@ -91,13 +91,15 @@ export default function ClaimDetailsPage() {
             const rideSnap = await getDoc(rideDocRef);
              if (rideSnap.exists()) {
                 const rideData = { id: rideSnap.id, ...rideSnap.data() } as Ride;
-                const driverSnap = await getDoc(rideData.driver);
-                const passengerSnap = await getDoc(rideData.passenger);
+                const driverSnap = rideData.driver ? await getDoc(rideData.driver as DocumentReference) : null;
+                const passengerSnap = await getDoc(rideData.passenger as DocumentReference);
+                const vehicleSnap = rideData.vehicle ? await getDoc(rideData.vehicle as DocumentReference) : null;
 
-                if (driverSnap.exists() && passengerSnap.exists()) {
+                if (driverSnap?.exists() && passengerSnap.exists() && vehicleSnap?.exists()) {
                     const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
                     const passengerData = { id: passengerSnap.id, ...passengerSnap.data() } as User;
-                    setRide({ ...rideData, driver: driverData, passenger: passengerData });
+                    const vehicleData = {id: vehicleSnap.id, ...vehicleSnap.data()} as Vehicle;
+                    setRide({ ...rideData, driver: driverData, passenger: passengerData, vehicle: vehicleData });
                 }
             }
         }

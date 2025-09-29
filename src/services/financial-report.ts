@@ -1,9 +1,9 @@
 
 'use server';
 
-import { collection, getDocs, doc, getDoc, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, query, where, Timestamp, DocumentReference } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Driver, Ride, Settings } from '@/lib/types';
+import type { Driver, Ride, Settings, Vehicle } from '@/lib/types';
 import { getSettings } from './settings-service';
 
 export interface FinancialReportRow {
@@ -40,14 +40,26 @@ export async function generateFinancialReport(startDate?: Date, endDate?: Date):
         getDocs(ridesQuery)
     ]);
 
-    const drivers = driverSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver));
+    const drivers = await Promise.all(driverSnapshot.docs.map(async (doc) => {
+        const driverData = { id: doc.id, ...doc.data() } as Driver;
+        if (driverData.vehicle instanceof DocumentReference) {
+            const vehicleSnap = await getDoc(driverData.vehicle);
+            if (vehicleSnap.exists()) {
+                return { ...driverData, vehicleData: vehicleSnap.data() as Vehicle };
+            }
+        }
+        return null;
+    }));
+
+    const validDrivers = drivers.filter(Boolean) as (Driver & { vehicleData: Vehicle })[];
+    
     const completedRides = rideSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
     
     // 2. Group rides by driver
     const ridesByDriver = new Map<string, Ride[]>();
     for (const ride of completedRides) {
-        // The driver is a DocumentReference, so we need its ID
-        const driverId = ride.driver.id;
+        if (!ride.driver) continue;
+        const driverId = (ride.driver as DocumentReference).id;
         if (!ridesByDriver.has(driverId)) {
             ridesByDriver.set(driverId, []);
         }
@@ -57,7 +69,7 @@ export async function generateFinancialReport(startDate?: Date, endDate?: Date):
     // 3. Calculate report for each driver
     const report: FinancialReportRow[] = [];
 
-    for (const driver of drivers) {
+    for (const driver of validDrivers) {
         const driverRides = ridesByDriver.get(driver.id) || [];
         const totalRides = driverRides.length;
         
@@ -72,7 +84,8 @@ export async function generateFinancialReport(startDate?: Date, endDate?: Date):
         } else if (driver.paymentModel === 'membership') {
             // Use the monthly membership fee from settings, but consider it for the whole period for simplicity.
             // A real-world app would prorate this or check if a payment was made in the period.
-            switch (driver.serviceType) {
+            const serviceType = driver.vehicleData.serviceType;
+            switch (serviceType) {
                 case 'economy':
                     platformEarnings = settings.membershipFeeEconomy;
                     break;

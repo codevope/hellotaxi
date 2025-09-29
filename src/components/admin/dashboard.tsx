@@ -32,7 +32,7 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart';
 import { useEffect, useState } from 'react';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, DocumentReference } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Driver, Ride, User } from '@/lib/types';
 
@@ -65,15 +65,15 @@ async function getRides(): Promise<EnrichedRide[]> {
     let driver: Driver | null = null;
     let passenger: User | null = null;
 
-    if (ride.driver && typeof ride.driver.path === 'string') {
-        const driverSnap = await getDoc(doc(db, ride.driver.path));
+    if (ride.driver && ride.driver instanceof DocumentReference) {
+        const driverSnap = await getDoc(ride.driver);
         if (driverSnap.exists()) {
             driver = { id: driverSnap.id, ...driverSnap.data() } as Driver;
         }
     }
 
-    if (ride.passenger && typeof ride.passenger.path === 'string') {
-        const passengerSnap = await getDoc(doc(db, ride.passenger.path));
+    if (ride.passenger && ride.passenger instanceof DocumentReference) {
+        const passengerSnap = await getDoc(ride.passenger);
         if (passengerSnap.exists()) {
             passenger = { id: passengerSnap.id, ...passengerSnap.data() } as User;
         }

@@ -19,15 +19,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, updateDoc, DocumentReference } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
 import type { SOSAlert, Driver, User as AppUser } from '@/lib/types';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 
 const statusConfig = {
-  pending: { label: 'Pendiente', variant: 'destructive' },
-  attended: { label: 'Atendida', variant: 'secondary' },
+  pending: { label: 'Pendiente', variant: 'destructive' as const },
+  attended: { label: 'Atendida', variant: 'secondary' as const },
 };
 
 const triggeredByConfig = {
@@ -54,15 +54,15 @@ async function getSosAlerts(): Promise<EnrichedSOSAlert[]> {
     let driver: Driver | null = null;
     let passenger: AppUser | null = null;
 
-     if (alert.driver && typeof alert.driver.path === 'string') {
-        const driverSnap = await getDoc(doc(db, alert.driver.path));
+     if (alert.driver && alert.driver instanceof DocumentReference) {
+        const driverSnap = await getDoc(alert.driver);
         if (driverSnap.exists()) {
             driver = { id: driverSnap.id, ...driverSnap.data() } as Driver;
         }
     }
 
-    if (alert.passenger && typeof alert.passenger.path === 'string') {
-        const passengerSnap = await getDoc(doc(db, alert.passenger.path));
+    if (alert.passenger && alert.passenger instanceof DocumentReference) {
+        const passengerSnap = await getDoc(alert.passenger);
         if (passengerSnap.exists()) {
             passenger = { id: passengerSnap.id, ...passengerSnap.data() } as AppUser;
         }
@@ -169,7 +169,7 @@ export default function SosTable() {
                   <div>
                     <div className="font-medium">Pasajero: {alert.passenger.name}</div>
                     <div className="text-sm text-muted-foreground">
-                      Conductor: {alert.driver.name} ({alert.driver.licensePlate})
+                      Conductor: {alert.driver.name}
                     </div>
                      <div className="text-sm text-muted-foreground">
                         ID Viaje: {alert.rideId}

@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { Ride, Driver, User as AppUser } from '@/lib/types';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, query, where, DocumentReference } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
@@ -39,15 +39,15 @@ async function getCancelledRides(): Promise<EnrichedRide[]> {
     let driver: Driver | null = null;
     let passenger: AppUser | null = null;
 
-    if (ride.driver && typeof ride.driver.path === 'string') {
-        const driverSnap = await getDoc(doc(db, ride.driver.path));
+    if (ride.driver && ride.driver instanceof DocumentReference) {
+        const driverSnap = await getDoc(ride.driver);
         if (driverSnap.exists()) {
             driver = { id: driverSnap.id, ...driverSnap.data() } as Driver;
         }
     }
 
-    if (ride.passenger && typeof ride.passenger.path === 'string') {
-        const passengerSnap = await getDoc(doc(db, ride.passenger.path));
+    if (ride.passenger && ride.passenger instanceof DocumentReference) {
+        const passengerSnap = await getDoc(ride.passenger);
         if (passengerSnap.exists()) {
             passenger = { id: passengerSnap.id, ...passengerSnap.data() } as AppUser;
         }
@@ -68,6 +68,10 @@ const cancelledByConfig = {
     },
     driver: {
         label: 'Conductor',
+        icon: <UserCog className="h-4 w-4" />
+    },
+    system: {
+        label: 'Sistema',
         icon: <UserCog className="h-4 w-4" />
     }
 }

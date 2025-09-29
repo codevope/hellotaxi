@@ -21,15 +21,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Claim, User } from '@/lib/types';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, updateDoc, DocumentReference } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 
 const statusConfig = {
-  open: { label: 'Abierto', variant: 'destructive' },
-  'in-progress': { label: 'En Proceso', variant: 'default' },
-  resolved: { label: 'Resuelto', variant: 'secondary' },
+  open: { label: 'Abierto', variant: 'destructive' as const },
+  'in-progress': { label: 'En Proceso', variant: 'default' as const },
+  resolved: { label: 'Resuelto', variant: 'secondary' as const },
 };
 
 type EnrichedClaim = Omit<Claim, 'claimant'> & { claimant: User };
@@ -42,8 +42,8 @@ async function getClaims(): Promise<EnrichedClaim[]> {
   const enrichedClaims: EnrichedClaim[] = [];
 
   for (const claim of claimsList) {
-    if (claim.claimant && typeof claim.claimant.path === 'string') {
-      const claimantSnap = await getDoc(doc(db, claim.claimant.path));
+    if (claim.claimant && claim.claimant instanceof DocumentReference) {
+      const claimantSnap = await getDoc(claim.claimant);
       if(claimantSnap.exists()) {
         enrichedClaims.push({
           ...claim,
