@@ -7,7 +7,7 @@ interface DriverRideState {
   isAvailable: boolean;
   incomingRequest: IncomingRequest | null;
   activeRide: (Ride & { passenger: User; driver: Driver }) | null;
-  isCountering: boolean; // Is the counter-offer panel open?
+  isCountering: boolean; 
 }
 
 interface DriverRideActions {

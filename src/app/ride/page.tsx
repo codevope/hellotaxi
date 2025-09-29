@@ -40,7 +40,7 @@ import { Separator } from '@/components/ui/separator';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
 import { useRideStore } from '@/store/ride-store';
-import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 function RidePageContent() {
   const {
@@ -56,13 +56,14 @@ function RidePageContent() {
     setAssignedDriver,
     setChatMessages,
     setDriverLocation,
-    startSearch,
+    setRouteInfo,
+    startNegotiation,
     assignDriver,
-    updateRideStatus,
     completeRideForRating,
     resetRide,
     toggleSupportChat,
     setCounterOffer,
+    setStatus,
   } = useRideStore();
   
   const [activeTab, setActiveTab] = useState('book');
@@ -79,10 +80,11 @@ function RidePageContent() {
     getSettings().then(setAppSettings);
   }, []);
 
-  // Listener for active ride changes
+  // MASTER useEffect to listen for ride document changes and update UI state
   useEffect(() => {
     if (!user?.uid) return;
     
+    // Query for any ride that belongs to the user and is NOT in a final state
     const q = query(
         collection(db, 'rides'), 
         where('passenger', '==', doc(db, 'users', user.uid)), 
@@ -92,91 +94,74 @@ function RidePageContent() {
     const unsubscribe = onSnapshot(q, async (snapshot) => {
         const currentRideState = useRideStore.getState();
 
-        // If we are idle, don't do anything until a new ride is created by the user
-        if (currentRideState.status === 'idle' && snapshot.docs.every(doc => ['completed', 'cancelled'].includes(doc.data().status))) {
-            return;
-        }
-
-        const rideDoc = snapshot.docs.find(doc => !['completed', 'cancelled'].includes(doc.data().status));
-
-        if (!rideDoc) {
+        if (snapshot.empty) {
+            // If there are no active rides in the DB, and the user is not currently rating a ride, reset the state.
             if (currentRideState.status !== 'idle' && currentRideState.status !== 'rating') {
                 resetRide();
             }
             return;
         }
-
+        
+        // Assume there is only one active ride per passenger
+        const rideDoc = snapshot.docs[0];
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-        const previousStatus = currentRideState.activeRide?.status;
+        
         setActiveRide(rideData);
 
-        if (searchTimeoutRef.current) {
+        // --- State Machine Logic ---
+        switch (rideData.status) {
+            case 'searching':
+                setStatus('searching');
+                break;
+            
+            case 'counter-offered':
+                setCounterOffer(rideData.fare);
+                break;
+            
+            case 'accepted':
+            case 'arrived':
+            case 'in-progress':
+                if (rideData.driver) {
+                    const driverSnap = await getDoc(rideData.driver);
+                    if (driverSnap.exists()) {
+                        const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
+                        assignDriver(driverData);
+                        if (driverData.location) {
+                            setDriverLocation(driverData.location);
+                        }
+                    }
+                }
+                break;
+            
+            case 'completed':
+                if (!rideData.isRatedByPassenger && rideData.driver) {
+                     const driverSnap = await getDoc(rideData.driver);
+                     if (driverSnap.exists()) {
+                        const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
+                        completeRideForRating(driverData);
+                     }
+                } else {
+                    // Ride is completed and rated, so we can reset.
+                    resetRide();
+                }
+                break;
+        }
+
+        // Clear timeout if ride is no longer searching
+        if (rideData.status !== 'searching' && searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
             searchTimeoutRef.current = null;
-        }
-
-        if (rideData.status === 'counter-offered') {
-          setCounterOffer(rideData.fare);
-          return;
-        } else if (currentRideState.status === 'negotiating' && rideData.status !== 'counter-offered') {
-          // If we were negotiating a counter-offer and it changed, reset
-          useRideStore.getState().setRouteInfo(null);
-        }
-
-        if (rideData.status === 'completed') {
-            const isRated = rideData.isRatedByPassenger === true;
-            if (!isRated && rideData.driver) {
-                const driverSnap = await getDoc(rideData.driver);
-                 if (driverSnap.exists()) {
-                    const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
-                    completeRideForRating(driverData);
-                 }
-            } else {
-                if (currentRideState.status === 'assigned' || currentRideState.status === 'rating') { 
-                   resetRide();
-                }
-            }
-            return;
-        }
-
-        if (rideData.driver) {
-             const driverSnap = await getDoc(rideData.driver);
-             if (driverSnap.exists()) {
-                const driverData = {id: driverSnap.id, ...driverSnap.data()} as Driver;
-                if (useRideStore.getState().assignedDriver?.id !== driverData.id) {
-                  assignDriver(driverData);
-                }
-                
-                if(driverData.location) {
-                    setDriverLocation(driverData.location)
-                }
-                
-                if (rideData.status === 'accepted' && previousStatus !== 'accepted') {
-                  toast({ title: '¡Conductor Encontrado!', description: `${driverData.name} está en camino.`});
-                  updateRideStatus('assigned');
-                } else if (rideData.status === 'arrived' && previousStatus !== 'arrived') {
-                  toast({ title: '¡Tu conductor ha llegado!', description: 'Por favor, acércate al punto de recojo.'});
-                  updateRideStatus('assigned');
-                } else if (rideData.status === 'in-progress' && previousStatus !== 'in-progress') {
-                   toast({ title: '¡Viaje iniciado!', description: 'Que tengas un buen viaje.'});
-                   updateRideStatus('assigned');
-                }
-             }
-        } else if(rideData.status === 'searching') {
-          if(currentRideState.status !== 'searching') {
-             startSearch();
-          }
         }
     });
 
     return () => {
         unsubscribe();
         if (searchTimeoutRef.current) {
-          clearTimeout(searchTimeoutRef.current);
+            clearTimeout(searchTimeoutRef.current);
         }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, resetRide]);
+  }, [user?.uid]);
 
 
   // Listener for chat messages
@@ -222,12 +207,13 @@ function RidePageContent() {
   };
 
   const handleRideCreated = (ride: Ride) => {
-    startSearch();
+    setStatus('searching');
     setActiveRide(ride);
 
+    // Set a timeout to cancel the ride if no driver is found
     searchTimeoutRef.current = setTimeout(async () => {
-        const currentRideState = useRideStore.getState();
-        if (currentRideState.activeRide && currentRideState.status === 'searching') {
+        const currentRide = useRideStore.getState().activeRide;
+        if (currentRide && currentRide.status === 'searching') {
             await handleCancelRide({ code: 'NO_DRIVERS', reason: 'No se encontraron conductores' }, true);
         }
     }, 60000); 
@@ -505,23 +491,26 @@ function RidePageContent() {
                                 </CardContent>
                             </Card>
                             )}
-                            {status === 'negotiating' && useRideStore.getState().counterOfferValue && (
+                            {status === 'negotiating' && useRideStore.getState().counterOfferValue && activeRide && (
                                 <Alert>
                                   <AlertTitle>El conductor ha hecho una contraoferta de S/{useRideStore.getState().counterOfferValue?.toFixed(2)}</AlertTitle>
+                                  <AlertDescription>
+                                      Puedes aceptar la oferta o rechazarla y cancelar el viaje.
+                                  </AlertDescription>
                                   <div className='flex gap-2 mt-4'>
-                                    <Button className='w-full' onClick={() => {
-                                      if(activeRide){
-                                        const rideRef = doc(db, 'rides', activeRide.id);
-                                        updateDoc(rideRef, { status: 'searching' });
-                                      }
+                                    <Button className='w-full' onClick={async () => {
+                                      const rideRef = doc(db, 'rides', activeRide.id);
+                                      await updateDoc(rideRef, { status: 'searching' });
+                                      setCounterOffer(null);
+                                      setStatus('searching');
                                     }}>Aceptar y Buscar</Button>
                                     <Button className='w-full' variant={'destructive'} onClick={() => {
-                                       if(activeRide) handleCancelRide({code: 'REJECTED_COUNTER', reason: 'Contraoferta rechazada'})
+                                       handleCancelRide({code: 'REJECTED_COUNTER', reason: 'Contraoferta rechazada'})
                                     }}>Rechazar</Button>
                                   </div>
                                 </Alert>
                             )}
-                            {status !== 'searching' && status !== 'assigned' && status !== 'rating' && (
+                            {status !== 'searching' && status !== 'assigned' && status !== 'rating' && status !== 'negotiating' && (
                                 <RideRequestForm 
                                     onRideCreated={handleRideCreated}
                                 />
@@ -637,12 +626,3 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
-
-    
-
-    
-
-    
-
-
-

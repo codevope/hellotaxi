@@ -9,9 +9,7 @@ export type RideStatus =
   | 'negotiating'
   | 'searching'
   | 'assigned'
-  | 'rating'
-  | 'requesting'
-  | 'in-progress';
+  | 'rating';
 
 interface RideState {
   status: RideStatus;
@@ -27,7 +25,6 @@ interface RideState {
 }
 
 interface RideActions {
-  // Setters
   setStatus: (status: RideStatus) => void;
   setActiveRide: (ride: Ride | null) => void;
   setAssignedDriver: (driver: Driver | null) => void;
@@ -37,20 +34,11 @@ interface RideActions {
   setRouteInfo: (info: RouteInfo | null) => void;
   setDriverLocation: (location: Location | null) => void;
   setCounterOffer: (value: number | null) => void;
-
-  // Complex Actions
   toggleSupportChat: () => void;
-  startSearch: () => void;
   startNegotiation: () => void;
   assignDriver: (driver: Driver) => void;
-  updateRideStatus: (newStatus: RideStatus) => void;
   completeRideForRating: (driver: Driver) => void;
-  startRequesting: () => void;
   resetRide: () => void;
-
-  // Driver actions
-  completeRide: () => void; // For driver to finish
-  setDriverAsOnRide: () => void;
 }
 
 const initialState: RideState = {
@@ -69,7 +57,6 @@ const initialState: RideState = {
 export const useRideStore = create<RideState & RideActions>((set, get) => ({
   ...initialState,
 
-  // Setters
   setStatus: (status) => set({ status }),
   setActiveRide: (ride) => set({ activeRide: ride }),
   setAssignedDriver: (driver) => set({ assignedDriver: driver }),
@@ -77,22 +64,19 @@ export const useRideStore = create<RideState & RideActions>((set, get) => ({
   setPickupLocation: (location) => set({ pickupLocation: location }),
   setDropoffLocation: (location) => set({ dropoffLocation: location }),
   setDriverLocation: (location) => set({ driverLocation: location }),
-  setCounterOffer: (value) => set({ status: 'negotiating', counterOfferValue: value}),
+  setCounterOffer: (value) => {
+    set({ status: 'negotiating', counterOfferValue: value });
+  },
   setRouteInfo: (info) => {
     set({ routeInfo: info, status: info ? 'calculated' : 'idle' });
   },
 
-  // Complex Actions
   toggleSupportChat: () => set((state) => ({ isSupportChatOpen: !state.isSupportChatOpen })),
-  startSearch: () => set({ status: 'searching' }),
   startNegotiation: () => set({ status: 'negotiating', counterOfferValue: null }),
   assignDriver: (driver) => set({ status: 'assigned', assignedDriver: driver }),
-  updateRideStatus: (newStatus) => set({ status: newStatus }),
   completeRideForRating: (driver) => set({ status: 'rating', assignedDriver: driver }),
-  startRequesting: () => set({ status: 'requesting' }),
-  resetRide: () => set({ ...initialState }),
-
-  // Driver actions
-  completeRide: () => set({ status: 'rating' }), // Driver action to put passenger in rating state
-  setDriverAsOnRide: () => set({ status: 'in-progress' }),
+  
+  resetRide: () => {
+    set({ ...initialState });
+  },
 }));

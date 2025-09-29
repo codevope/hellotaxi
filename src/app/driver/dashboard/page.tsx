@@ -79,7 +79,7 @@ function DriverDashboardPageContent() {
   const [rejectedRideIds, setRejectedRideIds] = useState<string[]>([]);
   const [counterOfferAmount, setCounterOfferAmount] = useState(0);
 
-  // Listener for driver's active ride
+  // MASTER useEffect for driver's active ride
   useEffect(() => {
     if (!driver) return;
     const driverRef = doc(db, 'drivers', driver.id);
@@ -95,6 +95,7 @@ function DriverDashboardPageContent() {
         const rideDoc = snapshot.docs[0];
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
         
+        // Ensure passenger data is fetched to enrich the ride object
         if (rideData.passenger && driver) {
             const passengerSnap = await getDoc(rideData.passenger);
             if (passengerSnap.exists()) {
@@ -102,11 +103,12 @@ function DriverDashboardPageContent() {
                 const rideWithPassenger = { ...rideData, driver, passenger: passengerData };
                 setActiveRide(rideWithPassenger);
 
-                const pickup = { lat: -12.05, lng: -77.05, address: rideData.pickup }; // Fallback
-                const dropoff = { lat: -12.1, lng: -77.0, address: rideData.dropoff }; // Fallback
+                // Start simulation based on ride status
+                const pickup = { lat: -12.05, lng: -77.05, address: rideData.pickup }; // Placeholder
+                const dropoff = { lat: -12.1, lng: -77.0, address: rideData.dropoff }; // Placeholder
                 
                 if (rideData.status === 'accepted' || rideData.status === 'arrived') {
-                    const driverInitialPos = (driver as any).location || { lat: -12.045, lng: -77.03 };
+                    const driverInitialPos = driver.location || { lat: -12.045, lng: -77.03 };
                     startSimulation(driverInitialPos, pickup);
                 } else if (rideData.status === 'in-progress') {
                     startSimulation(pickup, dropoff);
@@ -114,26 +116,22 @@ function DriverDashboardPageContent() {
             }
         }
       } else {
-         if (useDriverRideStore.getState().activeRide === null) {
-            resetDriverState();
+         // No active rides, check if we need to reset state
+         if (useDriverRideStore.getState().activeRide !== null) {
             stopSimulation();
+            setActiveRide(null); 
          }
       }
     });
 
-    return () => {
-        if(unsubscribe){
-            unsubscribe();
-        }
-    };
+    return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driver]);
 
-  // Listener for new ride requests
+  // MASTER useEffect for new ride requests
   useEffect(() => {
     if (!driver || !isAvailable || activeRide || incomingRequest) return;
     
-    // Query for available rides
     let q = query(
         collection(db, 'rides'),
         where('status', '==', 'searching'),
@@ -141,13 +139,14 @@ function DriverDashboardPageContent() {
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-        if (activeRide || useDriverRideStore.getState().incomingRequest) {
+        // Double-check conditions inside the listener
+        if (useDriverRideStore.getState().activeRide || useDriverRideStore.getState().incomingRequest) {
             return;
         }
 
         const potentialRides = snapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as Ride))
-            .filter(ride => !(ride.rejectedBy || []).some(ref => ref.id === driver.id));
+            .filter(ride => !(rejectedRideIds.includes(ride.id))); // Filter locally
         
         if (potentialRides.length === 0) return;
         
@@ -155,17 +154,16 @@ function DriverDashboardPageContent() {
         const rideRef = doc(db, 'rides', rideData.id);
         
         try {
-            // Atomically try to claim this ride
+            // Atomically try to claim this ride offer
             await runTransaction(db, async (transaction) => {
                 const freshRideDoc = await transaction.get(rideRef);
                 if (!freshRideDoc.exists() || freshRideDoc.data().offeredTo) {
-                    // Ride was taken by another driver in the meantime
-                    return;
+                    return; // Ride was taken by another driver or is no longer available
                 }
                 transaction.update(rideRef, { offeredTo: doc(db, 'drivers', driver.id) });
             });
 
-            // If we successfully claimed it, show it to the driver
+            // If transaction is successful, show the request to the driver
             const passengerSnap = await getDoc(rideData.passenger);
             if (passengerSnap.exists()) {
                 const passengerData = passengerSnap.data() as User;
@@ -179,7 +177,7 @@ function DriverDashboardPageContent() {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver, isAvailable, activeRide, incomingRequest]);
+  }, [driver, isAvailable, activeRide, incomingRequest, rejectedRideIds]);
 
     // Listener for chat messages
   useEffect(() => {
@@ -196,19 +194,19 @@ function DriverDashboardPageContent() {
   }, [activeRide]);
 
 
-  const handleAvailabilityChange = async (isAvailable: boolean) => {
+  const handleAvailabilityChange = async (available: boolean) => {
     if (!driver) return;
     setIsUpdatingStatus(true);
-    const newStatus = isAvailable ? 'available' : 'unavailable';
+    const newStatus = available ? 'available' : 'unavailable';
     const driverRef = doc(db, 'drivers', driver.id);
     
     try {
         await updateDoc(driverRef, { status: newStatus });
         setDriver({ ...driver, status: newStatus });
-        setAvailability(isAvailable);
+        setAvailability(available);
         toast({
-          title: `Estado actualizado: ${isAvailable ? 'Disponible' : 'No Disponible'}`,
-          description: isAvailable ? 'Ahora recibirás solicitudes de viaje.' : 'Has dejado de recibir solicitudes.',
+          title: `Estado actualizado: ${available ? 'Disponible' : 'No Disponible'}`,
+          description: available ? 'Ahora recibirás solicitudes de viaje.' : 'Has dejado de recibir solicitudes.',
         });
     } catch (error) {
         console.error("Error updating availability:", error);
@@ -220,10 +218,11 @@ function DriverDashboardPageContent() {
 
   const handleRideRequestResponse = async (accepted: boolean) => {
     if (!incomingRequest || !driver) return;
+    
     const rideId = incomingRequest.id;
     const rideRef = doc(db, 'rides', rideId);
     
-    setIncomingRequest(null);
+    setIncomingRequest(null); // Immediately clear the request from UI
 
     if (accepted) {
         try {
@@ -241,31 +240,35 @@ function DriverDashboardPageContent() {
                 transaction.update(doc(db, 'drivers', driver.id), { status: 'on-ride' });
             });
             
-            setAvailability(false);
+            setAvailability(false); // Go off-duty
+            setActiveRide({ ...incomingRequest, driver: driver, status: 'accepted' });
+
         } catch (e: any) {
             console.error("Error accepting ride:", e);
             toast({ variant: 'destructive', title: 'Error', description: e.message || "No se pudo aceptar el viaje."});
         }
     } else {
+        // Driver rejected, add to their local rejected list and reset offer on ride doc
         setRejectedRideIds(prev => [...prev, rideId]);
         await updateDoc(rideRef, {
             rejectedBy: arrayUnion(doc(db, 'drivers', driver.id)),
-            offeredTo: null,
+            offeredTo: null, // Makes it available for other drivers
         });
     }
   };
 
   const handleCounterOffer = async () => {
-    if (!incomingRequest || !counterOfferAmount) return;
+    if (!incomingRequest || !counterOfferAmount || !driver) return;
     const rideRef = doc(db, 'rides', incomingRequest.id);
 
     try {
         await updateDoc(rideRef, {
             fare: counterOfferAmount,
-            status: 'counter-offered'
+            status: 'counter-offered',
+            offeredTo: doc(db, 'drivers', driver.id) // Keep it offered to this driver
         });
         toast({ title: 'Contraoferta Enviada', description: `Has propuesto una tarifa de S/${counterOfferAmount.toFixed(2)}`});
-        setIncomingRequest(null);
+        setIncomingRequest(null); // Close the dialog
         setIsCountering(false);
     } catch(e) {
         console.error('Error submitting counter offer:', e);
@@ -297,6 +300,7 @@ function DriverDashboardPageContent() {
             setAvailability(true);
         } else {
             await updateDoc(rideRef, { status: newStatus });
+            setActiveRide({...activeRide, status: newStatus}); // Optimistic UI update
             toast({ title: `¡Estado del viaje actualizado: ${newStatus}!`});
         }
     } catch (error) {
@@ -350,7 +354,6 @@ function DriverDashboardPageContent() {
         description: `Has calificado al pasajero con ${rating} estrellas.`,
       });
       setCompletedRideForRating(null);
-      resetDriverState();
     } catch (error) {
       console.error('Error submitting passenger rating:', error);
       toast({
@@ -388,7 +391,7 @@ function DriverDashboardPageContent() {
   const renderDashboardContent = () => {
     if(incomingRequest) {
         return (
-            <Dialog open={!!incomingRequest} onOpenChange={() => { if(isCountering) return; handleRideRequestResponse(false)}}>
+            <Dialog open={!!incomingRequest} onOpenChange={(open) => { if(!open && !isCountering) handleRideRequestResponse(false)}}>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>¡Nueva Solicitud de Viaje!</DialogTitle>
@@ -414,7 +417,7 @@ function DriverDashboardPageContent() {
                     ) : (
                       <div className="flex gap-2">
                          <Button className="w-full" onClick={() => handleRideRequestResponse(true)}>Aceptar</Button>
-                         <Button className="w-full" variant="outline" onClick={() => setIsCountering(true)}>Contraofertar</Button>
+                         <Button className="w-full" variant="outline" onClick={() => { setCounterOfferAmount(incomingRequest.fare); setIsCountering(true); }}>Contraofertar</Button>
                          <Button className="w-full" variant="destructive" onClick={() => handleRideRequestResponse(false)}>Rechazar</Button>
                     </div>
                     )}
