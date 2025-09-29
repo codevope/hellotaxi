@@ -57,7 +57,6 @@ function RidePageContent() {
     setChatMessages,
     setDriverLocation,
     setRouteInfo,
-    startNegotiation,
     assignDriver,
     completeRideForRating,
     resetRide,
@@ -84,18 +83,19 @@ function RidePageContent() {
   useEffect(() => {
     if (!user?.uid) return;
     
+    // Query for any active ride belonging to the user that is not in a final state
     const q = query(
         collection(db, 'rides'), 
         where('passenger', '==', doc(db, 'users', user.uid)), 
-        where('status', 'in', ['searching', 'accepted', 'arrived', 'in-progress', 'completed', 'counter-offered'])
+        where('status', 'not-in', ['cancelled', 'completed']) // We handle completed for rating separately
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-        const currentStoreStatus = useRideStore.getState().status;
-
+        // If there are no active rides, reset the state unless we are in the middle of rating
         if (snapshot.empty) {
-            if (currentStoreStatus !== 'idle' && currentStoreStatus !== 'rating') {
-                resetRide();
+            const currentStatus = useRideStore.getState().status;
+            if(currentStatus !== 'rating') {
+               resetRide();
             }
             return;
         }
@@ -107,11 +107,16 @@ function RidePageContent() {
 
         switch (rideData.status) {
             case 'searching':
-                setStatus('searching');
+                // Avoid resetting to searching if already searching from the form submission
+                if (useRideStore.getState().status !== 'searching') {
+                    setStatus('searching');
+                }
                 break;
             
             case 'counter-offered':
-                setCounterOffer(rideData.fare);
+                if (useRideStore.getState().counterOfferValue !== rideData.fare) {
+                  setCounterOffer(rideData.fare);
+                }
                 break;
             
             case 'accepted':
@@ -128,33 +133,46 @@ function RidePageContent() {
                     }
                 }
                 break;
-            
-            case 'completed':
-                if (!rideData.isRatedByPassenger && rideData.driver) {
-                     const driverSnap = await getDoc(rideData.driver);
-                     if (driverSnap.exists()) {
-                        const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
-                        completeRideForRating(driverData);
-                     }
-                } else {
-                    resetRide();
-                }
-                break;
         }
 
+        // Clear timeout if the ride is no longer searching
         if (rideData.status !== 'searching' && searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
             searchTimeoutRef.current = null;
         }
     });
 
+    // Separately handle completed rides that need rating
+     const completedQuery = query(
+        collection(db, 'rides'),
+        where('passenger', '==', doc(db, 'users', user.uid)),
+        where('status', '==', 'completed'),
+        where('isRatedByPassenger', '==', false)
+    );
+
+    const unsubscribeCompleted = onSnapshot(completedQuery, async (snapshot) => {
+        if (!snapshot.empty) {
+            const rideDoc = snapshot.docs[0];
+            const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
+            if (rideData.driver) {
+                const driverSnap = await getDoc(rideData.driver);
+                if (driverSnap.exists()) {
+                    const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
+                    completeRideForRating(driverData);
+                }
+            }
+        }
+    });
+
+
     return () => {
         unsubscribe();
+        unsubscribeCompleted();
         if (searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
         }
     };
-  }, [user?.uid, setActiveRide, setStatus, setCounterOffer, assignDriver, setDriverLocation, completeRideForRating, resetRide]);
+  }, [user?.uid]);
 
 
   // Listener for chat messages
@@ -617,3 +635,4 @@ export default function RidePage() {
 
     return <RidePageContent />;
 }
+

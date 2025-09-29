@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import AppHeader from '@/components/app-header';
@@ -127,10 +128,10 @@ function DriverDashboardPageContent() {
   useEffect(() => {
     if (!driver || !isAvailable || activeRide || incomingRequest) return;
     
+    // Simpler query, filtering is done client-side
     let q = query(
         collection(db, 'rides'),
-        where('status', '==', 'searching'),
-        // where('offeredTo', '==', null)
+        where('status', '==', 'searching')
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
@@ -141,8 +142,9 @@ function DriverDashboardPageContent() {
         const potentialRides = snapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as Ride))
             .filter(ride => {
+              const alreadyOffered = !!ride.offeredTo;
               const alreadyRejected = rejectedRideIds.includes(ride.id) || ride.rejectedBy?.some(ref => ref.id === driver.id);
-              return !alreadyRejected && ride.offeredTo === null;
+              return !alreadyOffered && !alreadyRejected;
             });
         
         if (potentialRides.length === 0) return;
@@ -154,11 +156,13 @@ function DriverDashboardPageContent() {
             await runTransaction(db, async (transaction) => {
                 const freshRideDoc = await transaction.get(rideRef);
                 if (!freshRideDoc.exists() || freshRideDoc.data().offeredTo) {
+                    // Ride was taken by another driver in the meantime
                     return; 
                 }
                 transaction.update(rideRef, { offeredTo: doc(db, 'drivers', driver.id) });
             });
 
+            // If transaction succeeds, set the incoming request
             const passengerSnap = await getDoc(rideData.passenger);
             if (passengerSnap.exists()) {
                 const passengerData = passengerSnap.data() as User;
