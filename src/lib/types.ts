@@ -12,9 +12,21 @@ export type DocumentName = 'license' | 'insurance' | 'technicalReview' | 'backgr
 export type DocumentStatus = 'pending' | 'approved' | 'rejected';
 
 export interface Location {
+  id: string;
   lat: number;
   lng: number;
   address?: string;
+}
+
+export interface Vehicle {
+  id: string;
+  brand: string;
+  model: string;
+  licensePlate: string;
+  serviceType: ServiceType;
+  year: number;
+  color: string;
+  driverId: string;
 }
 
 export interface Driver {
@@ -22,9 +34,6 @@ export interface Driver {
   name: string;
   avatarUrl: string;
   rating: number;
-  vehicleBrand: string;
-  vehicleModel: string;
-  licensePlate: string;
   status: 'available' | 'unavailable' | 'on-ride';
   documentsStatus: 'approved' | 'pending' | 'rejected';
   kycVerified: boolean;
@@ -34,10 +43,10 @@ export interface Driver {
   backgroundCheckExpiry: string; // ISO Date string
   paymentModel: PaymentModel;
   membershipStatus: MembershipStatus;
-  serviceType: ServiceType;
   documentStatus?: Record<DocumentName, DocumentStatus>;
   totalRides?: number;
   location?: Location;
+  vehicle: DocumentReference;
 }
 
 export interface User {
@@ -83,6 +92,7 @@ export interface Ride {
   fare: number;
   driver: DocumentReference | null;
   passenger: DocumentReference;
+  vehicle: DocumentReference | null;
   status: RideStatus;
   serviceType: ServiceType;
   paymentMethod: PaymentMethod;
@@ -193,6 +203,7 @@ export interface PeakTimeRule {
 }
 
 export interface Settings {
+    id: string;
     baseFare: number;
     perKmFare: number;
     perMinuteFare: number;

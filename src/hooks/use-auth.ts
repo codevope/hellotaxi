@@ -21,8 +21,9 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
-import { doc, setDoc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
-import type { UserRole, User } from '@/lib/types';
+import { doc, setDoc, getDoc, updateDoc, writeBatch, collection } from 'firebase/firestore';
+import type { UserRole, User, Vehicle } from '@/lib/types';
+import { vehicles } from '@/lib/seed-data';
 
 async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
   const userRef = doc(db, 'users', user.uid);
@@ -65,7 +66,6 @@ async function createOrUpdateUserProfile(user: FirebaseUser): Promise<User> {
     return newUser;
   }
   
-  // If the doc exists, check if we need to update the status
   const existingUser = { id: userDoc.id, ...userDoc.data() } as User;
   if (existingUser.status !== status) {
     await updateDoc(userRef, { status: status });
@@ -167,11 +167,9 @@ export function useAuth() {
     return new RecaptchaVerifier(auth, containerId, {
       'size': 'invisible',
       'callback': (response: any) => {
-        // reCAPTCHA solved, you can proceed with phone sign-in
         console.log("reCAPTCHA solved");
       },
       'expired-callback': () => {
-        // Response expired. Ask user to solve reCAPTCHA again.
         console.log("reCAPTCHA expired");
       }
     });
@@ -240,20 +238,30 @@ export function useAuth() {
 
     if (newRole === 'driver') {
       const driverRef = doc(db, 'drivers', firebaseUser.uid);
+      const vehicleRef = doc(collection(db, 'vehicles')); // Create ref for new vehicle
       const driverDoc = await getDoc(driverRef);
       const batch = writeBatch(db);
 
       batch.update(userRef, { role: 'driver' });
       
       if (!driverDoc.exists()) {
+        const newVehicle: Vehicle = {
+            id: vehicleRef.id,
+            brand: 'Por Asignar',
+            model: 'Por Asignar',
+            licensePlate: 'AAA-000',
+            serviceType: 'economy',
+            year: new Date().getFullYear(),
+            color: 'Blanco',
+            driverId: firebaseUser.uid,
+        };
+        batch.set(vehicleRef, newVehicle);
+
         batch.set(driverRef, {
           id: firebaseUser.uid,
           name: firebaseUser.displayName,
           avatarUrl: firebaseUser.photoURL || '/img/avatar.png',
           rating: 0,
-          vehicleBrand: 'Por Asignar',
-          vehicleModel: 'Por Asignar',
-          licensePlate: 'AAA-000',
           status: 'unavailable',
           documentsStatus: 'pending', 
           kycVerified: false,
@@ -263,13 +271,13 @@ export function useAuth() {
           backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
           paymentModel: 'commission',
           membershipStatus: 'active',
-          serviceType: 'economy',
           documentStatus: {
             license: 'pending',
             insurance: 'pending',
             technicalReview: 'pending',
             backgroundCheck: 'pending'
-          }
+          },
+          vehicle: vehicleRef, // Link to the new vehicle
         });
       }
       await batch.commit();

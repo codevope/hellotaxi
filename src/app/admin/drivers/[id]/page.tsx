@@ -31,8 +31,8 @@ import {
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import type { Driver, MembershipStatus, PaymentModel, Ride, User, DocumentName, DocumentStatus } from '@/lib/types';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import type { Driver, MembershipStatus, PaymentModel, Ride, User, DocumentName, DocumentStatus, Vehicle } from '@/lib/types';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs, DocumentReference } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getDocumentStatus } from '@/lib/document-status';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -71,9 +71,13 @@ const documentStatusConfig: Record<Driver['documentsStatus'], {
 };
 
 const rideStatusConfig: Record<Ride['status'], { label: string; variant: 'secondary' | 'default' | 'destructive' }> = {
+  searching: { label: 'Buscando', variant: 'default' },
+  accepted: { label: 'Aceptado', variant: 'default' },
+  arrived: { label: 'Ha llegado', variant: 'default' },
   completed: { label: 'Completado', variant: 'secondary' },
   'in-progress': { label: 'En Progreso', variant: 'default' },
   cancelled: { label: 'Cancelado', variant: 'destructive' },
+  'counter-offered': { label: 'Contraoferta', variant: 'default' }
 };
 
 const paymentModelConfig: Record<PaymentModel, string> = {
@@ -87,7 +91,9 @@ const membershipStatusConfig: Record<MembershipStatus, { label: string; variant:
     expired: { label: 'Vencida', variant: 'destructive' },
 }
 
-type EnrichedRide = Omit<Ride, 'passenger' | 'driver'> & { passenger: User, driver: Driver };
+type EnrichedRide = Omit<Ride, 'passenger' | 'driver' | 'vehicle'> & { passenger: User, driver: Driver, vehicle: Vehicle };
+type EnrichedDriver = Omit<Driver, 'vehicle'> & { vehicle: Vehicle };
+
 
 export default function DriverDetailsPage() {
   const router = useRouter();
@@ -95,7 +101,7 @@ export default function DriverDetailsPage() {
   const { id } = params;
   const { toast } = useToast();
   
-  const [driver, setDriver] = useState<Driver | null>(null);
+  const [driver, setDriver] = useState<EnrichedDriver | null>(null);
   const [rides, setRides] = useState<EnrichedRide[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -119,13 +125,21 @@ export default function DriverDetailsPage() {
 
         if (driverSnap.exists()) {
           const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
-          setDriver(driverData);
-          setPaymentModel(driverData.paymentModel);
-          setDocumentsStatus(driverData.documentsStatus);
-          setVehicleBrand(driverData.vehicleBrand);
-          setVehicleModel(driverData.vehicleModel);
-          setLicensePlate(driverData.licensePlate);
-           setIndividualDocStatuses(driverData.documentStatus || {
+          const vehicleSnap = await getDoc(driverData.vehicle as DocumentReference);
+          
+          if(!vehicleSnap.exists()){
+             throw new Error("El vehículo asociado al conductor no fue encontrado.");
+          }
+          const vehicleData = {id: vehicleSnap.id, ...vehicleSnap.data()} as Vehicle;
+          const enrichedDriver = {...driverData, vehicle: vehicleData };
+
+          setDriver(enrichedDriver);
+          setPaymentModel(enrichedDriver.paymentModel);
+          setDocumentsStatus(enrichedDriver.documentsStatus);
+          setVehicleBrand(enrichedDriver.vehicle.brand);
+          setVehicleModel(enrichedDriver.vehicle.model);
+          setLicensePlate(enrichedDriver.vehicle.licensePlate);
+          setIndividualDocStatuses(enrichedDriver.documentStatus || {
             license: 'pending',
             insurance: 'pending',
             backgroundCheck: 'pending',
@@ -142,14 +156,18 @@ export default function DriverDetailsPage() {
           
           const driverRidesPromises = ridesSnapshot.docs.map(async (rideDoc) => {
               const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-              // Since the driver is already fetched, we can attach it directly.
-              const driver = { id: driverSnap.id, ...driverSnap.data() } as Driver;
               const passengerSnap = await getDoc(rideData.passenger);
-              const passengerData = passengerSnap.data() as User;
-              return { ...rideData, driver, passenger: passengerData };
+              const rideVehicleSnap = await getDoc(rideData.vehicle as DocumentReference);
+
+              if (passengerSnap.exists() && rideVehicleSnap.exists()) {
+                  const passengerData = passengerSnap.data() as User;
+                  const rideVehicleData = rideVehicleSnap.data() as Vehicle;
+                  return { ...rideData, driver: driverData, passenger: passengerData, vehicle: rideVehicleData };
+              }
+              return null;
           });
 
-          const driverRides = await Promise.all(driverRidesPromises);
+          const driverRides = (await Promise.all(driverRidesPromises)).filter(Boolean) as EnrichedRide[];
           setRides(driverRides.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
 
         } else {
@@ -186,23 +204,28 @@ export default function DriverDetailsPage() {
     if (!driver) return;
     setIsUpdating(true);
     const driverRef = doc(db, 'drivers', driver.id);
+    const vehicleRef = doc(db, 'vehicles', driver.vehicle.id);
     try {
       const allDocsApproved = Object.values(individualDocStatuses).every(s => s === 'approved');
       const finalDocumentsStatus = allDocsApproved ? 'approved' : documentsStatus;
 
-      const updates: Partial<Driver> = {
+      const driverUpdates: Partial<Omit<Driver, 'vehicle'>> = {
         paymentModel: paymentModel,
-        vehicleBrand: vehicleBrand,
-        vehicleModel: vehicleModel,
-        licensePlate: licensePlate,
         documentStatus: individualDocStatuses as Record<DocumentName, DocumentStatus>,
         documentsStatus: finalDocumentsStatus,
       };
+      
+      const vehicleUpdates: Partial<Vehicle> = {
+        brand: vehicleBrand,
+        model: vehicleModel,
+        licensePlate: licensePlate,
+      }
 
-      await updateDoc(driverRef, updates);
+      await updateDoc(driverRef, driverUpdates);
+      await updateDoc(vehicleRef, vehicleUpdates);
       
       // Update local state to reflect changes immediately
-      const updatedDriver = { ...driver, ...updates };
+      const updatedDriver = { ...driver, ...driverUpdates, vehicle: {...driver.vehicle, ...vehicleUpdates} };
       setDriver(updatedDriver);
       setDocumentsStatus(finalDocumentsStatus);
       
@@ -324,6 +347,7 @@ export default function DriverDetailsPage() {
           <Card>
             <CardHeader>
                 <CardTitle>Vehículo Asociado</CardTitle>
+                <CardDescription>{driver.vehicle.serviceType}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="space-y-2">

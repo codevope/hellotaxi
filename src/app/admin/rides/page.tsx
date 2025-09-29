@@ -1,3 +1,4 @@
+
 import RidesTable from '@/components/admin/rides-table';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 

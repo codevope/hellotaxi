@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -20,9 +21,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
-import type { Driver, PaymentModel, MembershipStatus } from '@/lib/types';
+import type { Driver, PaymentModel, MembershipStatus, Vehicle } from '@/lib/types';
 import { db } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, DocumentReference } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
 const documentStatusConfig = {
@@ -60,15 +61,27 @@ const membershipStatusConfig: Record<MembershipStatus, { label: string; variant:
     expired: { label: 'Vencida', variant: 'destructive' },
 }
 
-async function getDrivers(): Promise<Driver[]> {
+type EnrichedDriver = Omit<Driver, 'vehicle'> & { vehicle: Vehicle };
+
+async function getDrivers(): Promise<EnrichedDriver[]> {
     const driversCol = collection(db, 'drivers');
     const driverSnapshot = await getDocs(driversCol);
     const driverList = driverSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as Driver);
-    return driverList;
+    
+    const enrichedDrivers: EnrichedDriver[] = [];
+    for(const driver of driverList) {
+        if(driver.vehicle) {
+            const vehicleSnap = await getDoc(driver.vehicle as DocumentReference);
+            if(vehicleSnap.exists()){
+                enrichedDrivers.push({ ...driver, vehicle: vehicleSnap.data() as Vehicle });
+            }
+        }
+    }
+    return enrichedDrivers;
 }
 
 export default function DriversTable() {
-    const [drivers, setDrivers] = useState<Driver[]>([]);
+    const [drivers, setDrivers] = useState<EnrichedDriver[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -126,13 +139,13 @@ export default function DriversTable() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div>{driver.vehicleBrand} {driver.vehicleModel}</div>
+                  <div>{driver.vehicle.brand} {driver.vehicle.model}</div>
                   <div className="text-sm text-muted-foreground">
-                    {driver.licensePlate}
+                    {driver.vehicle.licensePlate}
                   </div>
                 </TableCell>
                 <TableCell>
-                    <Badge variant="outline" className="capitalize">{driver.serviceType}</Badge>
+                    <Badge variant="outline" className="capitalize">{driver.vehicle.serviceType}</Badge>
                 </TableCell>
                 <TableCell>
                   <Badge variant={statusConfig[driver.status].variant}>

@@ -59,7 +59,7 @@ interface User {
 
 ### 2. 🚗 `drivers` - Perfiles de Conductores
 
-**Descripción:** Información específica de conductores, documentos y vehículos.
+**Descripción:** Información específica de conductores y sus documentos. El vehículo se gestiona en una colección separada.
 
 ```typescript
 interface Driver {
@@ -67,9 +67,6 @@ interface Driver {
   name: string;                  // Nombre del conductor
   avatarUrl: string;             // Foto de perfil
   rating: number;                // Calificación promedio (1-5)
-  vehicleBrand: string;          // Marca del vehículo
-  vehicleModel: string;          // Modelo del vehículo
-  licensePlate: string;          // Placa del vehículo (único)
   status: DriverStatus;          // 'available' | 'unavailable' | 'on-ride'
   documentsStatus: DocumentsStatus; // 'approved' | 'pending' | 'rejected'
   kycVerified: boolean;          // Verificación KYC completada
@@ -79,30 +76,51 @@ interface Driver {
   backgroundCheckExpiry: string; // Vencimiento de antecedentes (ISO)
   paymentModel: PaymentModel;    // 'commission' | 'membership'
   membershipStatus: MembershipStatus; // 'active' | 'pending' | 'expired'
-  serviceType: ServiceType;      // 'economy' | 'comfort' | 'exclusive'
   documentStatus: {              // Estado individual de documentos
     license: DocumentStatus;
     insurance: DocumentStatus;
     technicalReview: DocumentStatus;
     backgroundCheck: DocumentStatus;
-  }
+  },
+  vehicle: DocumentReference;   // Referencia al documento en la colección 'vehicles'
+}
+```
+
+**Índices Requeridos:**
+- `status`
+- `documentsStatus`
+- `membershipStatus`
+
+**Validaciones:**
+- Fechas de vencimiento no pueden ser pasadas para documentos activos.
+
+---
+
+### 3. 🚙 `vehicles` - Gestión de Vehículos
+
+**Descripción:** Almacena información detallada de cada vehículo registrado en la plataforma.
+
+```typescript
+interface Vehicle {
+  id: string;              // ID único del vehículo
+  brand: string;           // Marca del vehículo
+  model: string;           // Modelo del vehículo
+  licensePlate: string;    // Placa del vehículo (único)
+  serviceType: ServiceType; // 'economy' | 'comfort' | 'exclusive'
+  year: number;            // Año de fabricación
+  color: string;           // Color del vehículo
+  driverId: string;        // ID del conductor principal asociado
 }
 ```
 
 **Índices Requeridos:**
 - `licensePlate` (único)
-- `status` + `serviceType`
-- `documentsStatus`
-- `membershipStatus`
-- Compound: `status` + `serviceType` + `documentsStatus`
-
-**Validaciones:**
-- Solo un conductor por placa
-- Fechas de vencimiento no pueden ser pasadas para documentos activos
+- `serviceType`
 
 ---
 
-### 3. 🛣️ `rides` - Historial de Viajes
+
+### 4. 🛣️ `rides` - Historial de Viajes
 
 **Descripción:** Registro completo de todos los viajes solicitados, en progreso y completados.
 
@@ -117,6 +135,7 @@ interface Ride {
   fare: number;                  // Tarifa final acordada
   driver: DocumentReference | null; // Referencia al conductor (null si está buscando)
   passenger: DocumentReference;  // Referencia al documento user
+  vehicle: DocumentReference | null; // Referencia al vehículo usado en el viaje
   status: RideStatus;            // 'searching' | 'accepted' | 'arrived' | 'in-progress' | 'completed' | 'cancelled'
   serviceType: ServiceType;      // Tipo de servicio solicitado
   paymentMethod: PaymentMethod;  // 'cash' | 'yape' | 'plin'
@@ -142,12 +161,13 @@ interface Ride {
 
 ---
 
-### 4. ⚙️ `appSettings` - Configuración Global
+### 5. ⚙️ `appSettings` - Configuración Global
 
 **Descripción:** Configuraciones generales de la aplicación, tarifas base y reglas de negocio.
 
 ```typescript
 interface Settings {
+  id: string;                    // 'main'
   baseFare: number;              // Tarifa base en soles
   perKmFare: number;             // Tarifa por kilómetro
   perMinuteFare: number;         // Tarifa por minuto
@@ -169,7 +189,7 @@ interface Settings {
 
 ---
 
-### 5. 💰 `specialFareRules` - Reglas de Tarifas Especiales
+### 6. 💰 `specialFareRules` - Reglas de Tarifas Especiales
 
 **Descripción:** Reglas para aplicar recargos especiales en fechas específicas (feriados, eventos).
 
@@ -196,7 +216,7 @@ interface SpecialFareRule {
 
 ---
 
-### 6. 📢 `claims` - Sistema de Reclamos
+### 7. 📢 `claims` - Sistema de Reclamos
 
 **Descripción:** Gestión de reclamos y disputas entre usuarios y conductores.
 
@@ -220,7 +240,7 @@ interface Claim {
 
 ---
 
-### 7. 🚨 `sosAlerts` - Alertas de Pánico
+### 8. 🚨 `sosAlerts` - Alertas de Pánico
 
 **Descripción:** Sistema de alertas de emergencia durante los viajes.
 
@@ -249,7 +269,7 @@ interface SOSAlert {
 
 ---
 
-### 8. 🎟️ `coupons` - Sistema de Cupones
+### 9. 🎟️ `coupons` - Sistema de Cupones
 
 **Descripción:** Gestión de cupones de descuento y promociones.
 
@@ -275,7 +295,7 @@ interface Coupon {
 
 ---
 
-### 9. 📱 `notifications` - Sistema de Notificaciones
+### 10. 📱 `notifications` - Sistema de Notificaciones
 
 **Descripción:** Gestión de notificaciones push y mensajes del sistema.
 
@@ -295,7 +315,7 @@ interface Notification {
 
 ---
 
-### 10. 📅 `scheduledRides` - Viajes Programados
+### 11. 📅 `scheduledRides` - Viajes Programados
 
 **Descripción:** Viajes agendados para fechas/horas futuras.
 
@@ -360,26 +380,26 @@ service cloud.firestore {
 
 ## 📊 Datos de Seed Incluidos
 
+### Vehículos de Prueba (4)
+1.  **Toyota Yaris** - Económico
+2.  **Kia Sportage** - Confort
+3.  **Hyundai Accent** - Económico
+4.  **Audi A4** - Exclusivo
+
 ### Conductores de Prueba (4)
-1. **Juan Perez** - Económico, disponible, documentos aprobados
-2. **Maria Rodriguez** - Confort, no disponible, documentos aprobados
-3. **Carlos Gomez** - Económico, en viaje, documentos pendientes
-4. **Ana Torres** - Exclusivo, disponible, documentos rechazados
+- Cada conductor está asignado a uno de los vehículos de prueba.
+- Estados y aprobación de documentos variados.
 
 ### Usuarios de Prueba (3)
-- Pasajeros con diferentes historiales de viajes
-- Diferentes niveles de calificación
-- Admins incluidos para testing
+- Pasajeros con diferentes historiales de viajes.
+- Admins incluidos para testing.
 
 ### Viajes de Ejemplo (6)
-- Estados variados: completados, en progreso, cancelados
-- Diferentes tipos de servicio
-- Rangos de tarifas realistas
+- Estados variados: completados, en progreso, cancelados.
+- Diferentes tipos de servicio.
 
 ### Configuración Inicial
-- Tarifas base competitivas para el mercado peruano
-- Reglas de hora punta configuradas
-- Tipos de servicio con multiplicadores adecuados
+- Tarifas base competitivas, reglas de hora punta y tipos de servicio con multiplicadores.
 
 ---
 
@@ -439,5 +459,5 @@ firebase firestore:import gs://your-bucket/backup-folder
 ---
 
 **Última Actualización:** 27 de septiembre de 2025  
-**Versión de la Base de Datos:** 1.0  
+**Versión de la Base de Datos:** 1.1  
 **Mantenido por:** Equipo de Desarrollo HiTaxi

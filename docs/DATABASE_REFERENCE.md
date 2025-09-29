@@ -5,7 +5,8 @@
 | Colección | Descripción | ID Pattern | Índices Principales |
 |-----------|-------------|------------|-------------------|
 | `users` | Usuarios del sistema | Firebase UID | `email`, `role`, `isAdmin` |
-| `drivers` | Perfiles de conductores | Igual a user ID | `licensePlate`, `status`, `serviceType` |
+| `drivers` | Perfiles de conductores | Igual a user ID | `status`, `paymentModel`, `membershipStatus` |
+| `vehicles`| Información de vehículos | Auto-generado | `licensePlate` (único), `serviceType` |
 | `rides` | Historial de viajes | Auto-generado | `passenger`, `driver`, `date`, `status` |
 | `appSettings` | Configuración global | `main` | N/A |
 | `specialFareRules` | Reglas de tarifas | Auto-generado | `startDate`, `endDate` |
@@ -18,9 +19,13 @@
 ## 🔗 Referencias Entre Documentos
 
 ```typescript
-// Viaje → Usuario y Conductor
+// Conductor → Vehículo
+driver.vehicle -> vehicles/{vehicleId}
+
+// Viaje → Usuario, Conductor y Vehículo
 ride.passenger → users/{userId}
 ride.driver → drivers/{driverId}
+ride.vehicle -> vehicles/{vehicleId}
 
 // Reclamo → Usuario
 claim.claimant → users/{userId}
@@ -42,9 +47,13 @@ const availableDrivers = await getDocs(
     collection(db, 'drivers'),
     where('status', '==', 'available'),
     where('documentsStatus', '==', 'approved'),
-    where('serviceType', '==', selectedServiceType)
   )
 );
+// Luego, para cada conductor, obtener los detalles de su vehículo
+const vehicleRef = driver.vehicle;
+const vehicleSnap = await getDoc(vehicleRef);
+const vehicleData = vehicleSnap.data();
+// Filtrar por serviceType si es necesario
 ```
 
 ### Historial de Viajes de Usuario
@@ -118,6 +127,8 @@ await batch.commit();
 // Crear referencias
 const passengerRef = doc(db, 'users', passengerId);
 const driverRef = doc(db, 'drivers', driverId);
+const vehicleRef = doc(db, 'vehicles', vehicleId);
+
 
 // Crear viaje
 const rideData: Omit<Ride, 'id'> = {
@@ -127,6 +138,7 @@ const rideData: Omit<Ride, 'id'> = {
   fare: agreedFare,
   driver: driverRef,
   passenger: passengerRef,
+  vehicle: vehicleRef, // Referencia al vehículo
   status: 'in-progress',
   serviceType: 'economy',
   paymentMethod: 'cash'

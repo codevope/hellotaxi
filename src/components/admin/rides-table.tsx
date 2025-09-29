@@ -20,16 +20,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { Ride, Driver, User } from '@/lib/types';
+import type { Ride, Driver, User, Vehicle, RideStatus } from '@/lib/types';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, DocumentReference } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-const statusConfig = {
+const statusConfig: Record<RideStatus, { label: string; variant: 'secondary' | 'default' | 'destructive' }> = {
   completed: { label: 'Completado', variant: 'secondary' },
   'in-progress': { label: 'En Progreso', variant: 'default' },
   cancelled: { label: 'Cancelado', variant: 'destructive' },
+  searching: { label: 'Buscando', variant: 'default' },
+  accepted: { label: 'Aceptado', variant: 'default' },
+  arrived: { label: 'Ha llegado', variant: 'default' },
+  'counter-offered': { label: 'Contraoferta', variant: 'default' }
 };
 
 const serviceTypeConfig = {
@@ -38,7 +42,7 @@ const serviceTypeConfig = {
   exclusive: 'Exclusivo',
 };
 
-type EnrichedRide = Omit<Ride, 'driver' | 'passenger'> & { driver: Driver; passenger: User };
+type EnrichedRide = Omit<Ride, 'driver' | 'passenger' | 'vehicle'> & { driver: Driver; passenger: User; vehicle: Vehicle };
 
 async function getRides(): Promise<EnrichedRide[]> {
   const ridesCol = collection(db, 'rides');
@@ -50,23 +54,31 @@ async function getRides(): Promise<EnrichedRide[]> {
   for (const ride of ridesList) {
     let driver: Driver | null = null;
     let passenger: User | null = null;
+    let vehicle: Vehicle | null = null;
 
-    if (ride.driver && typeof ride.driver.path === 'string') {
-        const driverSnap = await getDoc(doc(db, ride.driver.path));
+    if (ride.driver && ride.driver instanceof DocumentReference) {
+        const driverSnap = await getDoc(ride.driver);
         if (driverSnap.exists()) {
             driver = { id: driverSnap.id, ...driverSnap.data() } as Driver;
         }
     }
 
-    if (ride.passenger && typeof ride.passenger.path === 'string') {
-        const passengerSnap = await getDoc(doc(db, ride.passenger.path));
+    if (ride.passenger && ride.passenger instanceof DocumentReference) {
+        const passengerSnap = await getDoc(ride.passenger);
         if (passengerSnap.exists()) {
             passenger = { id: passengerSnap.id, ...passengerSnap.data() } as User;
         }
     }
+
+    if (ride.vehicle && ride.vehicle instanceof DocumentReference) {
+        const vehicleSnap = await getDoc(ride.vehicle);
+        if (vehicleSnap.exists()) {
+            vehicle = { id: vehicleSnap.id, ...vehicleSnap.data() } as Vehicle;
+        }
+    }
     
-    if (driver && passenger) {
-        enrichedRides.push({ ...ride, driver, passenger });
+    if (driver && passenger && vehicle) {
+        enrichedRides.push({ ...ride, driver, passenger, vehicle });
     }
   }
 

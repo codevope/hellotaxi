@@ -5,14 +5,16 @@ import { useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
-import { doc, getDoc, onSnapshot, Unsubscribe } from 'firebase/firestore';
-import type { Driver } from '@/lib/types';
+import { doc, getDoc, onSnapshot, Unsubscribe, DocumentReference } from 'firebase/firestore';
+import type { Driver, Vehicle } from '@/lib/types';
 import { useAuth as useBaseAuth } from './use-auth';
+
+type EnrichedDriver = Omit<Driver, 'vehicle'> & { vehicle: Vehicle };
 
 export function useDriverAuth() {
   const baseAuth = useBaseAuth();
-  const { appUser } = baseAuth; // Use appUser which has the role
-  const [driver, setDriver] = useState<Driver | null>(null);
+  const { appUser } = baseAuth;
+  const [driver, setDriver] = useState<EnrichedDriver | null>(null);
   const [isDriver, setIsDriver] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -24,10 +26,16 @@ export function useDriverAuth() {
         setIsDriver(true);
         const driverDocRef = doc(db, 'drivers', appUser.id);
         
-        // Listen for real-time updates to the driver's profile
-        unsubscribe = onSnapshot(driverDocRef, (driverSnap) => {
+        unsubscribe = onSnapshot(driverDocRef, async (driverSnap) => {
           if (driverSnap.exists()) {
-            setDriver({ id: driverSnap.id, ...driverSnap.data() } as Driver);
+            const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
+            if(driverData.vehicle && driverData.vehicle instanceof DocumentReference) {
+                const vehicleSnap = await getDoc(driverData.vehicle);
+                if (vehicleSnap.exists()) {
+                    const vehicleData = vehicleSnap.data() as Vehicle;
+                    setDriver({ ...driverData, vehicle: vehicleData });
+                }
+            }
           }
           setLoading(false);
         }, (error) => {
@@ -57,7 +65,7 @@ export function useDriverAuth() {
   return {
     ...baseAuth,
     driver,
-    setDriver, // Expose setDriver to allow manual updates from components
+    setDriver,
     isDriver,
     loading: baseAuth.loading || loading,
   };

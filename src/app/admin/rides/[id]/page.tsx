@@ -34,23 +34,24 @@ import {
 } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
-import type { Ride, Driver, User, Review } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import type { Ride, Driver, User, Review, Vehicle } from '@/lib/types';
+import { doc, getDoc, collection, getDocs, query, orderBy, DocumentReference } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
 
-type EnrichedRide = Omit<Ride, 'driver' | 'passenger'> & { driver: Driver; passenger: User };
+type EnrichedRide = Omit<Ride, 'driver' | 'passenger' | 'vehicle'> & { driver: Driver; passenger: User; vehicle: Vehicle };
 
-const rideStatusConfig = {
+const rideStatusConfig: Record<RideStatus, { label: string; variant: 'secondary' | 'default' | 'destructive' }> = {
   completed: { label: 'Completado', variant: 'secondary' as const },
   'in-progress': { label: 'En Progreso', variant: 'default' as const },
   cancelled: { label: 'Cancelado', variant: 'destructive' as const },
   searching: { label: 'Buscando', variant: 'default' as const },
   accepted: { label: 'Aceptado', variant: 'default' as const },
   arrived: { label: 'Ha llegado', variant: 'default' as const },
+  'counter-offered': { label: 'Contraoferta', variant: 'default' as const }
 };
 
 const sentimentConfig = {
@@ -84,21 +85,22 @@ export default function RideDetailsPage() {
             
             const driverSnap = rideData.driver ? await getDoc(rideData.driver) : null;
             const passengerSnap = await getDoc(rideData.passenger);
+            const vehicleSnap = rideData.vehicle ? await getDoc(rideData.vehicle) : null;
 
             if (passengerSnap.exists()) {
                 const driverData = driverSnap?.exists() ? { id: driverSnap.id, ...driverSnap.data() } as Driver : null;
                 const passengerData = { id: passengerSnap.id, ...passengerSnap.data() } as User;
+                const vehicleData = vehicleSnap?.exists() ? {id: vehicleSnap.id, ...vehicleSnap.data()} as Vehicle : null;
                 
-                // The ride might not have a driver if it was cancelled during 'searching'
-                const enrichedRide = { 
-                    ...rideData, 
-                    driver: driverData, 
-                    passenger: passengerData 
-                } as EnrichedRide; // Type assertion needed because driver can be null
-                
-                setRide(enrichedRide);
+                if (driverData && vehicleData) {
+                    const enrichedRide = { 
+                        ...rideData, 
+                        driver: driverData, 
+                        passenger: passengerData,
+                        vehicle: vehicleData
+                    } as EnrichedRide;
+                    setRide(enrichedRide);
 
-                if(driverData) {
                     // Fetch driver reviews
                     const reviewsQuery = query(collection(db, 'drivers', driverData.id, 'reviews'), orderBy('createdAt', 'desc'));
                     const reviewsSnapshot = await getDocs(reviewsQuery);
@@ -135,7 +137,7 @@ export default function RideDetailsPage() {
     );
   }
 
-  const { driver, passenger, status, fareBreakdown } = ride;
+  const { driver, passenger, status, fareBreakdown, vehicle } = ride;
   const statusInfo = rideStatusConfig[status];
 
   return (
@@ -338,8 +340,8 @@ export default function RideDetailsPage() {
                         <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                         <span>{driver.rating.toFixed(1)} de calificación</span>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-2">{driver.vehicleBrand} {driver.vehicleModel}</p>
-                    <p className="text-sm font-mono bg-muted px-2 py-1 rounded-md mt-1">{driver.licensePlate}</p>
+                    <p className="text-sm text-muted-foreground mt-2">{vehicle.brand} {vehicle.model}</p>
+                    <p className="text-sm font-mono bg-muted px-2 py-1 rounded-md mt-1">{vehicle.licensePlate}</p>
                 </CardContent>
             </Card>
           )}

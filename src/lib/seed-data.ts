@@ -1,28 +1,65 @@
 
 // This file contains the initial data to seed the Firestore database.
 
-import type { Driver, User, Ride, Claim, SOSAlert, Notification, Settings, ServiceTypeConfig, Coupon, SpecialFareRule, CancellationReason, PeakTimeRule, Location } from '@/lib/types';
+import type { Driver, User, Ride, Claim, SOSAlert, Notification, Settings, ServiceTypeConfig, Coupon, SpecialFareRule, CancellationReason, PeakTimeRule, Location, Vehicle } from '@/lib/types';
 
 const defaultAvatar = '/img/avatar.png';
 
-const driverLocations: Record<string, Location> = {
-    "ABC-123": { lat: -12.085, lng: -77.030 }, // Juan Perez
-    "DEF-456": { lat: -12.105, lng: -77.035 }, // Maria Rodriguez
-    "GHI-789": { lat: -12.115, lng: -77.020 }, // Carlos Gomez
-    "JKL-012": { lat: -12.090, lng: -77.050 }, // Ana Torres
+// ================================================================= //
+//                            VEHICLES                               //
+// ================================================================= //
+export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
+    {
+        brand: 'Toyota',
+        model: 'Yaris',
+        licensePlate: 'ABC-123',
+        serviceType: 'economy',
+        year: 2018,
+        color: 'Gris',
+    },
+    {
+        brand: 'Kia',
+        model: 'Sportage',
+        licensePlate: 'DEF-456',
+        serviceType: 'comfort',
+        year: 2022,
+        color: 'Negro',
+    },
+    {
+        brand: 'Hyundai',
+        model: 'Accent',
+        licensePlate: 'GHI-789',
+        serviceType: 'economy',
+        year: 2020,
+        color: 'Blanco',
+    },
+    {
+        brand: 'Audi',
+        model: 'A4',
+        licensePlate: 'JKL-012',
+        serviceType: 'exclusive',
+        year: 2023,
+        color: 'Azul',
+    }
+];
+
+
+const driverLocations: Record<string, Omit<Location, 'id'>> = {
+    "juan-perez": { lat: -12.085, lng: -77.030, address: 'Cerca a Real Plaza Salaverry' },
+    "maria-rodriguez": { lat: -12.105, lng: -77.035, address: 'Cerca al Óvalo de Miraflores' },
+    "carlos-gomez": { lat: -12.115, lng: -77.020, address: 'Cerca al Parque de Barranco' },
+    "ana-torres": { lat: -12.090, lng: -77.050, address: 'Cerca al Golf de San Isidro' },
 };
 
 // ================================================================= //
 //                            DRIVERS                                //
 // ================================================================= //
-export const drivers: Omit<Driver, 'id'>[] = [
+export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[] = [
   {
     name: 'Juan Perez',
     avatarUrl: defaultAvatar,
     rating: 4.8,
-    vehicleBrand: 'Toyota',
-    vehicleModel: 'Yaris',
-    licensePlate: 'ABC-123',
+    licensePlate: 'ABC-123', // This will be used to link the vehicle
     status: 'available',
     documentsStatus: 'approved',
     kycVerified: true,
@@ -32,21 +69,18 @@ export const drivers: Omit<Driver, 'id'>[] = [
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString(),
     paymentModel: 'commission',
     membershipStatus: 'active',
-    serviceType: 'economy',
     documentStatus: {
         license: 'approved',
         insurance: 'approved',
         technicalReview: 'approved',
         backgroundCheck: 'approved'
     },
-    location: driverLocations['ABC-123']
+    location: { id: 'loc-juan', ...driverLocations['juan-perez'] }
   },
   {
     name: 'Maria Rodriguez',
     avatarUrl: defaultAvatar,
     rating: 4.9,
-    vehicleBrand: 'Kia',
-    vehicleModel: 'Sportage',
     licensePlate: 'DEF-456',
     status: 'unavailable',
     documentsStatus: 'approved',
@@ -57,21 +91,18 @@ export const drivers: Omit<Driver, 'id'>[] = [
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 4)).toISOString(),
     paymentModel: 'membership',
     membershipStatus: 'active',
-    serviceType: 'comfort',
     documentStatus: {
         license: 'approved',
         insurance: 'approved',
         technicalReview: 'approved',
         backgroundCheck: 'approved'
     },
-    location: driverLocations['DEF-456']
+    location: { id: 'loc-maria', ...driverLocations['maria-rodriguez'] }
   },
   {
     name: 'Carlos Gomez',
     avatarUrl: defaultAvatar,
     rating: 4.7,
-    vehicleBrand: 'Hyundai',
-    vehicleModel: 'Accent',
     licensePlate: 'GHI-789',
     status: 'available',
     documentsStatus: 'pending',
@@ -82,21 +113,18 @@ export const drivers: Omit<Driver, 'id'>[] = [
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString(),
     paymentModel: 'membership',
     membershipStatus: 'pending',
-    serviceType: 'economy',
      documentStatus: {
         license: 'pending',
         insurance: 'pending',
         technicalReview: 'pending',
         backgroundCheck: 'pending'
     },
-    location: driverLocations['GHI-789']
+    location: { id: 'loc-carlos', ...driverLocations['carlos-gomez'] }
   },
    {
     name: 'Ana Torres',
     avatarUrl: defaultAvatar,
     rating: 5.0,
-    vehicleBrand: 'Audi',
-    vehicleModel: 'A4',
     licensePlate: 'JKL-012',
     status: 'available',
     documentsStatus: 'rejected',
@@ -107,14 +135,13 @@ export const drivers: Omit<Driver, 'id'>[] = [
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 2)).toISOString(), // Expired
     paymentModel: 'commission',
     membershipStatus: 'expired',
-    serviceType: 'exclusive',
      documentStatus: {
         license: 'approved',
         insurance: 'rejected',
         technicalReview: 'rejected',
         backgroundCheck: 'rejected'
     },
-    location: driverLocations['JKL-012']
+    location: { id: 'loc-ana', ...driverLocations['ana-torres'] }
   },
 ];
 
@@ -162,7 +189,7 @@ export const users: (Omit<User, 'id'>)[] = [
 // ================================================================= //
 //                             RIDES                                 //
 // ================================================================= //
-export const rides: (Omit<Ride, 'id' | 'driver' | 'passenger'> & { driverName: string, passengerEmail: string })[] = [
+export const rides: (Omit<Ride, 'id' | 'driver' | 'passenger' | 'vehicle'> & { driverName: string, passengerEmail: string })[] = [
     {
         pickup: 'Av. Pardo 560, Miraflores',
         dropoff: 'Jirón de la Unión 899, Lima',
@@ -274,7 +301,6 @@ export const notifications: Omit<Notification, 'id'>[] = [
         date: '2023-10-20T10:00:00Z',
         target: 'all-passengers',
         status: 'sent',
-        priority: 'normal'
     },
     {
         title: 'Actualización de App para Conductores',
@@ -282,7 +308,6 @@ export const notifications: Omit<Notification, 'id'>[] = [
         date: '2023-10-18T15:00:00Z',
         target: 'all-drivers',
         status: 'sent',
-        priority: 'high'
     }
 ];
 
@@ -354,7 +379,7 @@ export const peakTimeRules: PeakTimeRule[] = [
 // ================================================================= //
 //                           SETTINGS                                //
 // ================================================================= //
-export const settings: Omit<Settings, 'serviceTypes' | 'cancellationReasons' | 'specialFareRules' | 'peakTimeRules'> = {
+export const settings: Omit<Settings, 'id' | 'serviceTypes' | 'cancellationReasons' | 'specialFareRules' | 'peakTimeRules'> = {
     baseFare: 3.5,
     perKmFare: 1.0,
     perMinuteFare: 0.20,

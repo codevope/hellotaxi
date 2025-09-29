@@ -3,7 +3,7 @@
 
 import { collection, doc, writeBatch, DocumentReference, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { drivers, users, rides, claims, sosAlerts, notifications, settings, serviceTypes, coupons, specialFareRules, cancellationReasons, peakTimeRules } from '@/lib/seed-data';
+import { drivers, users, rides, claims, sosAlerts, notifications, settings, serviceTypes, coupons, specialFareRules, cancellationReasons, peakTimeRules, vehicles } from '@/lib/seed-data';
 
 const collectionsToReset = [
     'rides',
@@ -14,7 +14,8 @@ const collectionsToReset = [
     'notifications',
     'scheduledRides',
     'coupons',
-    'specialFareRules'
+    'specialFareRules',
+    'vehicles', // Add new collection to reset
 ];
 
 
@@ -34,7 +35,6 @@ async function clearCollections() {
                 batch.delete(doc.ref);
             });
         } catch (error) {
-            // It's okay if a collection doesn't exist yet, just log it.
             if (error instanceof Error && 'code' in error && (error as {code: string}).code === 'permission-denied') {
                 console.warn(`Could not query collection ${collectionName} due to permissions. Skipping.`);
             } else {
@@ -57,32 +57,44 @@ export async function seedDatabase() {
   console.log('Starting to seed database...');
 
   // --- PHASE 1: Seed independent collections and get their references ---
-
-  // Create users and store their references in a map by email
   const userRefsByEmail = new Map<string, DocumentReference>();
   users.forEach((userData) => {
-    // For idempotency, we create a predictable ID from the email
     const userId = userData.email.replace(/[^a-zA-Z0-9]/g, '_');
     const docRef = doc(db, 'users', userId);
-    const userWithId = { ...userData, id: userId };
-    batch.set(docRef, userWithId);
+    batch.set(docRef, { ...userData, id: userId });
     userRefsByEmail.set(userData.email, docRef);
   });
-  console.log(`${users.length} users (passengers) prepared for batch.`);
+  console.log(`${users.length} users prepared for batch.`);
+  
+  // Seed Vehicles and store references by license plate
+  const vehicleRefsByPlate = new Map<string, DocumentReference>();
+  vehicles.forEach((vehicleData) => {
+      const vehicleId = vehicleData.licensePlate;
+      const docRef = doc(db, 'vehicles', vehicleId);
+      const vehicleWithId = { ...vehicleData, id: vehicleId, driverId: '' }; // driverId will be updated later
+      batch.set(docRef, vehicleWithId);
+      vehicleRefsByPlate.set(vehicleId, docRef);
+  });
+  console.log(`${vehicles.length} vehicles prepared for batch.`);
 
-
-  // Create drivers and store their references in a map by name
   const driverRefsByName = new Map<string, DocumentReference>();
   drivers.forEach((driverData) => {
-    // Use license plate as a unique ID to ensure idempotency
-    const docRef = doc(db, 'drivers', driverData.licensePlate);
-    const driverWithId = { ...driverData, id: driverData.licensePlate };
-    batch.set(docRef, driverWithId);
+    const driverId = driverData.name.toLowerCase().replace(' ', '-');
+    const docRef = doc(db, 'drivers', driverId);
+    const vehicleRef = vehicleRefsByPlate.get(driverData.licensePlate);
+    if (!vehicleRef) {
+        console.error(`Vehicle with plate ${driverData.licensePlate} not found for driver ${driverData.name}`);
+        return;
+    }
+    const { licensePlate, ...driverWithoutPlate } = driverData;
+    batch.set(docRef, { ...driverWithoutPlate, id: driverId, vehicle: vehicleRef });
     driverRefsByName.set(driverData.name, docRef);
+
+    // Also update driverId in the vehicle document
+    batch.update(vehicleRef, { driverId: driverId });
   });
   console.log(`${drivers.length} drivers prepared for batch.`);
   
-  // Seed notifications
   notifications.forEach((notificationData, index) => {
     const id = `notification-${index + 1}`;
     const docRef = doc(db, 'notifications', id);
@@ -90,14 +102,12 @@ export async function seedDatabase() {
   });
   console.log(`${notifications.length} notifications prepared for batch.`);
   
-  // Seed coupons
   coupons.forEach((couponData) => {
     const docRef = doc(db, 'coupons', couponData.code);
     batch.set(docRef, { ...couponData, id: couponData.code });
   });
   console.log(`${coupons.length} coupons prepared for batch.`);
 
-  // Seed special fare rules
   specialFareRules.forEach((ruleData, index) => {
     const id = `rule-${index + 1}`;
     const docRef = doc(db, 'specialFareRules', id);
@@ -105,69 +115,61 @@ export async function seedDatabase() {
   });
   console.log(`${specialFareRules.length} special fare rules prepared for batch.`);
 
-  // Seed app settings
   const settingsDocRef = doc(db, 'appSettings', 'main');
-  batch.set(settingsDocRef, { ...settings, serviceTypes, cancellationReasons, specialFareRules, peakTimeRules });
+  batch.set(settingsDocRef, { id: 'main', ...settings, serviceTypes, cancellationReasons, specialFareRules, peakTimeRules });
   console.log('App settings prepared for batch.');
 
 
   // --- PHASE 2: Seed dependent collections using the created references ---
-
-  // Seed rides and store their references
   const rideRefsById = new Map<string, DocumentReference>();
   rides.forEach((rideData, index) => {
     const { driverName, passengerEmail, ...rest } = rideData;
     const driverRef = driverRefsByName.get(driverName);
     const passengerRef = userRefsByEmail.get(passengerEmail);
+    const driver = drivers.find(d => d.name === driverName);
+    const vehicleRef = driver ? vehicleRefsByPlate.get(driver.licensePlate) : null;
     const rideId = `ride-${index + 1}`;
 
-    if (driverRef && passengerRef) {
+    if (driverRef && passengerRef && vehicleRef) {
       const docRef = doc(db, 'rides', rideId);
       batch.set(docRef, {
         ...rest,
         id: rideId,
         driver: driverRef,
         passenger: passengerRef,
+        vehicle: vehicleRef
       });
       rideRefsById.set(rideId, docRef);
     }
   });
   console.log(`${rides.length} rides prepared for batch.`);
 
-
-  // Seed claims
   claims.forEach((claimData, index) => {
     const { claimantEmail, rideId, ...rest } = claimData;
     const claimantRef = userRefsByEmail.get(claimantEmail);
-    const rideRef = rideRefsById.get(rideId);
     const claimId = `claim-${index + 1}`;
 
-
-    if (claimantRef && rideRef) {
+    if (claimantRef) {
         const docRef = doc(db, 'claims', claimId);
-        batch.set(docRef, { ...rest, id: claimId, rideId: rideRef.id, claimant: claimantRef });
+        batch.set(docRef, { ...rest, id: claimId, rideId: rideId, claimant: claimantRef });
     }
   });
   console.log(`${claims.length} claims prepared for batch.`);
 
-
-  // Seed SOS alerts
   sosAlerts.forEach((alertData, index) => {
     const { driverName, passengerEmail, rideId, ...rest } = alertData;
     const driverRef = driverRefsByName.get(driverName);
     const passengerRef = userRefsByEmail.get(passengerEmail);
-    const rideRef = rideRefsById.get(rideId);
     const sosId = `sos-${index + 1}`;
 
-
-    if (driverRef && passengerRef && rideRef) {
+    if (driverRef && passengerRef) {
         const docRef = doc(db, 'sosAlerts', sosId);
         batch.set(docRef, {
             ...rest,
             id: sosId,
             driver: driverRef,
             passenger: passengerRef,
-            rideId: rideRef.id,
+            rideId: rideId,
         });
     }
   });
@@ -188,5 +190,3 @@ export async function resetAndSeedDatabase() {
     await clearCollections();
     await seedDatabase();
 }
-
-    
