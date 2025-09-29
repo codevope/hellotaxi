@@ -87,12 +87,15 @@ function RidePageContent() {
     // This query finds any ride for the user that isn't in a final state.
     const q = query(
         collection(db, 'rides'), 
-        where('passenger', '==', doc(db, 'users', user.uid)), 
-        where('status', 'not-in', ['cancelled', 'completed']) 
+        where('passenger', '==', doc(db, 'users', user.uid))
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-        if (snapshot.empty) {
+        const activeRides = snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Ride))
+          .filter(ride => !['completed', 'cancelled'].includes(ride.status) || (ride.status === 'completed' && !ride.isRatedByPassenger));
+
+        if (activeRides.length === 0) {
             // Only reset if we are not in the middle of rating a just-completed ride.
             if (useRideStore.getState().status !== 'rating') {
                resetRide();
@@ -100,8 +103,7 @@ function RidePageContent() {
             return;
         }
         
-        const rideDoc = snapshot.docs[0]; // Assuming user has only one active ride
-        const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
+        const rideData = activeRides[0]; // Assuming user has only one active ride
         
         setActiveRide(rideData);
 
@@ -131,11 +133,23 @@ function RidePageContent() {
                     }
                 }
                 break;
+            
+            case 'completed':
+                 if (!rideData.isRatedByPassenger) {
+                    if(rideData.driver) {
+                        const driverSnap = await getDoc(rideData.driver);
+                         if (driverSnap.exists()) {
+                            const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
+                            completeRideForRating(driverData);
+                        }
+                    }
+                 }
+                break;
         }
     });
 
     return () => unsubscribe();
-  }, [user?.uid, assignDriver, resetRide, setActiveRide, setCounterOffer, setDriverLocation, setStatus]);
+  }, [user?.uid, assignDriver, resetRide, setActiveRide, setCounterOffer, setDriverLocation, setStatus, completeRideForRating]);
 
 
   // Listener for chat messages
@@ -232,7 +246,7 @@ function RidePageContent() {
       });
 
       const rideRef = doc(db, 'rides', currentRide.id);
-      await updateDoc(rideRef, { isRatedByPassenger: true, status: 'completed' });
+      await updateDoc(rideRef, { isRatedByPassenger: true });
       
       toast({
         title: '¡Gracias por tu calificación!',
@@ -251,7 +265,6 @@ function RidePageContent() {
       setIsSubmittingRating(false);
     }
   }
-
 
   return (
       <div className="flex flex-col h-screen bg-background">
@@ -464,7 +477,10 @@ function RidePageContent() {
                                 </Alert>
                             )}
                             {status !== 'searching' && status !== 'assigned' && status !== 'rating' && status !== 'negotiating' && (
-                                <RideRequestForm />
+                                <RideRequestForm onRideCreated={(ride) => {
+                                  setActiveRide(ride);
+                                  setStatus('searching');
+                                }} />
                             )}
                             {status === 'rating' && assignedDriver && (
                             <RatingForm
@@ -497,7 +513,10 @@ function RidePageContent() {
                         key={reason.code}
                         variant="outline"
                         className="w-full justify-start text-left h-auto py-3"
-                        onClick={() => handleCancelRide(reason)}
+                        onClick={() => { 
+                            handleCancelRide(reason);
+                            setIsCancelReasonDialogOpen(false);
+                         }}
                         >
                         {reason.reason}
                         </Button>

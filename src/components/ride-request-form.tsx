@@ -87,7 +87,11 @@ const serviceTypeIcons: Record<ServiceType, React.ReactNode> = {
   exclusive: <Rocket className="h-8 w-8" />,
 }
 
-export default function RideRequestForm() {
+interface RideRequestFormProps {
+    onRideCreated: (ride: Ride) => void;
+}
+
+export default function RideRequestForm({ onRideCreated }: RideRequestFormProps) {
     const {
     status,
     pickupLocation,
@@ -221,9 +225,8 @@ export default function RideRequestForm() {
         isRatedByPassenger: false,
       };
 
-      await addDoc(collection(db, 'rides'), newRideData);
-      // The master useEffect on ride/page.tsx will now pick up this new ride and set the state to 'searching'.
-      // We don't need to call setStatus here anymore.
+      const docRef = await addDoc(collection(db, 'rides'), newRideData);
+      onRideCreated({ ...newRideData, id: docRef.id });
 
     } catch (error) {
       console.error('Error creating ride:', error);
