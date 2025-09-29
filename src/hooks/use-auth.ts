@@ -247,6 +247,7 @@ export function useAuth() {
       
       if (!driverDoc.exists()) {
         batch.set(driverRef, {
+          id: firebaseUser.uid,
           name: firebaseUser.displayName,
           avatarUrl: firebaseUser.photoURL || '/img/avatar.png',
           rating: 0,

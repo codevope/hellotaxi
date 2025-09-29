@@ -43,6 +43,7 @@ import {
   collection,
   doc,
   addDoc,
+  setDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getSettings } from '@/services/settings-service';
@@ -160,7 +161,9 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
     
     if(isScheduling && form.getValues('scheduledTime')) {
         const scheduledTime = form.getValues('scheduledTime');
-        const newScheduledRide: Omit<ScheduledRide, 'id'> = {
+        const newScheduledRideRef = doc(collection(db, 'scheduledRides'));
+        const newScheduledRide: ScheduledRide = {
+            id: newScheduledRideRef.id,
             pickup: form.getValues('pickup'),
             dropoff: form.getValues('dropoff'),
             scheduledTime: scheduledTime!.toISOString(),
@@ -172,7 +175,7 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
         };
 
         try {
-            await addDoc(collection(db, 'scheduledRides'), newScheduledRide);
+            await setDoc(newScheduledRideRef, newScheduledRide);
             toast({
                 title: '¡Viaje Agendado!',
                 description: `Tu viaje ha sido programado para el ${format(scheduledTime!, "dd/MM/yyyy 'a las' HH:mm")}.`,
@@ -206,9 +209,11 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
     if (!user) return;
     
     const passengerRef = doc(db, 'users', user.uid);
+    const rideRef = doc(collection(db, 'rides')); // Create a new document reference with an auto-generated ID
     
     try {
-      const newRideData: Omit<Ride, 'id'> = {
+      const newRideData: Ride = {
+        id: rideRef.id, // Use the generated ID
         pickup: form.getValues('pickup'),
         dropoff: form.getValues('dropoff'),
         date: new Date().toISOString(),
@@ -225,8 +230,8 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
         isRatedByPassenger: false,
       };
 
-      const docRef = await addDoc(collection(db, 'rides'), newRideData);
-      onRideCreated({ ...newRideData, id: docRef.id });
+      await setDoc(rideRef, newRideData); // Use setDoc with the new reference
+      onRideCreated(newRideData);
 
     } catch (error) {
       console.error('Error creating ride:', error);

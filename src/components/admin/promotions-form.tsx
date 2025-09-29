@@ -102,6 +102,7 @@ export default function PromotionsForm({ coupon, onFinished, isDialog = false }:
              const couponRef = doc(db, "coupons", coupon.id);
              await updateDoc(couponRef, {
                 ...values,
+                id: coupon.id,
                 expiryDate: values.expiryDate.toISOString(),
              });
              toast({
@@ -112,6 +113,7 @@ export default function PromotionsForm({ coupon, onFinished, isDialog = false }:
             const couponRef = doc(db, "coupons", values.code);
             await setDoc(couponRef, {
                 ...values,
+                id: values.code, // Use code as ID for idempotency
                 expiryDate: values.expiryDate.toISOString(),
                 status: 'active',
                 timesUsed: 0,

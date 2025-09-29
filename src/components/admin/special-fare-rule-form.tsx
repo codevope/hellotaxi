@@ -14,7 +14,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
-import { doc, setDoc, updateDoc, addDoc, collection } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { SpecialFareRule } from '@/lib/types';
 import { DateRange } from 'react-day-picker';
@@ -75,19 +75,27 @@ export default function SpecialFareRuleForm({ rule, onFinished }: SpecialFareRul
     setIsLoading(true);
 
     try {
-      const dataToSave = {
-        name: values.name,
-        surcharge: values.surcharge,
-        startDate: values.dateRange.from.toISOString(),
-        endDate: values.dateRange.to.toISOString(),
-      };
-
       if (isEditMode && rule) {
         const ruleRef = doc(db, 'specialFareRules', rule.id);
+        const dataToSave = {
+            id: rule.id,
+            name: values.name,
+            surcharge: values.surcharge,
+            startDate: values.dateRange.from.toISOString(),
+            endDate: values.dateRange.to.toISOString(),
+        };
         await updateDoc(ruleRef, dataToSave);
         toast({ title: '¡Regla Actualizada!', description: `La regla "${values.name}" ha sido actualizada.` });
       } else {
-        await addDoc(collection(db, 'specialFareRules'), dataToSave);
+        const newRuleRef = doc(collection(db, 'specialFareRules'));
+        const dataToSave = {
+            id: newRuleRef.id,
+            name: values.name,
+            surcharge: values.surcharge,
+            startDate: values.dateRange.from.toISOString(),
+            endDate: values.dateRange.to.toISOString(),
+        };
+        await setDoc(newRuleRef, dataToSave);
         toast({ title: '¡Regla Creada!', description: `La regla "${values.name}" ha sido creada.` });
       }
 

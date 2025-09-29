@@ -64,7 +64,8 @@ export async function seedDatabase() {
     // For idempotency, we create a predictable ID from the email
     const userId = userData.email.replace(/[^a-zA-Z0-9]/g, '_');
     const docRef = doc(db, 'users', userId);
-    batch.set(docRef, { ...userData, id: userId });
+    const userWithId = { ...userData, id: userId };
+    batch.set(docRef, userWithId);
     userRefsByEmail.set(userData.email, docRef);
   });
   console.log(`${users.length} users (passengers) prepared for batch.`);
@@ -75,29 +76,32 @@ export async function seedDatabase() {
   drivers.forEach((driverData) => {
     // Use license plate as a unique ID to ensure idempotency
     const docRef = doc(db, 'drivers', driverData.licensePlate);
-    batch.set(docRef, driverData);
+    const driverWithId = { ...driverData, id: driverData.licensePlate };
+    batch.set(docRef, driverWithId);
     driverRefsByName.set(driverData.name, docRef);
   });
   console.log(`${drivers.length} drivers prepared for batch.`);
   
   // Seed notifications
   notifications.forEach((notificationData, index) => {
-    const docRef = doc(db, 'notifications', `notification-${index + 1}`);
-    batch.set(docRef, notificationData);
+    const id = `notification-${index + 1}`;
+    const docRef = doc(db, 'notifications', id);
+    batch.set(docRef, { ...notificationData, id });
   });
   console.log(`${notifications.length} notifications prepared for batch.`);
   
   // Seed coupons
   coupons.forEach((couponData) => {
     const docRef = doc(db, 'coupons', couponData.code);
-    batch.set(docRef, couponData);
+    batch.set(docRef, { ...couponData, id: couponData.code });
   });
   console.log(`${coupons.length} coupons prepared for batch.`);
 
   // Seed special fare rules
   specialFareRules.forEach((ruleData, index) => {
-    const docRef = doc(db, 'specialFareRules', `rule-${index + 1}`);
-    batch.set(docRef, ruleData);
+    const id = `rule-${index + 1}`;
+    const docRef = doc(db, 'specialFareRules', id);
+    batch.set(docRef, { ...ruleData, id });
   });
   console.log(`${specialFareRules.length} special fare rules prepared for batch.`);
 
@@ -121,6 +125,7 @@ export async function seedDatabase() {
       const docRef = doc(db, 'rides', rideId);
       batch.set(docRef, {
         ...rest,
+        id: rideId,
         driver: driverRef,
         passenger: passengerRef,
       });
@@ -135,11 +140,12 @@ export async function seedDatabase() {
     const { claimantEmail, rideId, ...rest } = claimData;
     const claimantRef = userRefsByEmail.get(claimantEmail);
     const rideRef = rideRefsById.get(rideId);
+    const claimId = `claim-${index + 1}`;
 
 
     if (claimantRef && rideRef) {
-        const docRef = doc(db, 'claims', `claim-${index + 1}`);
-        batch.set(docRef, { ...rest, rideId: rideRef.id, claimant: claimantRef });
+        const docRef = doc(db, 'claims', claimId);
+        batch.set(docRef, { ...rest, id: claimId, rideId: rideRef.id, claimant: claimantRef });
     }
   });
   console.log(`${claims.length} claims prepared for batch.`);
@@ -151,12 +157,14 @@ export async function seedDatabase() {
     const driverRef = driverRefsByName.get(driverName);
     const passengerRef = userRefsByEmail.get(passengerEmail);
     const rideRef = rideRefsById.get(rideId);
+    const sosId = `sos-${index + 1}`;
 
 
     if (driverRef && passengerRef && rideRef) {
-        const docRef = doc(db, 'sosAlerts', `sos-${index + 1}`);
+        const docRef = doc(db, 'sosAlerts', sosId);
         batch.set(docRef, {
             ...rest,
+            id: sosId,
             driver: driverRef,
             passenger: passengerRef,
             rideId: rideRef.id,
