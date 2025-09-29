@@ -30,7 +30,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import Chat from '@/components/chat';
 import Link from 'next/link';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { useRideStore } from '@/store/ride-store';
 import { Dialog, DialogHeader, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useDriverRideStore } from '@/store/driver-ride-store';
@@ -134,45 +133,53 @@ function DriverDashboardPageContent() {
   useEffect(() => {
     if (!driver || !isAvailable || activeRide || incomingRequest) return;
     
-    const driverRef = doc(db, 'drivers', driver.id);
-
+    // Query for available rides
     let q = query(
         collection(db, 'rides'),
         where('status', '==', 'searching'),
-        where('offeredTo', '==', null),
-        where('rejectedBy', 'not-in', [driverRef])
+        where('offeredTo', '==', null)
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-        if (!snapshot.empty && !activeRide && !incomingRequest) {
-            const rideDoc = snapshot.docs[0]; // Take the first available one
-            const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-            const rideRef = doc(db, 'rides', rideData.id);
-            
-            try {
-                await runTransaction(db, async (transaction) => {
-                    const freshRideDoc = await transaction.get(rideRef);
-                    if (!freshRideDoc.exists() || freshRideDoc.data().offeredTo) {
-                        return;
-                    }
-                    transaction.update(rideRef, { offeredTo: driverRef });
-                });
+        if (activeRide || useDriverRideStore.getState().incomingRequest) {
+            return;
+        }
 
-                const passengerSnap = await getDoc(rideData.passenger);
-                if (passengerSnap.exists()) {
-                    const passengerData = passengerSnap.data() as User;
-                    setIncomingRequest({ ...rideData, passenger: passengerData });
+        const potentialRides = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as Ride))
+            .filter(ride => !(ride.rejectedBy || []).some(ref => ref.id === driver.id));
+        
+        if (potentialRides.length === 0) return;
+        
+        const rideData = potentialRides[0]; // Take the first available one
+        const rideRef = doc(db, 'rides', rideData.id);
+        
+        try {
+            // Atomically try to claim this ride
+            await runTransaction(db, async (transaction) => {
+                const freshRideDoc = await transaction.get(rideRef);
+                if (!freshRideDoc.exists() || freshRideDoc.data().offeredTo) {
+                    // Ride was taken by another driver in the meantime
+                    return;
                 }
+                transaction.update(rideRef, { offeredTo: doc(db, 'drivers', driver.id) });
+            });
 
-            } catch (error) {
-                console.log("Could not secure ride offer, another driver was faster.", error);
+            // If we successfully claimed it, show it to the driver
+            const passengerSnap = await getDoc(rideData.passenger);
+            if (passengerSnap.exists()) {
+                const passengerData = passengerSnap.data() as User;
+                setIncomingRequest({ ...rideData, passenger: passengerData });
             }
+
+        } catch (error) {
+            console.log("Could not secure ride offer, another driver was faster or ride was cancelled.", error);
         }
     });
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver, isAvailable, activeRide, rejectedRideIds, incomingRequest]);
+  }, [driver, isAvailable, activeRide, incomingRequest]);
 
     // Listener for chat messages
   useEffect(() => {

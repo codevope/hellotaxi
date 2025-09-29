@@ -226,17 +226,18 @@ function RidePageContent() {
     setActiveRide(ride);
 
     searchTimeoutRef.current = setTimeout(async () => {
-        const currentRideSnap = await getDoc(doc(db, 'rides', ride.id));
-        if (currentRideSnap.exists() && currentRideSnap.data().status === 'searching') {
+        const currentRideState = useRideStore.getState();
+        if (currentRideState.activeRide && currentRideState.status === 'searching') {
             await handleCancelRide({ code: 'NO_DRIVERS', reason: 'No se encontraron conductores' }, true);
         }
     }, 60000); 
   }
 
   const handleCancelRide = async (reason: CancellationReason, isAutomatic: boolean = false) => {
-    if (!activeRide) return;
+    const currentRide = useRideStore.getState().activeRide;
+    if (!currentRide) return;
 
-    const rideRef = doc(db, 'rides', activeRide.id);
+    const rideRef = doc(db, 'rides', currentRide.id);
     
     try {
         await updateDoc(rideRef, {
@@ -278,18 +279,21 @@ function RidePageContent() {
   }
 
   const handleRatingSubmit = async (rating: number, comment: string) => {
-    if (!assignedDriver || !activeRide) return;
+    const currentRide = useRideStore.getState().activeRide;
+    const currentDriver = useRideStore.getState().assignedDriver;
+    if (!currentDriver || !currentRide) return;
+    
     setIsSubmittingRating(true);
 
     try {
       await processRating({
-        ratedUserId: assignedDriver.id,
+        ratedUserId: currentDriver.id,
         isDriver: true,
         rating,
         comment,
       });
 
-      const rideRef = doc(db, 'rides', activeRide.id);
+      const rideRef = doc(db, 'rides', currentRide.id);
       await updateDoc(rideRef, { isRatedByPassenger: true });
       
       toast({
@@ -416,6 +420,27 @@ function RidePageContent() {
                                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
                                     <p className="font-semibold text-lg">Buscando conductor...</p>
                                     <p className="text-muted-foreground">Estamos encontrando el mejor conductor para ti.</p>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="outline" className="mt-4">
+                                                <X className="mr-2 h-4 w-4" /> Cancelar Búsqueda
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>¿Cancelar la búsqueda?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    ¿Estás seguro de que quieres cancelar la búsqueda de tu viaje?
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>No, continuar</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleCancelRide({code: 'PASSENGER_CANCELLED_SEARCH', reason: 'Pasajero canceló búsqueda'})}>
+                                                    Sí, cancelar
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </div>
                             )}
                             {status === 'assigned' && activeRide && assignedDriver && (
@@ -618,5 +643,6 @@ export default function RidePage() {
     
 
     
+
 
 
