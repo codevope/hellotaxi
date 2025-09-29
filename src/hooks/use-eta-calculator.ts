@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { estimateRideFareDeterministic } from '@/ai/flows/get-fare-estimates';
+import { estimateRideFareDeterministic } from '@/ai/flows/estimate-ride-fare';
 import type { FareBreakdown, ServiceType } from '@/lib/types';
 
 export type TrafficCondition = 'light' | 'moderate' | 'heavy' | 'unknown';
