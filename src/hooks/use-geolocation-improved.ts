@@ -113,13 +113,6 @@ export function useGeolocation(
     );
   }, [isSupported]);
 
-  // Auto-request location on initial load if permission is already granted,
-  // but don't re-trigger if a location already exists.
-  useEffect(() => {
-    if (permissionStatus === 'granted' && !location && !loading) {
-      requestLocation();
-    }
-  }, [permissionStatus, location, loading, requestLocation]);
 
   return {
     location,

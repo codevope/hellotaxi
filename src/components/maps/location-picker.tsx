@@ -38,24 +38,15 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   const { location: userLocation, requestLocation, loading: isLoadingLocation, error } = useGeolocation();
   const { toast } = useToast();
 
-  // Cuando la ubicación del GPS se actualiza, la usamos para autocompletar la selección.
   useEffect(() => {
-      if (userLocation) {
-          const location: Location = {
-                lat: userLocation.latitude,
-                lng: userLocation.longitude,
-                address: userLocation.address || 'Mi ubicación actual',
-          };
-          onLocationSelect(location);
-      }
-      if(error){
-           toast({
-            variant: "destructive",
-            title: "Ubicación no disponible",
-            description: "No pudimos obtener tu ubicación actual. Asegúrate de tener los permisos activados.",
-        })
-      }
-  }, [userLocation, error, onLocationSelect, toast]);
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Ubicación no disponible',
+        description: 'No pudimos obtener tu ubicación actual. Asegúrate de tener los permisos activados.',
+      });
+    }
+  }, [error, toast]);
 
 
   const handlePlaceSelect = (location: Location) => {
@@ -68,9 +59,15 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     }
   };
 
-  const handleCurrentLocation = () => {
-    // Siempre dispara una nueva solicitud de alta precisión
+  const handleCurrentLocation = async () => {
     requestLocation();
+    if (userLocation) {
+        setSelectedLocation({
+            lat: userLocation.latitude,
+            lng: userLocation.longitude,
+            address: userLocation.address || 'Mi ubicación actual',
+        })
+    }
   };
 
   return (
