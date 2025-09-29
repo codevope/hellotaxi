@@ -141,7 +141,6 @@ function DriverDashboardPageContent() {
     let q = query(
         collection(db, 'rides'),
         where('status', '==', 'searching'),
-        where('serviceType', '==', driver.serviceType),
         where('offeredTo', '==', null),
     );
      if (rejectedRideIds.length > 0) {

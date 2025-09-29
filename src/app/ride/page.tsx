@@ -22,7 +22,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
@@ -30,7 +29,7 @@ import SupportChat from '@/components/support-chat';
 import { Loader2 } from 'lucide-react';
 import { useDriverAuth } from '@/hooks/use-driver-auth';
 import Link from 'next/link';
-import { doc, onSnapshot, getDoc, collection, query, where, addDoc, updateDoc, orderBy, serverTimestamp, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, collection, query, where, addDoc, updateDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getSettings } from '@/services/settings-service';
@@ -40,8 +39,6 @@ import { Star } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
-import { useRouteSimulator } from '@/hooks/use-route-simulator';
-import type { Location } from '@/lib/types';
 import { useRideStore } from '@/store/ride-store';
 
 function RidePageContent() {
@@ -53,11 +50,11 @@ function RidePageContent() {
     isSupportChatOpen,
     pickupLocation,
     dropoffLocation,
+    driverLocation,
     setActiveRide,
     setAssignedDriver,
     setChatMessages,
-    setPickupLocation,
-    setDropoffLocation,
+    setDriverLocation,
     startSearch,
     assignDriver,
     updateRideStatus,
@@ -71,7 +68,6 @@ function RidePageContent() {
   const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
   const [appSettings, setAppSettings] = useState<Awaited<ReturnType<typeof getSettings>> | null>(null);
   const [isRatingSubmitting, setIsSubmittingRating] = useState(false);
-  const { startSimulation, stopSimulation, simulatedLocation: driverLocation } = useRouteSimulator();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { user } = useAuth();
@@ -85,15 +81,13 @@ function RidePageContent() {
   useEffect(() => {
     if (!user?.uid) return;
     
-    let unsubscribe: () => void;
-
     const q = query(
         collection(db, 'rides'), 
         where('passenger', '==', doc(db, 'users', user.uid)), 
         where('status', 'in', ['searching', 'accepted', 'arrived', 'in-progress', 'completed'])
     );
     
-    unsubscribe = onSnapshot(q, async (snapshot) => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
         const currentRideState = useRideStore.getState();
 
         // Find the most relevant document (not completed or cancelled)
@@ -141,21 +135,20 @@ function RidePageContent() {
                   assignDriver(driverData);
                 }
                 
-                const pLoc = currentRideState.pickupLocation || { lat: -12.05, lng: -77.05, address: rideData.pickup };
-                const dLoc = currentRideState.dropoffLocation || { lat: -12.10, lng: -77.03, address: rideData.dropoff };
-                const driverInitialPos = (driverData as any).location || { lat: -12.045, lng: -77.03 };
-
+                // Set driver location from DB
+                if(driverData.location) {
+                    setDriverLocation(driverData.location)
+                }
+                
                 if (rideData.status === 'accepted' && previousStatus !== 'accepted') {
                   toast({ title: '¡Conductor Encontrado!', description: `${driverData.name} está en camino.`});
                   updateRideStatus('assigned');
-                  startSimulation(driverInitialPos, pLoc);
                 } else if (rideData.status === 'arrived' && previousStatus !== 'arrived') {
                   toast({ title: '¡Tu conductor ha llegado!', description: 'Por favor, acércate al punto de recojo.'});
                   updateRideStatus('assigned');
                 } else if (rideData.status === 'in-progress' && previousStatus !== 'in-progress') {
                    toast({ title: '¡Viaje iniciado!', description: 'Que tengas un buen viaje.'});
                    updateRideStatus('assigned');
-                   startSimulation(pLoc, dLoc);
                 }
              }
         } else if(rideData.status === 'searching') {
@@ -167,7 +160,7 @@ function RidePageContent() {
     });
 
     return () => {
-        if(unsubscribe) unsubscribe();
+        unsubscribe();
         if (searchTimeoutRef.current) {
           clearTimeout(searchTimeoutRef.current);
         }
@@ -256,7 +249,6 @@ function RidePageContent() {
             });
         }
         resetRide();
-        stopSimulation();
         setActiveTab('book');
 
     } catch (error) {
@@ -320,7 +312,6 @@ function RidePageContent() {
                         driverLocation={driverLocation}
                         pickupLocation={pickupLocation}
                         dropoffLocation={dropoffLocation}
-                        activeRide={activeRide} 
                     />
 
                     {/* Floating Action Buttons */}
@@ -487,7 +478,7 @@ function RidePageContent() {
                                     onRideCreated={handleRideCreated}
                                 />
                             )}
-                            {status === 'rating' && assignedDriver && activeRide && (
+                            {status === 'rating' && assignedDriver && (
                             <RatingForm
                                 userToRate={assignedDriver}
                                 isDriver={true}
@@ -604,3 +595,4 @@ export default function RidePage() {
     
 
     
+

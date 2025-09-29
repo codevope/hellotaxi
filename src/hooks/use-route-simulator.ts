@@ -7,7 +7,6 @@ import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { decode } from '@googlemaps/polyline-codec';
 
 const SIMULATION_INTERVAL = 2000; // Update location every 2 seconds
-const SIMULATION_SPEED_FACTOR = 50; // Higher is faster
 
 export function useRouteSimulator() {
   const [simulatedLocation, setSimulatedLocation] = useState<Location | null>(null);

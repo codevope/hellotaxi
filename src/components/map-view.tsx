@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Children, isValidElement } from 'react';
 import { useGeolocation } from '@/hooks/use-geolocation-improved';
 import type { Ride, Location } from '@/lib/types';
 import {
@@ -10,48 +10,51 @@ import {
   InteractiveMap,
   MapMarker,
   RouteDisplay,
-} from './maps';
+} from './';
 import { GeocodingService } from '@/services/geocoding-service';
 import { useToast } from '@/hooks/use-toast';
-import { useRideStore } from '@/store/ride-store';
 
 interface MapViewProps {
-  driverLocation?: Location | null;
+  onLocationSelect?: (location: Location, type: 'pickup' | 'dropoff') => void;
   pickupLocation: Location | null;
   dropoffLocation: Location | null;
-  activeRide?: Ride | null;
+  driverLocation?: Location | null;
   className?: string;
   height?: string;
   interactive?: boolean;
+  children?: React.ReactNode;
+  mapCenter?: Location;
 }
 
-const MapView: React.FC<MapViewProps> = ({
-  driverLocation,
+const MapView: React.FC<MapViewProps> & { Marker: typeof MapMarker } = ({
+  onLocationSelect,
   pickupLocation,
   dropoffLocation,
-  activeRide,
+  driverLocation,
   className = '',
   height = '100%',
   interactive = true,
+  children,
+  mapCenter: initialMapCenter
 }) => {
-  const { setPickupLocation, setDropoffLocation } = useRideStore();
   const { location: userLocation, requestLocation, loading } = useGeolocation();
   const { toast } = useToast();
   
-  const [mapCenter, setMapCenter] = useState<Location>({ lat: -12.046374, lng: -77.042793 }); // Default to Lima
+  const [mapCenter, setMapCenter] = useState<Location>(initialMapCenter || { lat: -12.046374, lng: -77.042793 }); // Default to Lima
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userLocation && !loading) {
+    if(initialMapCenter) {
+      setMapCenter(initialMapCenter);
+    } else if (!userLocation && !loading) {
       requestLocation();
-    }
-    if (userLocation) {
+    } else if (userLocation) {
       setMapCenter({
         lat: userLocation.latitude,
         lng: userLocation.longitude,
       });
     }
-  }, [userLocation, loading, requestLocation]);
+  }, [userLocation, loading, requestLocation, initialMapCenter]);
 
   useEffect(() => {
     if(pickupLocation && !dropoffLocation) {
@@ -69,7 +72,7 @@ const MapView: React.FC<MapViewProps> = ({
   } : undefined;
 
   const handleMapClick = async (location: Location) => {
-    if (!interactive) return;
+    if (!interactive || !onLocationSelect) return;
 
     try {
         const geocoded = await GeocodingService.reverseGeocode(location.lat, location.lng);
@@ -80,11 +83,11 @@ const MapView: React.FC<MapViewProps> = ({
         };
 
         if (!pickupLocation) {
-            setPickupLocation(mapLocation);
+            onLocationSelect(mapLocation, 'pickup');
         } else if (!dropoffLocation) {
-            setDropoffLocation(mapLocation);
+            onLocationSelect(mapLocation, 'dropoff');
         } else {
-             setPickupLocation(mapLocation);
+             onLocationSelect(mapLocation, 'pickup');
         }
 
     } catch (error) {
@@ -102,9 +105,9 @@ const MapView: React.FC<MapViewProps> = ({
         };
 
         if (!pickupLocation) {
-            setPickupLocation(fallbackLocation);
+            onLocationSelect(fallbackLocation, 'pickup');
         } else if (!dropoffLocation) {
-            setDropoffLocation(fallbackLocation);
+            onLocationSelect(fallbackLocation, 'dropoff');
         }
     }
   };
@@ -166,10 +169,22 @@ const MapView: React.FC<MapViewProps> = ({
               destination={dropoffLocation}
             />
           )}
+
+          {Children.map(children, (child) => {
+              if (isValidElement(child)) {
+                  // This allows passing Marker components as children
+                  return React.cloneElement(child);
+              }
+              return null;
+          })}
+
         </InteractiveMap>
       </div>
     </GoogleMapsProvider>
   );
 };
+
+
+MapView.Marker = MapMarker;
 
 export default MapView;
