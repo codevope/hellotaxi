@@ -129,11 +129,11 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
   });
   
   useEffect(() => {
-    if (pickupLocation) {
-        form.setValue('pickup', pickupLocation.address || '');
+    if (pickupLocation?.address) {
+        form.setValue('pickup', pickupLocation.address);
     }
-     if (dropoffLocation) {
-        form.setValue('dropoff', dropoffLocation.address || '');
+     if (dropoffLocation?.address) {
+        form.setValue('dropoff', dropoffLocation.address);
     }
   }, [pickupLocation, dropoffLocation, form]);
 
