@@ -1,3 +1,4 @@
+
 'use client';
 
 export interface GeocodingResult {
@@ -76,7 +77,7 @@ export class GeocodingService {
   /**
    * Convierte coordenadas en dirección (geocodificación inversa)
    */
-  static async reverseGeocode(lat: number, lng: number): Promise<GeocodingResult> {
+  static async reverseGeocode(lat: number, lng: number): Promise<string> {
     if (!this.API_KEY) {
       throw new Error('Google Maps API Key not configured');
     }
@@ -106,14 +107,8 @@ export class GeocodingService {
         throw new Error('No address found for the provided coordinates');
       }
 
-      const result = data.results[0];
-
-      return {
-        lat,
-        lng,
-        formattedAddress: result.formatted_address,
-        placeId: result.place_id,
-      };
+      // Devolver solo el string de la dirección formateada
+      return data.results[0].formatted_address;
 
     } catch (error) {
       if (error instanceof Error) {

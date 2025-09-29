@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { GeocodingService } from '@/services/geocoding-service';
 
 export interface LocationData {
   latitude: number;
@@ -25,34 +26,6 @@ const HIGH_ACCURACY_OPTIONS: PositionOptions = {
   maximumAge: 0, // Forzar una nueva lectura, no usar caché
 };
 
-// Función para reverse geocoding usando Google Maps API
-const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
-  try {
-    // Usar el geocoder de Google Maps si está disponible
-    if (window.google && window.google.maps && window.google.maps.Geocoder) {
-      const geocoder = new window.google.maps.Geocoder();
-      const response = await new Promise<google.maps.GeocoderResponse>((resolve, reject) => {
-        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-          if (status === 'OK' && results) {
-            resolve({ results } as google.maps.GeocoderResponse);
-          } else {
-            reject(new Error(`Geocoding failed: ${status}`));
-          }
-        });
-      });
-      
-      if (response.results && response.results.length > 0) {
-        return response.results[0].formatted_address;
-      }
-    }
-    
-    // Fallback: crear dirección básica con coordenadas
-    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-  } catch (error) {
-    console.error('Reverse geocoding error:', error);
-    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-  }
-};
 
 export function useGeolocation(
   options: PositionOptions = HIGH_ACCURACY_OPTIONS
@@ -93,22 +66,29 @@ export function useGeolocation(
         const { latitude, longitude, accuracy } = position.coords;
         const timestamp = Date.now();
         
-        // No geocodificamos aquí para desacoplar la lógica.
-        // El componente que lo use decidirá si geocodificar o no.
-        setLocation({ 
-          latitude, 
-          longitude, 
-          accuracy,
-          timestamp 
-        });
-        setLoading(false);
+        try {
+          const address = await GeocodingService.reverseGeocode(latitude, longitude);
+          setLocation({ latitude, longitude, accuracy, timestamp, address });
+        } catch (geocodingError) {
+          console.error("Geocoding failed:", geocodingError);
+          // Fallback to coordinates if geocoding fails
+          setLocation({
+            latitude,
+            longitude,
+            accuracy,
+            timestamp,
+            address: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+          });
+        } finally {
+            setLoading(false);
+        }
       },
       (error) => {
         console.error('Geolocation Error:', error);
         setError(error);
         setLoading(false);
       },
-      HIGH_ACCURACY_OPTIONS // Siempre usar alta precisión para esta solicitud explícita
+      HIGH_ACCURACY_OPTIONS
     );
   }, [isSupported]);
 
