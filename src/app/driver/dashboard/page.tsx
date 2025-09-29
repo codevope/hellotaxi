@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import AppHeader from '@/components/app-header';
@@ -38,7 +37,7 @@ import { useDriverRideStore } from '@/store/driver-ride-store';
 const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
     available: { label: 'Disponible', variant: 'default' },
     unavailable: { label: 'No Disponible', variant: 'secondary' },
-    on-ride: { label: 'En Viaje', variant: 'outline' },
+    'on-ride': { label: 'En Viaje', variant: 'outline' },
 }
 
 const rideStatusConfig: Record<Ride['status'], { label: string; variant: 'secondary' | 'default' | 'destructive' }> = {
@@ -131,7 +130,7 @@ function DriverDashboardPageContent() {
     let q = query(
         collection(db, 'rides'),
         where('status', '==', 'searching'),
-        where('offeredTo', '==', null)
+        // where('offeredTo', '==', null)
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
@@ -141,7 +140,10 @@ function DriverDashboardPageContent() {
 
         const potentialRides = snapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as Ride))
-            .filter(ride => !(rejectedRideIds.includes(ride.id)) && !(ride.rejectedBy?.map(ref => ref.id).includes(driver.id)));
+            .filter(ride => {
+              const alreadyRejected = rejectedRideIds.includes(ride.id) || ride.rejectedBy?.some(ref => ref.id === driver.id);
+              return !alreadyRejected && ride.offeredTo === null;
+            });
         
         if (potentialRides.length === 0) return;
         
@@ -232,7 +234,7 @@ function DriverDashboardPageContent() {
             });
             
             setAvailability(false);
-            setActiveRide({ ...incomingRequest, driver: driver, status: 'accepted' });
+            // setActiveRide({ ...incomingRequest, driver: driver, status: 'accepted' });
 
         } catch (e: any) {
             console.error("Error accepting ride:", e);
@@ -290,7 +292,7 @@ function DriverDashboardPageContent() {
             setAvailability(true);
         } else {
             await updateDoc(rideRef, { status: newStatus });
-            setActiveRide({...activeRide, status: newStatus}); 
+            // setActiveRide({...activeRide, status: newStatus}); 
             toast({ title: `¡Estado del viaje actualizado: ${newStatus}!`});
         }
     } catch (error) {
@@ -760,3 +762,5 @@ export default function DriverDashboardPage() {
 
     return <DriverDashboardPageContent />;
 }
+
+    

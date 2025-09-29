@@ -10,7 +10,7 @@ import {
   InteractiveMap,
   MapMarker,
   RouteDisplay,
-} from './';
+} from './maps';
 import { GeocodingService } from '@/services/geocoding-service';
 import { useToast } from '@/hooks/use-toast';
 
