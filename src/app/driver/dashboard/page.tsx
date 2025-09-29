@@ -19,7 +19,7 @@ import { db } from '@/lib/firebase';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import RatingForm from '@/components/rating-form';
 import { processRating } from '@/ai/flows/process-rating';
-import MapView from '@/components/maps/map-view';
+import MapView from '@/components/map-view';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DriverDocuments from '@/components/driver/documents';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -38,7 +38,7 @@ import { useDriverRideStore } from '@/store/driver-ride-store';
 const statusConfig: Record<'available' | 'unavailable' | 'on-ride', { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
     available: { label: 'Disponible', variant: 'default' },
     unavailable: { label: 'No Disponible', variant: 'secondary' },
-    'on-ride': { label: 'En Viaje', variant: 'outline' },
+    on-ride: { label: 'En Viaje', variant: 'outline' },
 }
 
 const rideStatusConfig: Record<Ride['status'], { label: string; variant: 'secondary' | 'default' | 'destructive' }> = {
@@ -95,7 +95,6 @@ function DriverDashboardPageContent() {
         const rideDoc = snapshot.docs[0];
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
         
-        // Ensure passenger data is fetched to enrich the ride object
         if (rideData.passenger && driver) {
             const passengerSnap = await getDoc(rideData.passenger);
             if (passengerSnap.exists()) {
@@ -103,9 +102,8 @@ function DriverDashboardPageContent() {
                 const rideWithPassenger = { ...rideData, driver, passenger: passengerData };
                 setActiveRide(rideWithPassenger);
 
-                // Start simulation based on ride status
-                const pickup = { lat: -12.05, lng: -77.05, address: rideData.pickup }; // Placeholder
-                const dropoff = { lat: -12.1, lng: -77.0, address: rideData.dropoff }; // Placeholder
+                const pickup = { lat: -12.05, lng: -77.05, address: rideData.pickup }; 
+                const dropoff = { lat: -12.1, lng: -77.0, address: rideData.dropoff }; 
                 
                 if (rideData.status === 'accepted' || rideData.status === 'arrived') {
                     const driverInitialPos = driver.location || { lat: -12.045, lng: -77.03 };
@@ -116,7 +114,6 @@ function DriverDashboardPageContent() {
             }
         }
       } else {
-         // No active rides, check if we need to reset state
          if (useDriverRideStore.getState().activeRide !== null) {
             stopSimulation();
             setActiveRide(null); 
@@ -125,8 +122,7 @@ function DriverDashboardPageContent() {
     });
 
     return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver]);
+  }, [driver, setActiveRide, startSimulation, stopSimulation]);
 
   // MASTER useEffect for new ride requests
   useEffect(() => {
@@ -139,31 +135,28 @@ function DriverDashboardPageContent() {
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-        // Double-check conditions inside the listener
         if (useDriverRideStore.getState().activeRide || useDriverRideStore.getState().incomingRequest) {
             return;
         }
 
         const potentialRides = snapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as Ride))
-            .filter(ride => !(rejectedRideIds.includes(ride.id))); // Filter locally
+            .filter(ride => !(rejectedRideIds.includes(ride.id)) && !(ride.rejectedBy?.map(ref => ref.id).includes(driver.id)));
         
         if (potentialRides.length === 0) return;
         
-        const rideData = potentialRides[0]; // Take the first available one
+        const rideData = potentialRides[0]; 
         const rideRef = doc(db, 'rides', rideData.id);
         
         try {
-            // Atomically try to claim this ride offer
             await runTransaction(db, async (transaction) => {
                 const freshRideDoc = await transaction.get(rideRef);
                 if (!freshRideDoc.exists() || freshRideDoc.data().offeredTo) {
-                    return; // Ride was taken by another driver or is no longer available
+                    return; 
                 }
                 transaction.update(rideRef, { offeredTo: doc(db, 'drivers', driver.id) });
             });
 
-            // If transaction is successful, show the request to the driver
             const passengerSnap = await getDoc(rideData.passenger);
             if (passengerSnap.exists()) {
                 const passengerData = passengerSnap.data() as User;
@@ -176,8 +169,7 @@ function DriverDashboardPageContent() {
     });
 
     return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver, isAvailable, activeRide, incomingRequest, rejectedRideIds]);
+  }, [driver, isAvailable, activeRide, incomingRequest, rejectedRideIds, setIncomingRequest]);
 
     // Listener for chat messages
   useEffect(() => {
@@ -190,8 +182,7 @@ function DriverDashboardPageContent() {
     });
 
     return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRide]);
+  }, [activeRide, setChatMessages]);
 
 
   const handleAvailabilityChange = async (available: boolean) => {
@@ -222,7 +213,7 @@ function DriverDashboardPageContent() {
     const rideId = incomingRequest.id;
     const rideRef = doc(db, 'rides', rideId);
     
-    setIncomingRequest(null); // Immediately clear the request from UI
+    setIncomingRequest(null); 
 
     if (accepted) {
         try {
@@ -240,7 +231,7 @@ function DriverDashboardPageContent() {
                 transaction.update(doc(db, 'drivers', driver.id), { status: 'on-ride' });
             });
             
-            setAvailability(false); // Go off-duty
+            setAvailability(false);
             setActiveRide({ ...incomingRequest, driver: driver, status: 'accepted' });
 
         } catch (e: any) {
@@ -248,11 +239,10 @@ function DriverDashboardPageContent() {
             toast({ variant: 'destructive', title: 'Error', description: e.message || "No se pudo aceptar el viaje."});
         }
     } else {
-        // Driver rejected, add to their local rejected list and reset offer on ride doc
         setRejectedRideIds(prev => [...prev, rideId]);
         await updateDoc(rideRef, {
             rejectedBy: arrayUnion(doc(db, 'drivers', driver.id)),
-            offeredTo: null, // Makes it available for other drivers
+            offeredTo: null, 
         });
     }
   };
@@ -265,10 +255,10 @@ function DriverDashboardPageContent() {
         await updateDoc(rideRef, {
             fare: counterOfferAmount,
             status: 'counter-offered',
-            offeredTo: doc(db, 'drivers', driver.id) // Keep it offered to this driver
+            offeredTo: doc(db, 'drivers', driver.id) 
         });
         toast({ title: 'Contraoferta Enviada', description: `Has propuesto una tarifa de S/${counterOfferAmount.toFixed(2)}`});
-        setIncomingRequest(null); // Close the dialog
+        setIncomingRequest(null); 
         setIsCountering(false);
     } catch(e) {
         console.error('Error submitting counter offer:', e);
@@ -300,7 +290,7 @@ function DriverDashboardPageContent() {
             setAvailability(true);
         } else {
             await updateDoc(rideRef, { status: newStatus });
-            setActiveRide({...activeRide, status: newStatus}); // Optimistic UI update
+            setActiveRide({...activeRide, status: newStatus}); 
             toast({ title: `¡Estado del viaje actualizado: ${newStatus}!`});
         }
     } catch (error) {

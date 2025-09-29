@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppHeader from '@/components/app-header';
-import MapView from '@/components/maps/map-view';
+import MapView from '@/components/map-view';
 import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
 import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
@@ -84,7 +84,6 @@ function RidePageContent() {
   useEffect(() => {
     if (!user?.uid) return;
     
-    // Query for any ride that belongs to the user and is NOT in a final state
     const q = query(
         collection(db, 'rides'), 
         where('passenger', '==', doc(db, 'users', user.uid)), 
@@ -92,23 +91,20 @@ function RidePageContent() {
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-        const currentRideState = useRideStore.getState();
+        const currentStoreStatus = useRideStore.getState().status;
 
         if (snapshot.empty) {
-            // If there are no active rides in the DB, and the user is not currently rating a ride, reset the state.
-            if (currentRideState.status !== 'idle' && currentRideState.status !== 'rating') {
+            if (currentStoreStatus !== 'idle' && currentStoreStatus !== 'rating') {
                 resetRide();
             }
             return;
         }
         
-        // Assume there is only one active ride per passenger
         const rideDoc = snapshot.docs[0];
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
         
         setActiveRide(rideData);
 
-        // --- State Machine Logic ---
         switch (rideData.status) {
             case 'searching':
                 setStatus('searching');
@@ -141,13 +137,11 @@ function RidePageContent() {
                         completeRideForRating(driverData);
                      }
                 } else {
-                    // Ride is completed and rated, so we can reset.
                     resetRide();
                 }
                 break;
         }
 
-        // Clear timeout if ride is no longer searching
         if (rideData.status !== 'searching' && searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
             searchTimeoutRef.current = null;
@@ -160,8 +154,7 @@ function RidePageContent() {
             clearTimeout(searchTimeoutRef.current);
         }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
+  }, [user?.uid, setActiveRide, setStatus, setCounterOffer, assignDriver, setDriverLocation, completeRideForRating, resetRide]);
 
 
   // Listener for chat messages
@@ -175,8 +168,7 @@ function RidePageContent() {
     });
 
     return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRide, status]);
+  }, [activeRide, status, setChatMessages]);
 
 
   const handleSosConfirm = async () => {
@@ -207,10 +199,9 @@ function RidePageContent() {
   };
 
   const handleRideCreated = (ride: Ride) => {
-    setStatus('searching');
     setActiveRide(ride);
-
-    // Set a timeout to cancel the ride if no driver is found
+    setStatus('searching');
+    
     searchTimeoutRef.current = setTimeout(async () => {
         const currentRide = useRideStore.getState().activeRide;
         if (currentRide && currentRide.status === 'searching') {
@@ -500,7 +491,7 @@ function RidePageContent() {
                                   <div className='flex gap-2 mt-4'>
                                     <Button className='w-full' onClick={async () => {
                                       const rideRef = doc(db, 'rides', activeRide.id);
-                                      await updateDoc(rideRef, { status: 'searching' });
+                                      await updateDoc(rideRef, { status: 'searching', offeredTo: null });
                                       setCounterOffer(null);
                                       setStatus('searching');
                                     }}>Aceptar y Buscar</Button>

@@ -164,7 +164,6 @@ export default function RideRequestForm({
   const onSubmit = async () => {
     if (!pickupLocation || !dropoffLocation || !user) return;
     
-    // If scheduling, handle it separately
     if(isScheduling && form.getValues('scheduledTime')) {
         const scheduledTime = form.getValues('scheduledTime');
         const newScheduledRide: Omit<ScheduledRide, 'id'> = {
@@ -215,7 +214,7 @@ export default function RideRequestForm({
     const passengerRef = doc(db, 'users', user.uid);
     
     try {
-      const newRideData = {
+      const newRideData: Omit<Ride, 'id'> = {
         pickup: form.getValues('pickup'),
         dropoff: form.getValues('dropoff'),
         date: new Date().toISOString(),
@@ -227,14 +226,15 @@ export default function RideRequestForm({
         couponCode: form.getValues('couponCode') || '',
         fareBreakdown: breakdown,
         status: 'searching' as const,
+        offeredTo: null,
+        rejectedBy: [],
+        isRatedByPassenger: false,
       };
 
       const rideDocRef = await addDoc(collection(db, 'rides'), newRideData);
       
-      const createdRide: Ride = { id: rideDocRef.id, ...newRideData, driver: doc(db, 'drivers/placeholder') };
+      const createdRide: Ride = { id: rideDocRef.id, ...newRideData };
       onRideCreated(createdRide);
-
-      resetForm();
 
     } catch (error) {
       console.error('Error creating ride:', error);
@@ -257,7 +257,6 @@ export default function RideRequestForm({
         onNegotiationComplete={handleNegotiationComplete}
         onCancel={() => {
             resetRide();
-            // Re-trigger calculation to go back to calculated state
             if(pickupLocation && dropoffLocation) {
                  calculateRoute(
                     pickupLocation,
@@ -583,6 +582,3 @@ export default function RideRequestForm({
     </>
   );
 }
-
-
-    
