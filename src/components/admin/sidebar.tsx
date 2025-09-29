@@ -17,6 +17,7 @@ import {
   CalendarPlus,
   FileText,
   LogOut,
+  CarFront,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -89,6 +90,14 @@ export default function AdminSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+           <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive('/admin/vehicles')}>
+              <Link href="/admin/vehicles">
+                <CarFront />
+                <span>Vehículos</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive('/admin/rides')}>
               <Link href="/admin/rides">
@@ -141,8 +150,8 @@ export default function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/special-fares')}>
-              <Link href="/admin/special-fares">
+            <SidebarMenuButton asChild isActive={isActive('/admin/zones')}>
+              <Link href="/admin/zones">
                 <CalendarPlus />
                 <span>Tarifas Especiales</span>
               </Link>

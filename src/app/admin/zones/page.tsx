@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -33,7 +34,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import SpecialFareRuleForm from '@/components/admin/special-fare-rule-form';
 
-export default function AdminSpecialFaresPage() {
+export default function AdminZonesPage() {
   const [rules, setRules] = useState<SpecialFareRule[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
