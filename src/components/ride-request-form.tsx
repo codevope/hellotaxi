@@ -201,8 +201,6 @@ export default function RideRequestForm() {
   ) {
     if (!user) return;
     
-    setStatus('searching'); // Optimistically set UI to searching
-
     const passengerRef = doc(db, 'users', user.uid);
     
     try {
@@ -224,7 +222,9 @@ export default function RideRequestForm() {
       };
 
       await addDoc(collection(db, 'rides'), newRideData);
-      // No need to call onRideCreated, the master useEffect will pick it up
+      // The master useEffect on ride/page.tsx will now pick up this new ride and set the state to 'searching'.
+      // We don't need to call setStatus here anymore.
+
     } catch (error) {
       console.error('Error creating ride:', error);
       toast({ variant: 'destructive', title: 'Error al crear el viaje', description: 'No se pudo registrar el viaje. Inténtalo de nuevo.' });

@@ -3,17 +3,18 @@ import { create } from 'zustand';
 import type { Ride, Driver, ChatMessage, Location } from '@/lib/types';
 import type { RouteInfo } from '@/hooks/use-eta-calculator';
 
-export type RideStatus =
-  | 'idle'
-  | 'calculating'
-  | 'calculated'
-  | 'negotiating'
-  | 'searching'
-  | 'assigned'
-  | 'rating';
+export type RideStoreStatus =
+  | 'idle' // The form is ready to be filled.
+  | 'calculating' // Calculating the route and initial fare.
+  | 'calculated' // Calculation is done, showing ETA and fare.
+  | 'negotiating' // Fare negotiation screen is active.
+  | 'searching' // Searching for a driver after fare is agreed upon.
+  | 'assigned' // Driver has been found and is on the way or with the passenger.
+  | 'rating' // Ride is complete, waiting for user to rate the driver.
+  | 'negotiating'; // A counter-offer has been received.
 
 interface RideState {
-  status: RideStatus;
+  status: RideStoreStatus;
   activeRide: Ride | null;
   assignedDriver: Driver | null;
   chatMessages: ChatMessage[];
@@ -26,7 +27,7 @@ interface RideState {
 }
 
 interface RideActions {
-  setStatus: (status: RideStatus) => void;
+  setStatus: (status: RideStoreStatus) => void;
   setActiveRide: (ride: Ride | null) => void;
   setAssignedDriver: (driver: Driver | null) => void;
   setChatMessages: (messages: ChatMessage[]) => void;

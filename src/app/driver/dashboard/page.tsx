@@ -84,12 +84,28 @@ function DriverDashboardPageContent() {
     const q = query(
       collection(db, 'rides'),
       where('driver', '==', driverRef),
-      where('status', 'in', ['accepted', 'arrived', 'in-progress'])
+      where('status', 'in', ['accepted', 'arrived', 'in-progress', 'completed'])
     );
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       if (!snapshot.empty) {
-        const rideDoc = snapshot.docs[0];
+        const rideDoc = snapshot.docs.find(doc => doc.data().status !== 'completed'); // Find the non-completed ride
+        if (!rideDoc) {
+             if (useDriverRideStore.getState().activeRide !== null) {
+                const completedRideDoc = snapshot.docs.find(doc => doc.data().status === 'completed' && doc.id === useDriverRideStore.getState().activeRide?.id);
+                if(completedRideDoc){
+                    const rideData = { id: completedRideDoc.id, ...completedRideDoc.data() } as Ride;
+                    const passengerSnap = await getDoc(rideData.passenger);
+                    if(passengerSnap.exists() && driver) {
+                       setCompletedRideForRating({ ...rideData, driver, passenger: passengerSnap.data() as User });
+                    }
+                }
+                stopSimulation();
+                setActiveRide(null); 
+             }
+             return;
+        }
+
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
         
         if (rideData.passenger && driver) {
@@ -129,7 +145,7 @@ function DriverDashboardPageContent() {
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
         if (useDriverRideStore.getState().activeRide || useDriverRideStore.getState().incomingRequest) {
-            return;
+            return; // Don't process new requests if already busy
         }
 
         const potentialRides = snapshot.docs
@@ -146,14 +162,16 @@ function DriverDashboardPageContent() {
         const rideRef = doc(db, 'rides', rideToOffer.id);
         
         try {
+            // Attempt to "claim" this ride offer
             await runTransaction(db, async (transaction) => {
                 const freshRideDoc = await transaction.get(rideRef);
                 if (!freshRideDoc.exists() || freshRideDoc.data().status !== 'searching' || freshRideDoc.data().offeredTo) {
-                    return; 
+                    throw new Error("Ride was taken by another driver or cancelled.");
                 }
                 transaction.update(rideRef, { offeredTo: doc(db, 'drivers', driver.id) });
             });
 
+            // If transaction succeeds, show the request to this driver
             const passengerSnap = await getDoc(rideToOffer.passenger);
             if (passengerSnap.exists()) {
                 const passengerData = passengerSnap.data() as User;
@@ -161,7 +179,8 @@ function DriverDashboardPageContent() {
             }
 
         } catch (error) {
-            console.log("Could not secure ride offer, another driver was faster or ride was cancelled.", error);
+            // This error is expected if another driver was faster. We just log it and do nothing.
+            console.log("Could not secure ride offer:", (error as Error).message);
         }
     });
 
@@ -235,6 +254,7 @@ function DriverDashboardPageContent() {
             toast({ variant: 'destructive', title: 'Error', description: e.message || "No se pudo aceptar el viaje."});
         }
     } else {
+        // Driver rejected, add them to the rejectedBy list and free up the offer
         setRejectedRideIds(prev => [...prev, rideId]);
         await updateDoc(rideRef, {
             rejectedBy: arrayUnion(doc(db, 'drivers', driver.id)),
@@ -281,8 +301,6 @@ function DriverDashboardPageContent() {
             toast({ title: '¡Viaje Finalizado!', description: 'Ahora califica al pasajero.' });
             
             stopSimulation();
-            setCompletedRideForRating(activeRide);
-            setActiveRide(null);
             setAvailability(true);
         } else {
             await updateDoc(rideRef, { status: newStatus });

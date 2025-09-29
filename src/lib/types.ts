@@ -211,4 +211,17 @@ export interface Settings {
 
 export type Passenger = User;
 
+// This represents the raw user object from Firebase Auth
+export interface FirebaseUser {
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+    photoURL: string | null;
+    phoneNumber: string | null;
+    providerData: any[];
+    metadata: {
+        creationTime?: string;
+        lastSignInTime?: string;
+    }
+}
     

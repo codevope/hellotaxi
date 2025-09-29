@@ -78,21 +78,22 @@ function RidePageContent() {
   // MASTER useEffect to listen for ride document changes and update UI state
   useEffect(() => {
     if (!user?.uid) {
-      // If user logs out, ensure state is clean
       if (useRideStore.getState().status !== 'idle') {
         resetRide();
       }
       return;
     }
     
+    // This query finds any ride for the user that isn't in a final state.
     const q = query(
         collection(db, 'rides'), 
         where('passenger', '==', doc(db, 'users', user.uid)), 
-        where('status', 'not-in', ['cancelled']) // We handle completed for rating separately
+        where('status', 'not-in', ['cancelled', 'completed']) 
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
         if (snapshot.empty) {
+            // Only reset if we are not in the middle of rating a just-completed ride.
             if (useRideStore.getState().status !== 'rating') {
                resetRide();
             }
@@ -101,13 +102,12 @@ function RidePageContent() {
         
         const rideDoc = snapshot.docs[0]; // Assuming user has only one active ride
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-        const currentStoreStatus = useRideStore.getState().status;
-
+        
         setActiveRide(rideData);
 
         switch (rideData.status) {
             case 'searching':
-                if (currentStoreStatus !== 'searching') setStatus('searching');
+                setStatus('searching');
                 break;
             
             case 'counter-offered':
@@ -119,6 +119,7 @@ function RidePageContent() {
             case 'accepted':
             case 'arrived':
             case 'in-progress':
+                setStatus('assigned');
                 if (rideData.driver) {
                     const driverSnap = await getDoc(rideData.driver);
                     if (driverSnap.exists()) {
@@ -130,24 +131,11 @@ function RidePageContent() {
                     }
                 }
                 break;
-            
-            case 'completed':
-                 if (rideData.isRatedByPassenger === false) {
-                     if (rideData.driver) {
-                        const driverSnap = await getDoc(rideData.driver);
-                        if (driverSnap.exists()) {
-                           completeRideForRating(driverSnap.data() as Driver);
-                        }
-                     }
-                 } else {
-                    resetRide();
-                 }
-                 break;
         }
     });
 
     return () => unsubscribe();
-  }, [user?.uid, assignDriver, completeRideForRating, resetRide, setActiveRide, setCounterOffer, setDriverLocation, setStatus]);
+  }, [user?.uid, assignDriver, resetRide, setActiveRide, setCounterOffer, setDriverLocation, setStatus]);
 
 
   // Listener for chat messages
@@ -244,13 +232,14 @@ function RidePageContent() {
       });
 
       const rideRef = doc(db, 'rides', currentRide.id);
-      await updateDoc(rideRef, { isRatedByPassenger: true });
+      await updateDoc(rideRef, { isRatedByPassenger: true, status: 'completed' });
       
       toast({
         title: '¡Gracias por tu calificación!',
         description: 'Tu opinión ayuda a mantener la calidad de nuestra comunidad.',
       });
-      resetRide();
+      completeRideForRating(currentDriver); // This will set the status to 'rating'
+      resetRide(); // This will clear the ride and show the form again
     } catch (error) {
       console.error('Error submitting rating:', error);
       toast({
