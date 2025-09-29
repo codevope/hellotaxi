@@ -16,7 +16,6 @@ export interface UseGeolocationReturn {
   loading: boolean;
   permissionStatus: PermissionState | null;
   requestLocation: () => void;
-  refreshLocation: () => void;
 }
 
 const HIGH_ACCURACY_OPTIONS: PositionOptions = {
@@ -95,7 +94,7 @@ export function useGeolocation(
     if (permissionStatus === 'granted' && !location && !loading) {
       requestLocation();
     }
-  }, [permissionStatus]);
+  }, [permissionStatus, location, loading, requestLocation]);
 
   return {
     location,
@@ -103,6 +102,5 @@ export function useGeolocation(
     loading,
     permissionStatus,
     requestLocation,
-    refreshLocation: requestLocation,
   };
 }

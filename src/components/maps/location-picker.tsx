@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Target, Navigation } from 'lucide-react';
+import { Target, Navigation, Loader2 } from 'lucide-react';
 import {
   GoogleMapsProvider,
   PlaceAutocomplete,
@@ -15,6 +15,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useGeolocation } from '@/hooks/use-geolocation-improved';
+import { useEffect } from 'react';
+
 
 interface LocationPickerProps {
   onLocationSelect: (location: Location) => void;
@@ -33,8 +35,28 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
 }) => {
   const [selectedLocation, setSelectedLocation] =
     useState<Location | null>(initialLocation);
-  const { location: userLocation, requestLocation: requestGeoLocation } = useGeolocation();
+  const { location: userLocation, requestLocation, loading: isLoadingLocation, error } = useGeolocation();
   const { toast } = useToast();
+
+  // Cuando la ubicación del GPS se actualiza, la usamos para autocompletar la selección.
+  useEffect(() => {
+      if (userLocation) {
+          const location: Location = {
+                lat: userLocation.latitude,
+                lng: userLocation.longitude,
+                address: userLocation.address || 'Mi ubicación actual',
+          };
+          onLocationSelect(location);
+      }
+      if(error){
+           toast({
+            variant: "destructive",
+            title: "Ubicación no disponible",
+            description: "No pudimos obtener tu ubicación actual. Asegúrate de tener los permisos activados.",
+        })
+      }
+  }, [userLocation, error, onLocationSelect, toast]);
+
 
   const handlePlaceSelect = (location: Location) => {
     setSelectedLocation(location);
@@ -47,22 +69,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   };
 
   const handleCurrentLocation = () => {
-    if (userLocation) {
-      const location: Location = {
-        lat: userLocation.latitude,
-        lng: userLocation.longitude,
-        address: userLocation.address || 'Mi ubicación actual',
-      };
-      // Directamente confirma esta selección
-      onLocationSelect(location);
-    } else {
-        requestGeoLocation();
-        toast({
-            variant: "destructive",
-            title: "Ubicación no disponible",
-            description: "No pudimos obtener tu ubicación actual. Asegúrate de tener los permisos activados.",
-        })
-    }
+    // Siempre dispara una nueva solicitud de alta precisión
+    requestLocation();
   };
 
   return (
@@ -81,9 +89,14 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
                 variant="outline"
                 className="w-full justify-center"
                 onClick={handleCurrentLocation}
+                disabled={isLoadingLocation}
               >
-                <Navigation className="mr-2 h-4 w-4" />
-                Usar mi ubicación actual
+                {isLoadingLocation ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                    <Navigation className="mr-2 h-4 w-4" />
+                )}
+                {isLoadingLocation ? 'Obteniendo ubicación...' : 'Usar mi ubicación actual'}
               </Button>
             )}
           </div>
