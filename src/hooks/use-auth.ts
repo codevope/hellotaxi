@@ -17,7 +17,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { AuthContext } from '@/components/auth-provider';
-import { doc, setDoc, getDoc, updateDoc, writeBatch, collection } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, writeBatch, collection, query, where, getDocs } from 'firebase/firestore';
 import type { UserRole, User, Vehicle } from '@/lib/types';
 import { vehicles } from '@/lib/seed-data';
 
@@ -164,6 +164,19 @@ export function useAuth() {
   const updatePhoneNumber = async (phoneNumber: string) => {
     if (!auth.currentUser) throw new Error("No hay un usuario autenticado.");
     
+    // Check if phone number already exists
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where("phone", "==", phoneNumber));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+        // Phone number exists. Check if it belongs to the current user.
+        const userWithSamePhone = querySnapshot.docs.find(doc => doc.id !== auth.currentUser!.uid);
+        if (userWithSamePhone) {
+            throw new Error("Este número de teléfono ya está registrado por otro usuario.");
+        }
+    }
+
     const userRef = doc(db, 'users', auth.currentUser.uid);
     await updateDoc(userRef, { phone: phoneNumber });
     
@@ -275,7 +288,10 @@ export function useAuth() {
       // User is switching back to passenger.
       batch.update(userRef, { role: 'passenger' });
       // Also set the driver status to unavailable to prevent receiving ride requests.
-      batch.update(driverRef, { status: 'unavailable' });
+      const driverDoc = await getDoc(driverRef);
+      if (driverDoc.exists()) {
+        batch.update(driverRef, { status: 'unavailable' });
+      }
     }
 
     await batch.commit();
