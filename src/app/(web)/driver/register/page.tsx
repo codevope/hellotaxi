@@ -35,7 +35,7 @@ function DriverRegistrationContent() {
         description:
           'Se ha creado tu perfil de conductor. Serás redirigido a tu panel.',
       });
-      router.push('/driver/dashboard');
+      router.push('/driver');
     } catch (error) {
       console.error('Error al registrar como conductor:', error);
       toast({

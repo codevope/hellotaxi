@@ -4,7 +4,7 @@
 import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileText, Upload } from 'lucide-react';
+import { Loader2, FileText, Upload, Car } from 'lucide-react';
 import type { Driver, DocumentName, DocumentStatus, EnrichedDriver } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -156,7 +156,7 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <CardTitle className="text-lg flex items-center gap-2">
-                                                    <FileText className="h-5 w-5" />
+                                                    <Car className="h-5 w-5" />
                                                     <span>{label}</span>
                                                 </CardTitle>
                                                  {expiryDate && (

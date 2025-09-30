@@ -1127,7 +1127,7 @@ export default function DriverPage() {
             </CardHeader>
             <CardContent>
               <Button asChild>
-                <Link href="/driver/register">¡Regístrate como Conductor!</Link>
+                <Link href="/drive">¡Regístrate como Conductor!</Link>
               </Button>
             </CardContent>
           </Card>
