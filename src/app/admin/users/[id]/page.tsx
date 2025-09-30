@@ -105,7 +105,7 @@ export default function UserDetailsPage() {
         // This is a placeholder as we can't get the real auth object for another user on the client.
         // In a real app, this would come from a secure admin backend.
         const mockFirebaseUser: FirebaseUser = {
-            uid: id,
+            uid: typeof id === 'string' ? id : '',
             email: userSnap.data()?.email || '',
             displayName: userSnap.data()?.name || '',
             photoURL: userSnap.data()?.avatarUrl || '',
@@ -325,7 +325,10 @@ export default function UserDetailsPage() {
             </CardFooter>
           </Card>
 
-          <ProfileValidationStatus user={firebaseUser} userProfile={user} />
+          <ProfileValidationStatus 
+            user={firebaseUser as any} 
+            userProfile={user} 
+          />
 
         </div>
 

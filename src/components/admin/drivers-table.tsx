@@ -39,7 +39,7 @@ const documentStatusConfig = {
   },
   rejected: {
     label: 'Rechazado',
-    icon: <ShieldX className="text-red-500" />,
+    icon: <ShieldX className="text-red-200" />,
     variant: 'destructive' as const,
   },
 };

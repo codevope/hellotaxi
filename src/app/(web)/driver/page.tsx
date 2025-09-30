@@ -137,17 +137,22 @@ type EnrichedRide = Omit<Ride, "passenger" | "driver"> & {
   driver: EnrichedDriver;
 };
 
-const getMembershipStatus = (expiryDate?: string): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } => {
-    if (!expiryDate) return { label: 'N/A', variant: 'secondary' };
-    
-    const now = new Date();
-    const expiry = new Date(expiryDate);
-    const diffDays = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+const getMembershipStatus = (
+  expiryDate?: string
+): {
+  label: string;
+  variant: "default" | "secondary" | "destructive" | "outline";
+} => {
+  if (!expiryDate) return { label: "N/A", variant: "secondary" };
 
-    if (diffDays < 0) return { label: 'Vencida', variant: 'destructive' };
-    if (diffDays <= 7) return { label: 'Por Vencer', variant: 'outline' };
-    return { label: 'Activa', variant: 'default' };
-}
+  const now = new Date();
+  const expiry = new Date(expiryDate);
+  const diffDays = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+
+  if (diffDays < 0) return { label: "Vencida", variant: "destructive" };
+  if (diffDays <= 7) return { label: "Por Vencer", variant: "outline" };
+  return { label: "Activa", variant: "default" };
+};
 
 function DriverPageContent() {
   const {
@@ -182,7 +187,9 @@ function DriverPageContent() {
   const [counterOfferAmount, setCounterOfferAmount] = useState(0);
 
   // Local state for payment model selection
-  const [selectedPaymentModel, setSelectedPaymentModel] = useState<PaymentModel | undefined>(driver?.paymentModel);
+  const [selectedPaymentModel, setSelectedPaymentModel] = useState<
+    PaymentModel | undefined
+  >(driver?.paymentModel);
 
   useEffect(() => {
     if (driver) {
@@ -606,36 +613,51 @@ function DriverPageContent() {
   };
 
   const handleSavePaymentPlan = async () => {
-    if (!driver || !selectedPaymentModel || selectedPaymentModel === driver.paymentModel) return;
+    if (
+      !driver ||
+      !selectedPaymentModel ||
+      selectedPaymentModel === driver.paymentModel
+    )
+      return;
     setIsSavingPlan(true);
 
-    const driverRef = doc(db, 'drivers', driver.id);
-    const updates: { paymentModel: PaymentModel; membershipExpiryDate?: string } = {
-        paymentModel: selectedPaymentModel
+    const driverRef = doc(db, "drivers", driver.id);
+    const updates: {
+      paymentModel: PaymentModel;
+      membershipExpiryDate?: string;
+    } = {
+      paymentModel: selectedPaymentModel,
     };
 
-    if (selectedPaymentModel === 'membership' && driver.paymentModel !== 'membership') {
-        updates.membershipExpiryDate = new Date(new Date().setDate(new Date().getDate() + 30)).toISOString();
+    if (
+      selectedPaymentModel === "membership" &&
+      driver.paymentModel !== "membership"
+    ) {
+      updates.membershipExpiryDate = new Date(
+        new Date().setDate(new Date().getDate() + 30)
+      ).toISOString();
     }
 
     try {
-        await updateDoc(driverRef, updates);
-        setDriver({ ...driver, ...updates });
-        toast({
-            title: 'Plan de Pago Actualizado',
-            description: `Tu modelo de pago ahora es: ${selectedPaymentModel === 'membership' ? 'Membresía' : 'Comisión'}.`
-        });
+      await updateDoc(driverRef, updates);
+      setDriver({ ...driver, ...updates });
+      toast({
+        title: "Plan de Pago Actualizado",
+        description: `Tu modelo de pago ahora es: ${
+          selectedPaymentModel === "membership" ? "Membresía" : "Comisión"
+        }.`,
+      });
     } catch (error) {
-        console.error("Error updating payment model:", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "No se pudo actualizar tu plan de pago.",
-        });
+      console.error("Error updating payment model:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo actualizar tu plan de pago.",
+      });
     } finally {
-        setIsSavingPlan(false);
+      setIsSavingPlan(false);
     }
-};
+  };
 
   if (loading || !driver) {
     return (
@@ -647,7 +669,6 @@ function DriverPageContent() {
 
   const isApproved = driver.documentsStatus === "approved";
   const membershipStatus = getMembershipStatus(driver.membershipExpiryDate);
-
 
   const renderDashboardContent = () => {
     if (incomingRequest) {
@@ -1016,164 +1037,228 @@ function DriverPageContent() {
           </TabsContent>
 
           <TabsContent value="documents">
-            <DriverDocuments driver={driver} onUpdate={setDriver} />
+            <div className="mb-4 space-x-4 w-full max-w-5xl mx-auto">
+              <DriverDocuments driver={driver} onUpdate={setDriver} />
+            </div>
           </TabsContent>
 
           <TabsContent value="vehicle">
-            <DriverVehicle driver={driver} onUpdate={setDriver} />
+            <div className="mb-4 space-x-4 w-full max-w-5xl mx-auto">
+              <DriverVehicle driver={driver} onUpdate={setDriver} />
+            </div>
           </TabsContent>
 
           <TabsContent value="history">
-            <Card>
-              <CardHeader>
-                <CardTitle>Historial de Viajes</CardTitle>
-                <CardDescription>
-                  Aquí puedes ver todos los viajes que has realizado.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Pasajero</TableHead>
-                      <TableHead>Ruta</TableHead>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead className="text-right">Tarifa</TableHead>
-                      <TableHead>Estado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {allRides.map((ride) => (
-                      <TableRow key={ride.id}>
-                        <TableCell>{ride.passenger.name}</TableCell>
-                        <TableCell className="max-w-xs truncate">
-                          {ride.pickup} &rarr; {ride.dropoff}
-                        </TableCell>
-                        <TableCell>
-                          {format(new Date(ride.date), "dd/MM/yy HH:mm", {
-                            locale: es,
-                          })}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold">
-                          S/{ride.fare.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              rideStatusConfig[ride.status]?.variant ||
-                              "secondary"
-                            }
-                          >
-                            {rideStatusConfig[ride.status]?.label ||
-                              ride.status}
-                          </Badge>
-                        </TableCell>
+            <div className="mb-4 space-x-4 w-full max-w-5xl mx-auto">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Historial de Viajes</CardTitle>
+                  <CardDescription>
+                    Aquí puedes ver todos los viajes que has realizado.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Pasajero</TableHead>
+                        <TableHead>Ruta</TableHead>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead className="text-right">Tarifa</TableHead>
+                        <TableHead>Estado</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {allRides.map((ride) => (
+                        <TableRow key={ride.id}>
+                          <TableCell>{ride.passenger.name}</TableCell>
+                          <TableCell className="max-w-xs truncate">
+                            {ride.pickup} &rarr; {ride.dropoff}
+                          </TableCell>
+                          <TableCell>
+                            {format(new Date(ride.date), "dd/MM/yy HH:mm", {
+                              locale: es,
+                            })}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            S/{ride.fare.toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                rideStatusConfig[ride.status]?.variant ||
+                                "secondary"
+                              }
+                            >
+                              {rideStatusConfig[ride.status]?.label ||
+                                ride.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="profile">
-             <div className="grid md:grid-cols-2 gap-8">
+            <div className="mb-4 space-x-4 w-full max-w-5xl mx-auto">
+              <div className="grid md:grid-cols-2 gap-8">
                 <Card className="md:col-span-2">
-                <CardHeader>
+                  <CardHeader>
                     <CardTitle>Mi Perfil y Estadísticas</CardTitle>
-                </CardHeader>
-                <CardContent className="grid md:grid-cols-2 gap-8">
+                  </CardHeader>
+                  <CardContent className="grid md:grid-cols-2 gap-8">
                     <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">
+                      <h3 className="font-semibold text-lg">
                         Información del Conductor
-                    </h3>
-                    <div className="flex items-center gap-4">
+                      </h3>
+                      <div className="flex items-center gap-4">
                         <Avatar className="h-20 w-20">
-                        <AvatarImage src={driver.avatarUrl} alt={driver.name} />
-                        <AvatarFallback>{driver.name.charAt(0)}</AvatarFallback>
+                          <AvatarImage
+                            src={driver.avatarUrl}
+                            alt={driver.name}
+                          />
+                          <AvatarFallback>
+                            {driver.name.charAt(0)}
+                          </AvatarFallback>
                         </Avatar>
                         <div>
-                        <p className="text-2xl font-bold">{driver.name}</p>
-                        <p className="text-muted-foreground capitalize">
+                          <p className="text-2xl font-bold">{driver.name}</p>
+                          <p className="text-muted-foreground capitalize">
                             {driver.vehicle.serviceType}
-                        </p>
+                          </p>
                         </div>
-                    </div>
-                    <h3 className="font-semibold text-lg mt-6">Vehículo</h3>
-                    <p>
+                      </div>
+                      <h3 className="font-semibold text-lg mt-6">Vehículo</h3>
+                      <p>
                         {driver.vehicle.brand} {driver.vehicle.model}
-                    </p>
-                    <p className="font-mono bg-muted p-2 rounded-md inline-block">
+                      </p>
+                      <p className="font-mono bg-muted p-2 rounded-md inline-block">
                         {driver.vehicle.licensePlate}
-                    </p>
+                      </p>
                     </div>
                     <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Estadísticas</h3>
-                    <div className="grid grid-cols-2 gap-4">
+                      <h3 className="font-semibold text-lg">Estadísticas</h3>
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="p-4 bg-muted rounded-lg text-center">
-                        <p className="text-4xl font-bold">
+                          <p className="text-4xl font-bold">
                             {
-                            allRides.filter((r) => r.status === "completed")
+                              allRides.filter((r) => r.status === "completed")
                                 .length
                             }
-                        </p>
-                        <p className="text-muted-foreground">
+                          </p>
+                          <p className="text-muted-foreground">
                             Viajes Completados
-                        </p>
+                          </p>
                         </div>
                         <div className="p-4 bg-muted rounded-lg text-center">
-                        <p className="text-4xl font-bold flex items-center justify-center gap-1">
+                          <p className="text-4xl font-bold flex items-center justify-center gap-1">
                             <Star className="h-8 w-8 text-yellow-400 fill-yellow-400" />
                             {(driver.rating || 0).toFixed(1)}
-                        </p>
-                        <p className="text-muted-foreground">Tu Calificación</p>
+                          </p>
+                          <p className="text-muted-foreground">
+                            Tu Calificación
+                          </p>
                         </div>
+                      </div>
                     </div>
-                    </div>
-                </CardContent>
+                  </CardContent>
                 </Card>
-
                 <Card className="md:col-span-2">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><CreditCard />Mi Plan de Pago</CardTitle>
-                        <CardDescription>Elige cómo quieres ganar dinero con Hello Taxi.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <RadioGroup value={selectedPaymentModel} onValueChange={(value) => setSelectedPaymentModel(value as PaymentModel)}>
-                            <div className="grid sm:grid-cols-2 gap-4">
-                                <Label htmlFor="payment-commission" className="flex flex-col p-4 border rounded-lg cursor-pointer hover:bg-accent/50 has-[:checked]:bg-primary/10 has-[:checked]:border-primary">
-                                    <RadioGroupItem value="commission" id="payment-commission" className="sr-only" />
-                                    <span className="font-semibold text-lg">Comisión por Viaje</span>
-                                    <span className="text-sm text-muted-foreground mt-1">Gana un porcentaje de cada viaje. Ideal para conductores a tiempo parcial.</span>
-                                </Label>
-                                <Label htmlFor="payment-membership" className="flex flex-col p-4 border rounded-lg cursor-pointer hover:bg-accent/50 has-[:checked]:bg-primary/10 has-[:checked]:border-primary">
-                                    <RadioGroupItem value="membership" id="payment-membership" className="sr-only" />
-                                     <span className="font-semibold text-lg">Membresía Mensual</span>
-                                    <span className="text-sm text-muted-foreground mt-1">Paga una cuota fija y quédate con casi toda la tarifa. Ideal para conductores a tiempo completo.</span>
-                                </Label>
-                            </div>
-                        </RadioGroup>
-                         {selectedPaymentModel === 'membership' && (
-                            <div className="mt-4 p-4 border rounded-lg bg-secondary/50">
-                                <h4 className="font-semibold flex items-center gap-2"><CalendarCheck/> Estado de tu Membresía</h4>
-                                <div className="mt-2 flex justify-between items-center">
-                                    <Badge variant={membershipStatus.variant}>{membershipStatus.label}</Badge>
-                                    {driver.membershipExpiryDate && (
-                                        <span className="text-sm text-muted-foreground">
-                                            Vence el: {format(new Date(driver.membershipExpiryDate), "dd 'de' MMMM, yyyy")}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                    <CardFooter>
-                         <Button onClick={handleSavePaymentPlan} disabled={isSavingPlan || selectedPaymentModel === driver.paymentModel}>
-                            {isSavingPlan && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            <Save className="mr-2" /> Guardar Cambios
-                        </Button>
-                    </CardFooter>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <CreditCard />
+                      Mi Plan de Pago
+                    </CardTitle>
+                    <CardDescription>
+                      Elige cómo quieres ganar dinero con Hello Taxi.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <RadioGroup
+                      value={selectedPaymentModel}
+                      onValueChange={(value) =>
+                        setSelectedPaymentModel(value as PaymentModel)
+                      }
+                    >
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <Label
+                          htmlFor="payment-commission"
+                          className="flex flex-col p-4 border rounded-lg cursor-pointer hover:bg-accent/50 has-[:checked]:bg-primary/10 has-[:checked]:border-primary"
+                        >
+                          <RadioGroupItem
+                            value="commission"
+                            id="payment-commission"
+                            className="sr-only"
+                          />
+                          <span className="font-semibold text-lg">
+                            Comisión por Viaje
+                          </span>
+                          <span className="text-sm text-muted-foreground mt-1">
+                            Gana un porcentaje de cada viaje. Ideal para
+                            conductores a tiempo parcial.
+                          </span>
+                        </Label>
+                        <Label
+                          htmlFor="payment-membership"
+                          className="flex flex-col p-4 border rounded-lg cursor-pointer hover:bg-accent/50 has-[:checked]:bg-primary/10 has-[:checked]:border-primary"
+                        >
+                          <RadioGroupItem
+                            value="membership"
+                            id="payment-membership"
+                            className="sr-only"
+                          />
+                          <span className="font-semibold text-lg">
+                            Membresía Mensual
+                          </span>
+                          <span className="text-sm text-muted-foreground mt-1">
+                            Paga una cuota fija y quédate con casi toda la
+                            tarifa. Ideal para conductores a tiempo completo.
+                          </span>
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                    {selectedPaymentModel === "membership" && (
+                      <div className="mt-4 p-4 border rounded-lg bg-secondary/50">
+                        <h4 className="font-semibold flex items-center gap-2">
+                          <CalendarCheck /> Estado de tu Membresía
+                        </h4>
+                        <div className="mt-2 flex justify-between items-center">
+                          <Badge variant={membershipStatus.variant}>
+                            {membershipStatus.label}
+                          </Badge>
+                          {driver.membershipExpiryDate && (
+                            <span className="text-sm text-muted-foreground">
+                              Vence el:{" "}
+                              {format(
+                                new Date(driver.membershipExpiryDate),
+                                "dd 'de' MMMM, yyyy"
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                  <CardFooter>
+                    <Button
+                      onClick={handleSavePaymentPlan}
+                      disabled={
+                        isSavingPlan ||
+                        selectedPaymentModel === driver.paymentModel
+                      }
+                    >
+                      {isSavingPlan && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      <Save className="mr-2" /> Guardar Cambios
+                    </Button>
+                  </CardFooter>
                 </Card>
+              </div>
             </div>
           </TabsContent>
         </Tabs>

@@ -49,6 +49,12 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
             
             const currentDocumentStatus = driver.documentStatus || {} as Partial<Record<DocumentName, DocumentStatus>>;
             const newDocumentStatus: Record<DocumentName, DocumentStatus> = {
+                license: 'pending',
+                insurance: 'pending', 
+                technicalReview: 'pending',
+                backgroundCheck: 'pending',
+                dni: 'pending',
+                propertyCard: 'pending',
                 ...currentDocumentStatus,
                 [docName]: 'pending',
             };

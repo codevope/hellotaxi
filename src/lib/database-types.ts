@@ -166,7 +166,7 @@ export interface DriversSearchResponse extends PaginatedResponse<Driver> {
 export interface RideHistoryResponse extends PaginatedResponse<RideWithRefs> {
   totalSpent?: number;
   avgRating?: number;
-  favoriteServiceType?: Driver['serviceType'];
+  favoriteServiceType?: string;
 }
 
 /**

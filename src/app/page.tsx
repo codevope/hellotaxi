@@ -344,11 +344,8 @@ export default function HomePage() {
       <footer className="py-12 bg-gradient-to-br from-[#F2F2F2] to-white dark:from-slate-900 dark:to-slate-800 border-t border-[#05C7F2]/20">
         <div className="container mx-auto text-center">
           <Link href="/" className="flex items-center justify-center gap-3 mb-6 group">
-            <div className="p-2 bg-gradient-to-br from-[#049DD9]/10 to-[#05C7F2]/10 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <Car className="h-8 w-8 text-[#049DD9]" />
-            </div>
             <h1 className="text-2xl lg:text-3xl font-bold font-headline bg-gradient-to-r from-[#2E4CA6] to-[#049DD9] bg-clip-text text-transparent">
-              Hello Taxi
+              Hello TAXI
             </h1>
           </Link>
           <p className="text-muted-foreground">

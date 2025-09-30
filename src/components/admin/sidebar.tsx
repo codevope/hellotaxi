@@ -1,5 +1,4 @@
-
-'use client';
+"use client";
 
 import {
   Car,
@@ -16,8 +15,8 @@ import {
   FileText,
   LogOut,
   CarFront,
-} from 'lucide-react';
-import Link from 'next/link';
+} from "lucide-react";
+import Link from "next/link";
 import {
   SidebarHeader,
   SidebarContent,
@@ -28,37 +27,38 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-} from '@/components/ui/sidebar';
-import { usePathname } from 'next/navigation';
-import { useAuth } from '@/hooks/use-auth';
+} from "@/components/ui/sidebar";
+import { usePathname } from "next/navigation";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const { appUser, signOut } = useAuth();
   const isActive = (path: string) => pathname.startsWith(path);
-  
+
   const isAdmin = appUser?.isAdmin || false;
 
   if (!isAdmin) {
     // In a real app, you might redirect or show a restricted access message.
     // For now, we just don't render the sidebar content for non-admins.
     return (
-       <SidebarHeader>
+      <SidebarHeader>
         <Link href="/" className="flex items-center gap-2 text-primary">
-          <Car className="h-8 w-8" />
-          <h1 className="text-2xl font-bold font-headline">Hello Taxi</h1>
+          <h1 className="text-xl lg:text-2xl font-extrabold font-headline bg-gradient-to-r from-[#2E4CA6] to-[#049DD9] bg-clip-text text-transparent">
+            Hello TAXI
+          </h1>
         </Link>
       </SidebarHeader>
     );
   }
 
-
   return (
     <>
       <SidebarHeader>
         <Link href="/" className="flex items-center gap-2 text-primary">
-          <Car className="h-8 w-8" />
-          <h1 className="text-2xl font-bold font-headline">Hello Taxi</h1>
+          <h1 className="text-xl lg:text-2xl font-extrabold font-headline bg-gradient-to-r from-[#2E4CA6] to-[#049DD9] bg-clip-text text-transparent">
+            Hello TAXI
+          </h1>
         </Link>
       </SidebarHeader>
       <SidebarContent className="flex-1">
@@ -66,7 +66,7 @@ export default function AdminSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              isActive={isActive('/admin') && pathname === '/admin'}
+              isActive={isActive("/admin") && pathname === "/admin"}
             >
               <Link href="/admin">
                 <LayoutDashboard />
@@ -75,7 +75,7 @@ export default function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/users')}>
+            <SidebarMenuButton asChild isActive={isActive("/admin/users")}>
               <Link href="/admin/users">
                 <Users />
                 <span>Usuarios</span>
@@ -83,15 +83,15 @@ export default function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/drivers')}>
+            <SidebarMenuButton asChild isActive={isActive("/admin/drivers")}>
               <Link href="/admin/drivers">
                 <UserCog />
                 <span>Conductores</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/vehicles')}>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive("/admin/vehicles")}>
               <Link href="/admin/vehicles">
                 <CarFront />
                 <span>Vehículos</span>
@@ -99,7 +99,7 @@ export default function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/rides')}>
+            <SidebarMenuButton asChild isActive={isActive("/admin/rides")}>
               <Link href="/admin/rides">
                 <Car />
                 <span>Viajes</span>
@@ -107,15 +107,18 @@ export default function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/finance')}>
+            <SidebarMenuButton asChild isActive={isActive("/admin/finance")}>
               <Link href="/admin/finance">
                 <Banknote />
                 <span>Finanzas</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/cancellations')}>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive("/admin/cancellations")}
+            >
               <Link href="/admin/cancellations">
                 <ShieldX />
                 <span>Cancelaciones</span>
@@ -123,7 +126,7 @@ export default function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/sos')}>
+            <SidebarMenuButton asChild isActive={isActive("/admin/sos")}>
               <Link href="/admin/sos">
                 <Siren />
                 <span>Alertas SOS</span>
@@ -131,7 +134,7 @@ export default function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/claims')}>
+            <SidebarMenuButton asChild isActive={isActive("/admin/claims")}>
               <Link href="/admin/claims">
                 <ShieldAlert />
                 <span>Reclamos</span>
@@ -139,10 +142,7 @@ export default function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive('/admin/promotions')}
-            >
+            <SidebarMenuButton asChild isActive={isActive("/admin/promotions")}>
               <Link href="/admin/promotions">
                 <Ticket />
                 <span>Promociones</span>
@@ -150,15 +150,18 @@ export default function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/zones')}>
+            <SidebarMenuButton asChild isActive={isActive("/admin/zones")}>
               <Link href="/admin/zones">
                 <CalendarPlus />
                 <span>Tarifas Especiales</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/documentation')}>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive("/admin/documentation")}
+            >
               <Link href="/admin/documentation">
                 <FileText />
                 <span>Documentación</span>
@@ -166,7 +169,7 @@ export default function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/admin/settings')}>
+            <SidebarMenuButton asChild isActive={isActive("/admin/settings")}>
               <Link href="/admin/settings">
                 <Settings />
                 <span>Ajustes</span>
