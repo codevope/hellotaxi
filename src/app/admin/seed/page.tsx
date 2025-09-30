@@ -4,24 +4,31 @@ import { useState } from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Database, AlertTriangle } from 'lucide-react';
+import { Loader2, Database, AlertTriangle, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { seedDatabase, resetAndSeedDatabase } from '@/services/seed-db';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
 
 export default function AdminSeedPage() {
-  const [loading, setLoading] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const { toast } = useToast();
 
   const handleSeedDatabase = async () => {
-    setLoading(true);
+    setIsSeeding(true);
     try {
-      const response = await fetch('/api/seed', {
-        method: 'POST',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to seed database');
-      }
-      
+      await seedDatabase();
       toast({
         title: "Base de datos inicializada",
         description: "Los datos de prueba se han cargado correctamente."
@@ -34,7 +41,27 @@ export default function AdminSeedPage() {
         description: "No se pudieron cargar los datos de prueba."
       });
     } finally {
-      setLoading(false);
+      setIsSeeding(false);
+    }
+  };
+
+  const handleResetDatabase = async () => {
+    setIsResetting(true);
+    try {
+        await resetAndSeedDatabase();
+        toast({
+            title: "¡Base de Datos Reiniciada!",
+            description: "La base de datos ha sido borrada y poblada con datos de prueba.",
+        });
+    } catch (error) {
+        console.error("Error resetting database:", error);
+        toast({
+            variant: "destructive",
+            title: "Error al Reiniciar",
+            description: "No se pudo reiniciar la base de datos.",
+        });
+    } finally {
+        setIsResetting(false);
     }
   };
 
@@ -52,53 +79,60 @@ export default function AdminSeedPage() {
         </div>
       </div>
       
-      <div className="grid gap-6 max-w-2xl">
-        <Card>
+      <Card className="max-w-2xl mx-auto">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Database className="h-5 w-5" />
-              Datos de Prueba
+              Operaciones de Base de Datos
             </CardTitle>
             <CardDescription>
-              Esto creará datos de ejemplo incluyendo usuarios, conductores, vehículos y viajes para poder probar el sistema.
+                Acciones de mantenimiento para la base de datos de ejemplo. Estas acciones son destructivas y requieren confirmación.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
-                <div>
-                  <h3 className="font-medium text-yellow-800 dark:text-yellow-200">
-                    Advertencia
-                  </h3>
-                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                    Esta acción eliminará los datos existentes y los reemplazará con datos de prueba. 
-                    Solo usar en entornos de desarrollo.
-                  </p>
-                </div>
-              </div>
-            </div>
+          <CardContent className="grid sm:grid-cols-2 gap-4">
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="outline" disabled={isSeeding || isResetting}>
+                        {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2" />}
+                        Poblar Datos
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Poblar la base de datos?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción añadirá los datos de prueba a las colecciones existentes. No eliminará datos. ¿Estás seguro de que quieres continuar?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleSeedDatabase}>Sí, poblar datos</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             
-            <Button 
-              onClick={handleSeedDatabase} 
-              disabled={loading}
-              className="w-full"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Inicializando...
-                </>
-              ) : (
-                <>
-                  <Database className="mr-2 h-4 w-4" />
-                  Inicializar Base de Datos
-                </>
-              )}
-            </Button>
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={isSeeding || isResetting}>
+                        {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2" />}
+                        Reiniciar Base de Datos
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                         <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive"/>¿Estás absolutamente seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción es irreversible. Eliminará todas las colecciones de usuarios, conductores, viajes, etc., y las reemplazará con los datos de prueba iniciales.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleResetDatabase} className="bg-destructive hover:bg-destructive/90">Sí, reiniciar todo</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
-      </div>
     </div>
   );
 }
