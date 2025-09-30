@@ -221,16 +221,18 @@ export function useAuth() {
     if (!firebaseUser) throw new Error('User not logged in');
 
     const userRef = doc(db, 'users', firebaseUser.uid);
+    const driverRef = doc(db, 'drivers', firebaseUser.uid);
+    const batch = writeBatch(db);
 
     if (newRole === 'driver') {
-      const driverRef = doc(db, 'drivers', firebaseUser.uid);
-      const vehicleRef = doc(collection(db, 'vehicles')); // Create ref for new vehicle
       const driverDoc = await getDoc(driverRef);
-      const batch = writeBatch(db);
 
       batch.update(userRef, { role: 'driver' });
       
       if (!driverDoc.exists()) {
+        // This is a new driver, create vehicle and driver profile.
+        const vehicleRef = doc(collection(db, 'vehicles')); // Create ref for new vehicle
+        
         const newVehicle: Vehicle = {
             id: vehicleRef.id,
             brand: 'Por Asignar',
@@ -263,14 +265,21 @@ export function useAuth() {
             technicalReview: 'pending',
             backgroundCheck: 'pending'
           },
-          vehicle: vehicleRef, // Link to the new vehicle
+          vehicle: vehicleRef,
         });
+      } else {
+        // Driver already exists, just reactivate their status.
+        batch.update(driverRef, { status: 'unavailable' });
       }
-      await batch.commit();
-
     } else if (newRole === 'passenger') {
-      await updateDoc(userRef, { role: 'passenger' });
+      // User is switching back to passenger.
+      batch.update(userRef, { role: 'passenger' });
+      // Also set the driver status to unavailable to prevent receiving ride requests.
+      batch.update(driverRef, { status: 'unavailable' });
     }
+
+    await batch.commit();
+
     if(appUser){
         setAppUser({...appUser, role: newRole});
     }
