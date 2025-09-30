@@ -1,6 +1,12 @@
 
+
+'use client';
+
 import VehiclesTable from '@/components/admin/vehicles-table';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { PlusCircle } from 'lucide-react';
 
 export default function AdminVehiclesPage() {
   return (
@@ -9,7 +15,7 @@ export default function AdminVehiclesPage() {
         <div className="flex items-center gap-4">
           <SidebarTrigger className="md:hidden" />
           <h1 className="text-2xl font-bold sm:text-3xl font-headline">
-            Gestión de Vehículos
+            Gestión de Flota de Vehículos
           </h1>
         </div>
       </div>

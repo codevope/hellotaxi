@@ -3,7 +3,7 @@
 
 import { collection, doc, writeBatch, DocumentReference, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { drivers, users, rides, claims, sosAlerts, notifications, settings, serviceTypes, coupons, specialFareRules, cancellationReasons, peakTimeRules, vehicles } from '@/lib/seed-data';
+import { drivers, users, rides, claims, sosAlerts, notifications, settings, serviceTypes, coupons, specialFareRules, cancellationReasons, peakTimeRules, vehicles, vehicleModels } from '@/lib/seed-data';
 
 const collectionsToReset = [
     'rides',
@@ -16,6 +16,7 @@ const collectionsToReset = [
     'coupons',
     'specialFareRules',
     'vehicles',
+    'vehicleModels',
 ];
 
 
@@ -106,6 +107,12 @@ export async function seedDatabase() {
     batch.set(ruleRef, { ...ruleData, id: ruleRef.id });
   }
   console.log(`${specialFareRules.length} special fare rules prepared for batch.`);
+
+  for (const modelData of vehicleModels) {
+    const modelRef = doc(collection(db, 'vehicleModels'));
+    batch.set(modelRef, { ...modelData, id: modelRef.id });
+  }
+  console.log(`${vehicleModels.length} vehicle models prepared for batch.`);
 
   const settingsDocRef = doc(db, 'appSettings', 'main');
   batch.set(settingsDocRef, { id: 'main', ...settings, serviceTypes, cancellationReasons, specialFareRules, peakTimeRules });

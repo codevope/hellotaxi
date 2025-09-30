@@ -27,6 +27,8 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
 } from '@/components/ui/sidebar';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
@@ -97,6 +99,13 @@ export default function AdminSidebar() {
                 <span>Vehículos</span>
               </Link>
             </SidebarMenuButton>
+             <SidebarMenuSub>
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton asChild isActive={isActive('/admin/vehicles/models')}>
+                    <Link href="/admin/vehicles/models">Modelos</Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+             </SidebarMenuSub>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive('/admin/rides')}>

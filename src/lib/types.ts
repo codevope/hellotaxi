@@ -29,6 +29,12 @@ export interface Vehicle {
   driverId: string;
 }
 
+export interface VehicleModel {
+    id: string;
+    name: string;
+    models: string[];
+}
+
 export interface Driver {
   id: string;
   name: string;

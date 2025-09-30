@@ -1,9 +1,41 @@
 
 // This file contains the initial data to seed the Firestore database.
 
-import type { Driver, User, Ride, Claim, SOSAlert, Notification, Settings, ServiceTypeConfig, Coupon, SpecialFareRule, CancellationReason, PeakTimeRule, Location, Vehicle } from '@/lib/types';
+import type { Driver, User, Ride, Claim, SOSAlert, Notification, Settings, ServiceTypeConfig, Coupon, SpecialFareRule, CancellationReason, PeakTimeRule, Location, Vehicle, VehicleModel } from '@/lib/types';
 
 const defaultAvatar = '/img/avatar.png';
+
+
+// ================================================================= //
+//                      VEHICLE BRANDS & MODELS                      //
+// ================================================================= //
+export const vehicleModels: Omit<VehicleModel, 'id'>[] = [
+    {
+        name: 'Toyota',
+        models: ['Yaris', 'Etios', 'Avanza', 'Corolla', 'Raize']
+    },
+    {
+        name: 'Kia',
+        models: ['Picanto', 'Soluto', 'Rio', 'Cerato', 'Seltos']
+    },
+    {
+        name: 'Hyundai',
+        models: ['Grand i10', 'Accent', 'Verna', 'Creta']
+    },
+    {
+        name: 'Chevrolet',
+        models: ['Sail', 'Onix', 'Joy', 'Tracker']
+    },
+     {
+        name: 'Suzuki',
+        models: ['Swift', 'Dzire', 'Baleno', 'Ertiga']
+    },
+     {
+        name: 'Nissan',
+        models: ['V-Drive', 'Versa', 'Sentra', 'Kicks']
+    }
+];
+
 
 // ================================================================= //
 //                            VEHICLES                               //
