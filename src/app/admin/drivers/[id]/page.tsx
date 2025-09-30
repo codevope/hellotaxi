@@ -33,7 +33,7 @@ import {
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import type { Driver, MembershipStatus, PaymentModel, Ride, User, DocumentName, DocumentStatus, Vehicle } from '@/lib/types';
+import type { Driver, MembershipStatus, PaymentModel, Ride, User, DocumentName, DocumentStatus, Vehicle, VehicleModel } from '@/lib/types';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, DocumentReference } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getDocumentStatus } from '@/lib/document-status';
@@ -107,6 +107,7 @@ export default function DriverDetailsPage() {
   const [rides, setRides] = useState<EnrichedRide[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [allVehicleModels, setAllVehicleModels] = useState<VehicleModel[]>([]);
 
   // State for editable fields
   const [paymentModel, setPaymentModel] = useState<PaymentModel>('commission');
@@ -122,8 +123,13 @@ export default function DriverDetailsPage() {
     
     async function fetchDriverData() {
       try {
-        const driverDocRef = doc(db, 'drivers', id as string);
-        const driverSnap = await getDoc(driverDocRef);
+        const [vehicleModelsSnapshot, driverSnap] = await Promise.all([
+          getDocs(collection(db, 'vehicleModels')),
+          getDoc(doc(db, 'drivers', id as string))
+        ]);
+
+        const fetchedVehicleModels = vehicleModelsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleModel));
+        setAllVehicleModels(fetchedVehicleModels.sort((a,b) => a.name.localeCompare(b.name)));
 
         if (driverSnap.exists()) {
           const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
@@ -152,7 +158,7 @@ export default function DriverDetailsPage() {
           // Fetch driver's rides
            const ridesQuery = query(
             collection(db, 'rides'),
-            where('driver', '==', driverDocRef)
+            where('driver', '==', driverSnap.ref)
           );
           const ridesSnapshot = await getDocs(ridesQuery);
           
@@ -315,6 +321,8 @@ export default function DriverDetailsPage() {
     { name: 'technicalReview', label: 'Revisión Técnica', expiryDate: driver.vehicle.technicalReviewExpiry },
   ];
 
+  const availableModels = allVehicleModels.find(b => b.name === vehicleBrand)?.models || [];
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="flex items-center justify-between mb-6">
@@ -373,12 +381,41 @@ export default function DriverDetailsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="vehicleBrand">Marca</Label>
-                    <Input id="vehicleBrand" value={vehicleBrand} onChange={(e) => setVehicleBrand(e.target.value)} disabled={isUpdating} />
+                  <Label htmlFor="vehicleBrand">Marca</Label>
+                  <Select
+                    value={vehicleBrand}
+                    onValueChange={(value) => {
+                      setVehicleBrand(value);
+                      setVehicleModel(''); // Reset model when brand changes
+                    }}
+                    disabled={isUpdating}
+                  >
+                    <SelectTrigger id="vehicleBrand">
+                      <SelectValue placeholder="Seleccionar marca" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allVehicleModels.map(brand => (
+                        <SelectItem key={brand.id} value={brand.name}>{brand.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="vehicleModel">Modelo</Label>
-                    <Input id="vehicleModel" value={vehicleModel} onChange={(e) => setVehicleModel(e.target.value)} disabled={isUpdating} />
+                    <Select
+                      value={vehicleModel}
+                      onValueChange={setVehicleModel}
+                      disabled={isUpdating || !vehicleBrand || availableModels.length === 0}
+                    >
+                      <SelectTrigger id="vehicleModel">
+                        <SelectValue placeholder="Seleccionar modelo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableModels.map(model => (
+                           <SelectItem key={model} value={model}>{model}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="licensePlate">Placa</Label>
