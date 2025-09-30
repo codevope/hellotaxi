@@ -165,13 +165,12 @@ export function useAuth() {
   const updatePhoneNumber = async (phoneNumber: string) => {
     if (!auth.currentUser) throw new Error("No hay un usuario autenticado.");
     
-    // Check if phone number already exists
+    // Check if phone number already exists for another user
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where("phone", "==", phoneNumber));
     const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
-        // Phone number exists. Check if it belongs to the current user.
         const userWithSamePhone = querySnapshot.docs.find(doc => doc.id !== auth.currentUser!.uid);
         if (userWithSamePhone) {
             throw new Error("Este número de teléfono ya está registrado por otro usuario.");
@@ -240,12 +239,10 @@ export function useAuth() {
 
     if (newRole === 'driver') {
       const driverDoc = await getDoc(driverRef);
-
       batch.update(userRef, { role: 'driver' });
       
       if (!driverDoc.exists()) {
-        // This is a new driver, create vehicle and driver profile.
-        const vehicleRef = doc(collection(db, 'vehicles')); // Create ref for new vehicle
+        const vehicleRef = doc(collection(db, 'vehicles'));
         
         const newVehicle: Vehicle = {
             id: vehicleRef.id,
@@ -258,6 +255,7 @@ export function useAuth() {
             driverId: firebaseUser.uid,
             insuranceExpiry: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString(),
             technicalReviewExpiry: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString(),
+            propertyCardExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString(),
             status: 'in_review',
         };
         batch.set(vehicleRef, newVehicle);
@@ -270,12 +268,15 @@ export function useAuth() {
           status: 'unavailable',
           documentsStatus: 'pending', 
           kycVerified: false,
+          dniExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 8)).toISOString(),
           licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
           backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
           paymentModel: 'commission',
           membershipStatus: 'active',
           documentStatus: {
+            dni: 'pending',
             license: 'pending',
+            propertyCard: 'pending',
             insurance: 'pending',
             technicalReview: 'pending',
             backgroundCheck: 'pending'
@@ -283,13 +284,10 @@ export function useAuth() {
           vehicle: vehicleRef,
         });
       } else {
-        // Driver already exists, just reactivate their status.
         batch.update(driverRef, { status: 'unavailable' });
       }
     } else if (newRole === 'passenger') {
-      // User is switching back to passenger.
       batch.update(userRef, { role: 'passenger' });
-      // Also set the driver status to unavailable to prevent receiving ride requests.
       const driverDoc = await getDoc(driverRef);
       if (driverDoc.exists()) {
         batch.update(driverRef, { status: 'unavailable' });
@@ -317,5 +315,3 @@ export function useAuth() {
       checkAndCompleteProfile,
     };
 }
-
-    

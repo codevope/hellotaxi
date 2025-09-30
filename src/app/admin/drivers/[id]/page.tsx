@@ -29,11 +29,12 @@ import {
   Save,
   MoreVertical,
   Car,
+  User,
 } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import type { Driver, MembershipStatus, PaymentModel, Ride, User, DocumentName, DocumentStatus, Vehicle, VehicleModel } from '@/lib/types';
+import type { Driver, MembershipStatus, PaymentModel, Ride, User as AppUser, DocumentName, DocumentStatus, Vehicle, VehicleModel } from '@/lib/types';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, DocumentReference } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getDocumentStatus } from '@/lib/document-status';
@@ -93,7 +94,7 @@ const membershipStatusConfig: Record<MembershipStatus, { label: string; variant:
     expired: { label: 'Vencida', variant: 'destructive' },
 }
 
-type EnrichedRide = Omit<Ride, 'passenger' | 'driver' | 'vehicle'> & { passenger: User, driver: Driver, vehicle: Vehicle };
+type EnrichedRide = Omit<Ride, 'passenger' | 'driver' | 'vehicle'> & { passenger: AppUser, driver: Driver, vehicle: Vehicle };
 type EnrichedDriver = Omit<Driver, 'vehicle'> & { vehicle: Vehicle };
 
 
@@ -152,6 +153,8 @@ export default function DriverDetailsPage() {
             insurance: 'pending',
             backgroundCheck: 'pending',
             technicalReview: 'pending',
+            dni: 'pending',
+            propertyCard: 'pending'
           });
 
 
@@ -164,11 +167,11 @@ export default function DriverDetailsPage() {
           
           const driverRidesPromises = ridesSnapshot.docs.map(async (rideDoc) => {
               const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-              const passengerSnap = await getDoc(rideData.passenger);
+              const passengerSnap = await getDoc(rideData.passenger as DocumentReference);
               const rideVehicleSnap = await getDoc(rideData.vehicle as DocumentReference);
 
               if (passengerSnap.exists() && rideVehicleSnap.exists()) {
-                  const passengerData = passengerSnap.data() as User;
+                  const passengerData = passengerSnap.data() as AppUser;
                   const rideVehicleData = rideVehicleSnap.data() as Vehicle;
                   return { ...rideData, driver: driverData, passenger: passengerData, vehicle: rideVehicleData };
               }
@@ -312,11 +315,13 @@ export default function DriverDetailsPage() {
   const docStatus = documentStatusConfig[documentsStatus];
 
   const driverDocumentDetails: { name: DocumentName; label: string; expiryDate: string }[] = [
+    { name: 'dni', label: 'DNI', expiryDate: driver.dniExpiry },
     { name: 'license', label: 'Licencia de Conducir', expiryDate: driver.licenseExpiry },
     { name: 'backgroundCheck', label: 'Certificado de Antecedentes', expiryDate: driver.backgroundCheckExpiry },
   ];
 
   const vehicleDocumentDetails: { name: DocumentName; label: string; expiryDate: string }[] = [
+    { name: 'propertyCard', label: 'Tarjeta de Propiedad', expiryDate: driver.vehicle.propertyCardExpiry },
     { name: 'insurance', label: 'SOAT / Póliza de Seguro', expiryDate: driver.vehicle.insuranceExpiry },
     { name: 'technicalReview', label: 'Revisión Técnica', expiryDate: driver.vehicle.technicalReviewExpiry },
   ];
@@ -377,7 +382,7 @@ export default function DriverDetailsPage() {
           <Card>
             <CardHeader>
                 <CardTitle>Vehículo Asociado</CardTitle>
-                <CardDescription>{driver.vehicle.serviceType}</CardDescription>
+                <CardDescription>Tipo de servicio: <span className="font-semibold capitalize">{driver.vehicle.serviceType}</span></CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -484,7 +489,7 @@ export default function DriverDetailsPage() {
                          <li key={docDetail.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
                             <div className="flex flex-col gap-1.5">
                                 <div className="flex items-center gap-2">
-                                    <FileText className="h-5 w-5 text-muted-foreground" />
+                                    <User className="h-5 w-5 text-muted-foreground" />
                                     <span>{docDetail.label}</span>
                                 </div>
                                 <div className={cn("flex items-center gap-1.5 text-sm font-medium ml-7", statusInfo.color)}>

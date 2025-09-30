@@ -4,7 +4,7 @@
 import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileText, Upload, Car } from 'lucide-react';
+import { Loader2, FileText, Upload, Car, User } from 'lucide-react';
 import type { Driver, DocumentName, DocumentStatus, EnrichedDriver } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -24,6 +24,8 @@ const docNameMap: Record<DocumentName, string> = {
     insurance: 'SOAT / Póliza de Seguro',
     technicalReview: 'Revisión Técnica',
     backgroundCheck: 'Certificado de Antecedentes',
+    dni: 'DNI (Documento Nacional)',
+    propertyCard: 'Tarjeta de Propiedad',
 };
 
 const individualDocStatusConfig: Record<DocumentStatus, { label: string; variant: 'default' | 'outline' | 'destructive' }> = {
@@ -79,11 +81,13 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
     
     // Separating driver personal documents from vehicle documents
     const personalDocuments: { name: DocumentName, label: string, expiryDate?: string }[] = [
+        { name: 'dni', label: 'DNI', expiryDate: driver.dniExpiry },
         { name: 'license', label: 'Licencia de Conducir', expiryDate: driver.licenseExpiry },
         { name: 'backgroundCheck', label: 'Certificado de Antecedentes', expiryDate: driver.backgroundCheckExpiry },
     ];
     
     const vehicleDocuments: { name: DocumentName, label: string, expiryDate?: string }[] = [
+        { name: 'propertyCard', label: 'Tarjeta de Propiedad', expiryDate: driver.vehicle.propertyCardExpiry },
         { name: 'insurance', label: 'SOAT / Póliza de Seguro', expiryDate: driver.vehicle.insuranceExpiry },
         { name: 'technicalReview', label: 'Revisión Técnica', expiryDate: driver.vehicle.technicalReviewExpiry },
     ];
@@ -109,7 +113,7 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <CardTitle className="text-lg flex items-center gap-2">
-                                                    <FileText className="h-5 w-5" />
+                                                    <User className="h-5 w-5" />
                                                     <span>{label}</span>
                                                 </CardTitle>
                                                  {expiryDate && (

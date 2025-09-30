@@ -8,7 +8,7 @@ export type MembershipStatus = 'active' | 'pending' | 'expired';
 export type PaymentMethod = 'cash' | 'yape' | 'plin';
 export type UserRole = 'passenger' | 'driver';
 
-export type DocumentName = 'license' | 'insurance' | 'technicalReview' | 'backgroundCheck';
+export type DocumentName = 'license' | 'insurance' | 'technicalReview' | 'backgroundCheck' | 'dni' | 'propertyCard';
 export type DocumentStatus = 'pending' | 'approved' | 'rejected';
 
 export interface Location {
@@ -27,8 +27,9 @@ export interface Vehicle {
   year: number;
   color: string;
   driverId: string;
-  insuranceExpiry: string; // ISO Date string - Movido aquí
-  technicalReviewExpiry: string; // ISO Date string - Movido aquí
+  insuranceExpiry: string; // ISO Date string
+  technicalReviewExpiry: string; // ISO Date string
+  propertyCardExpiry: string; // ISO Date string
   status: 'active' | 'inactive' | 'in_review';
 }
 
@@ -46,8 +47,9 @@ export interface Driver {
   status: 'available' | 'unavailable' | 'on-ride';
   documentsStatus: 'approved' | 'pending' | 'rejected';
   kycVerified: boolean;
-  licenseExpiry: string; // ISO Date string - Documento del conductor
-  backgroundCheckExpiry: string; // ISO Date string - Documento del conductor
+  licenseExpiry: string; // ISO Date string
+  backgroundCheckExpiry: string; // ISO Date string
+  dniExpiry: string; // ISO Date string
   paymentModel: PaymentModel;
   membershipStatus: MembershipStatus;
   documentStatus?: Record<DocumentName, DocumentStatus>;

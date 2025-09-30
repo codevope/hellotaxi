@@ -51,6 +51,7 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         color: 'Gris',
         insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
         technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+        propertyCardExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 10)).toISOString(),
         status: 'active',
     },
     {
@@ -62,6 +63,7 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         color: 'Negro',
         insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
         technicalReviewExpiry: new Date(new Date().setDate(new Date().getDate() + 20)).toISOString(), // Expires soon
+        propertyCardExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 10)).toISOString(),
         status: 'active',
     },
     {
@@ -73,6 +75,7 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         color: 'Blanco',
         insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
         technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+        propertyCardExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 10)).toISOString(),
         status: 'in_review',
     },
     {
@@ -84,6 +87,7 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         color: 'Azul',
         insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString(), // Expired
         technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString(), // Expired
+        propertyCardExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 8)).toISOString(),
         status: 'inactive',
     }
 ];
@@ -109,6 +113,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     documentsStatus: 'approved',
     kycVerified: true,
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString(),
+    dniExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 8)).toISOString(),
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString(),
     paymentModel: 'commission',
     membershipStatus: 'active',
@@ -116,7 +121,9 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
         license: 'approved',
         insurance: 'approved',
         technicalReview: 'approved',
-        backgroundCheck: 'approved'
+        backgroundCheck: 'approved',
+        dni: 'approved',
+        propertyCard: 'approved',
     },
     location: { id: 'loc-juan', ...driverLocations['juan-perez'] }
   },
@@ -129,6 +136,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     documentsStatus: 'approved',
     kycVerified: true,
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 3)).toISOString(),
+    dniExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString(),
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 4)).toISOString(),
     paymentModel: 'membership',
     membershipStatus: 'active',
@@ -136,7 +144,9 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
         license: 'approved',
         insurance: 'approved',
         technicalReview: 'approved',
-        backgroundCheck: 'approved'
+        backgroundCheck: 'approved',
+        dni: 'approved',
+        propertyCard: 'approved',
     },
     location: { id: 'loc-maria', ...driverLocations['maria-rodriguez'] }
   },
@@ -149,6 +159,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     documentsStatus: 'pending',
     kycVerified: false,
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+    dniExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 7)).toISOString(),
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString(),
     paymentModel: 'membership',
     membershipStatus: 'pending',
@@ -156,7 +167,9 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
         license: 'pending',
         insurance: 'pending',
         technicalReview: 'pending',
-        backgroundCheck: 'pending'
+        backgroundCheck: 'pending',
+        dni: 'pending',
+        propertyCard: 'pending'
     },
     location: { id: 'loc-carlos', ...driverLocations['carlos-gomez'] }
   },
@@ -169,6 +182,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     documentsStatus: 'rejected',
     kycVerified: false,
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString(),
+    dniExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString(), // Expired
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 2)).toISOString(), // Expired
     paymentModel: 'commission',
     membershipStatus: 'expired',
@@ -176,7 +190,9 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
         license: 'approved',
         insurance: 'rejected',
         technicalReview: 'rejected',
-        backgroundCheck: 'rejected'
+        backgroundCheck: 'rejected',
+        dni: 'rejected',
+        propertyCard: 'approved'
     },
     location: { id: 'loc-ana', ...driverLocations['ana-torres'] }
   },
