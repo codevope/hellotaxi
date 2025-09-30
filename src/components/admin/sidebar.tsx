@@ -9,8 +9,6 @@ import {
   UserCog,
   ShieldAlert,
   Siren,
-  Bell,
-  Layers,
   Banknote,
   Ticket,
   ShieldX,
@@ -33,7 +31,6 @@ import {
 } from '@/components/ui/sidebar';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { SheetContent, SheetTitle } from '@/components/ui/sheet';
 
 export default function AdminSidebar() {
   const pathname = usePathname();

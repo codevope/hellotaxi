@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState } from 'react';
@@ -7,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Car, Save } from 'lucide-react';
 import type { Driver, Vehicle } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,17 +32,32 @@ export default function DriverVehicle({ driver, onUpdate }: DriverVehicleProps) 
 
     const handleSaveChanges = async () => {
         setIsSaving(true);
-        const vehicleRef = doc(db, 'vehicles', driver.vehicle.id);
         
-        const updates: Partial<Vehicle> = {
-            brand,
-            model,
-            licensePlate,
-            year: Number(year),
-            color,
-        };
-
         try {
+            // Validate unique license plate if it has changed
+            if (licensePlate.toUpperCase() !== driver.vehicle.licensePlate.toUpperCase()) {
+                const q = query(collection(db, 'vehicles'), where('licensePlate', '==', licensePlate.toUpperCase()));
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Placa Duplicada',
+                        description: 'Esta placa ya está registrada en el sistema. Por favor, utiliza una diferente.',
+                    });
+                    setIsSaving(false);
+                    return;
+                }
+            }
+            
+            const vehicleRef = doc(db, 'vehicles', driver.vehicle.id);
+            const updates: Partial<Vehicle> = {
+                brand,
+                model,
+                licensePlate: licensePlate.toUpperCase(),
+                year: Number(year),
+                color,
+            };
+
             await updateDoc(vehicleRef, updates);
             const updatedVehicle = { ...driver.vehicle, ...updates };
             const updatedDriver = { ...driver, vehicle: updatedVehicle };
@@ -106,5 +122,7 @@ export default function DriverVehicle({ driver, onUpdate }: DriverVehicleProps) 
         </Card>
     );
 }
+
+    
 
     

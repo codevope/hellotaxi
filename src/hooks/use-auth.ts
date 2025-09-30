@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useContext, useEffect } from 'react';
@@ -250,11 +251,14 @@ export function useAuth() {
             id: vehicleRef.id,
             brand: 'Por Asignar',
             model: 'Por Asignar',
-            licensePlate: 'AAA-000',
+            licensePlate: `AAA-${firebaseUser.uid.substring(0, 3).toUpperCase()}`,
             serviceType: 'economy',
             year: new Date().getFullYear(),
             color: 'Blanco',
             driverId: firebaseUser.uid,
+            insuranceExpiry: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString(),
+            technicalReviewExpiry: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString(),
+            status: 'in_review',
         };
         batch.set(vehicleRef, newVehicle);
 
@@ -267,8 +271,6 @@ export function useAuth() {
           documentsStatus: 'pending', 
           kycVerified: false,
           licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-          insuranceExpiry: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString(),
-          technicalReviewExpiry: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString(),
           backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
           paymentModel: 'commission',
           membershipStatus: 'active',
@@ -315,3 +317,5 @@ export function useAuth() {
       checkAndCompleteProfile,
     };
 }
+
+    

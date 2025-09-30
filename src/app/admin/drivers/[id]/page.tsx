@@ -205,9 +205,26 @@ export default function DriverDetailsPage() {
   const handleSaveChanges = async () => {
     if (!driver) return;
     setIsUpdating(true);
-    const driverRef = doc(db, 'drivers', driver.id);
-    const vehicleRef = doc(db, 'vehicles', driver.vehicle.id);
+
     try {
+      // Validate unique license plate
+      if (licensePlate !== driver.vehicle.licensePlate) {
+        const q = query(collection(db, 'vehicles'), where('licensePlate', '==', licensePlate));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          toast({
+            variant: 'destructive',
+            title: 'Placa Duplicada',
+            description: 'Esta placa ya está registrada en el sistema.',
+          });
+          setIsUpdating(false);
+          return;
+        }
+      }
+      
+      const driverRef = doc(db, 'drivers', driver.id);
+      const vehicleRef = doc(db, 'vehicles', driver.vehicle.id);
+
       const allDocsApproved = Object.values(individualDocStatuses).every(s => s === 'approved');
       const finalDocumentsStatus = allDocsApproved ? 'approved' : documentsStatus;
 
@@ -563,5 +580,7 @@ export default function DriverDetailsPage() {
     </div>
   );
 }
+
+    
 
     
