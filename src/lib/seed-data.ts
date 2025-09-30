@@ -1,4 +1,5 @@
 
+
 // This file contains the initial data to seed the Firestore database.
 
 import type { Driver, User, Ride, Claim, SOSAlert, Notification, Settings, ServiceTypeConfig, Coupon, SpecialFareRule, CancellationReason, PeakTimeRule, Location, Vehicle, VehicleModel } from '@/lib/types';
@@ -48,6 +49,9 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         serviceType: 'economy',
         year: 2018,
         color: 'Gris',
+        insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+        technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+        status: 'active',
     },
     {
         brand: 'Kia',
@@ -56,6 +60,9 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         serviceType: 'comfort',
         year: 2022,
         color: 'Negro',
+        insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+        technicalReviewExpiry: new Date(new Date().setDate(new Date().getDate() + 20)).toISOString(), // Expires soon
+        status: 'active',
     },
     {
         brand: 'Hyundai',
@@ -64,6 +71,9 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         serviceType: 'economy',
         year: 2020,
         color: 'Blanco',
+        insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+        technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+        status: 'in_review',
     },
     {
         brand: 'Audi',
@@ -72,6 +82,9 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         serviceType: 'exclusive',
         year: 2023,
         color: 'Azul',
+        insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString(), // Expired
+        technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString(), // Expired
+        status: 'inactive',
     }
 ];
 
@@ -95,10 +108,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     status: 'available',
     documentsStatus: 'approved',
     kycVerified: true,
-    serviceType: 'economy', // Maneja vehículos económicos
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString(),
-    insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-    technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString(),
     paymentModel: 'commission',
     membershipStatus: 'active',
@@ -118,10 +128,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     status: 'unavailable',
     documentsStatus: 'approved',
     kycVerified: true,
-    serviceType: 'comfort', // Maneja vehículos de confort
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 3)).toISOString(),
-    insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-    technicalReviewExpiry: new Date(new Date().setDate(new Date().getDate() + 20)).toISOString(), // Expires soon
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 4)).toISOString(),
     paymentModel: 'membership',
     membershipStatus: 'active',
@@ -141,10 +148,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     status: 'available',
     documentsStatus: 'pending',
     kycVerified: false,
-    serviceType: 'economy', // Maneja vehículos económicos
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-    insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-    technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString(),
     paymentModel: 'membership',
     membershipStatus: 'pending',
@@ -164,10 +168,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     status: 'available',
     documentsStatus: 'rejected',
     kycVerified: false,
-    serviceType: 'exclusive', // Maneja vehículos exclusivos
     licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString(),
-    insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString(), // Expired
-    technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString(), // Expired
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 2)).toISOString(), // Expired
     paymentModel: 'commission',
     membershipStatus: 'expired',

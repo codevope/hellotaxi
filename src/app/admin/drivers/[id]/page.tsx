@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -27,6 +28,7 @@ import {
   Loader2,
   Save,
   MoreVertical,
+  Car,
 } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
@@ -286,11 +288,14 @@ export default function DriverDetailsPage() {
   
   const docStatus = documentStatusConfig[documentsStatus];
 
-  const documentDetails: { name: DocumentName, label: string, expiryDate?: string }[] = [
-      { name: 'license', label: 'Licencia de Conducir', expiryDate: driver.licenseExpiry },
-      { name: 'insurance', label: 'SOAT / Póliza de Seguro', expiryDate: driver.insuranceExpiry },
-      { name: 'technicalReview', label: 'Revisión Técnica', expiryDate: driver.technicalReviewExpiry },
-      { name: 'backgroundCheck', label: 'Certificado de Antecedentes', expiryDate: driver.backgroundCheckExpiry },
+  const driverDocumentDetails: { name: DocumentName; label: string; expiryDate: string }[] = [
+    { name: 'license', label: 'Licencia de Conducir', expiryDate: driver.licenseExpiry },
+    { name: 'backgroundCheck', label: 'Certificado de Antecedentes', expiryDate: driver.backgroundCheckExpiry },
+  ];
+
+  const vehicleDocumentDetails: { name: DocumentName; label: string; expiryDate: string }[] = [
+    { name: 'insurance', label: 'SOAT / Póliza de Seguro', expiryDate: driver.vehicle.insuranceExpiry },
+    { name: 'technicalReview', label: 'Revisión Técnica', expiryDate: driver.vehicle.technicalReviewExpiry },
   ];
 
   return (
@@ -417,10 +422,10 @@ export default function DriverDetailsPage() {
               </div>
 
               <div className="space-y-4">
-                <h3 className="font-semibold">Documentos y Vigencias</h3>
+                <h3 className="font-semibold">Documentos del Conductor</h3>
                 <ul className="space-y-3">
-                  {documentDetails.map(docDetail => {
-                      const statusInfo = docDetail.expiryDate ? getDocumentStatus(docDetail.expiryDate) : { label: 'Fecha no disponible', icon: <ShieldAlert className="h-5 w-5" />, color: 'text-yellow-600' };
+                  {driverDocumentDetails.map(docDetail => {
+                      const statusInfo = getDocumentStatus(docDetail.expiryDate);
                       return (
                          <li key={docDetail.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
                             <div className="flex flex-col gap-1.5">
@@ -428,17 +433,46 @@ export default function DriverDetailsPage() {
                                     <FileText className="h-5 w-5 text-muted-foreground" />
                                     <span>{docDetail.label}</span>
                                 </div>
-                                {docDetail.expiryDate ? (
-                                    <div className={cn("flex items-center gap-1.5 text-sm font-medium ml-7", statusInfo.color)}>
-                                        {statusInfo.icon}
-                                        <span>{statusInfo.label} (Vence: {format(new Date(docDetail.expiryDate), 'dd/MM/yyyy')})</span>
-                                    </div>
-                                ) : (
-                                     <div className={cn("flex items-center gap-1.5 text-sm font-medium ml-7", statusInfo.color)}>
-                                        {statusInfo.icon}
-                                        <span>{statusInfo.label}</span>
-                                    </div>
-                                )}
+                                <div className={cn("flex items-center gap-1.5 text-sm font-medium ml-7", statusInfo.color)}>
+                                    {statusInfo.icon}
+                                    <span>{statusInfo.label} (Vence: {format(new Date(docDetail.expiryDate), 'dd/MM/yyyy')})</span>
+                                </div>
+                            </div>
+                            <div className='flex items-center gap-2'>
+                              {getIndividualDocBadge(docDetail.name)}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                  <DropdownMenuItem onClick={() => handleIndividualDocStatusChange(docDetail.name, 'approved')}>Aprobar</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleIndividualDocStatusChange(docDetail.name, 'rejected')}>Rechazar</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleIndividualDocStatusChange(docDetail.name, 'pending')}>Marcar como Pendiente</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                        </li>
+                      )
+                  })}
+                </ul>
+              </div>
+              
+               <div className="space-y-4">
+                <h3 className="font-semibold">Documentos del Vehículo</h3>
+                <ul className="space-y-3">
+                  {vehicleDocumentDetails.map(docDetail => {
+                      const statusInfo = getDocumentStatus(docDetail.expiryDate);
+                      return (
+                         <li key={docDetail.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-2">
+                                    <Car className="h-5 w-5 text-muted-foreground" />
+                                    <span>{docDetail.label}</span>
+                                </div>
+                                <div className={cn("flex items-center gap-1.5 text-sm font-medium ml-7", statusInfo.color)}>
+                                    {statusInfo.icon}
+                                    <span>{statusInfo.label} (Vence: {format(new Date(docDetail.expiryDate), 'dd/MM/yyyy')})</span>
+                                </div>
                             </div>
                             <div className='flex items-center gap-2'>
                               {getIndividualDocBadge(docDetail.name)}

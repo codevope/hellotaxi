@@ -27,6 +27,9 @@ export interface Vehicle {
   year: number;
   color: string;
   driverId: string;
+  insuranceExpiry: string; // ISO Date string - Movido aquí
+  technicalReviewExpiry: string; // ISO Date string - Movido aquí
+  status: 'active' | 'inactive' | 'in_review';
 }
 
 export interface VehicleModel {
@@ -43,13 +46,10 @@ export interface Driver {
   status: 'available' | 'unavailable' | 'on-ride';
   documentsStatus: 'approved' | 'pending' | 'rejected';
   kycVerified: boolean;
-  licenseExpiry: string; // ISO Date string
-  insuranceExpiry: string; // ISO Date string
-  technicalReviewExpiry: string; // ISO Date string
-  backgroundCheckExpiry: string; // ISO Date string
+  licenseExpiry: string; // ISO Date string - Documento del conductor
+  backgroundCheckExpiry: string; // ISO Date string - Documento del conductor
   paymentModel: PaymentModel;
   membershipStatus: MembershipStatus;
-  serviceType: ServiceType; // Tipo de servicio que maneja el conductor
   documentStatus?: Record<DocumentName, DocumentStatus>;
   totalRides?: number;
   location?: Location;
