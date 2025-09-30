@@ -2,14 +2,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import type { VehicleModel } from '@/lib/types';
-import { Loader2, PlusCircle, MoreVertical, Trash2, Edit } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Edit, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -28,15 +26,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { X } from 'lucide-react';
 
-export default function VehicleModelsPage() {
+export default function VehicleModelsManager() {
   const [vehicleModels, setVehicleModels] = useState<VehicleModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -82,7 +78,7 @@ export default function VehicleModelsPage() {
     }
     setIsDialogOpen(true);
   };
-  
+
   const handleAddModel = () => {
     if (newModel.trim() && !models.includes(newModel.trim())) {
       setModels([...models, newModel.trim()]);
@@ -93,7 +89,7 @@ export default function VehicleModelsPage() {
   const handleRemoveModel = (modelToRemove: string) => {
     setModels(models.filter(model => model !== modelToRemove));
   };
-  
+
   const handleSaveChanges = async () => {
     if (!brandName.trim()) {
       toast({ variant: 'destructive', title: 'Error', description: 'El nombre de la marca no puede estar vacío.' });
@@ -102,13 +98,11 @@ export default function VehicleModelsPage() {
     setIsSaving(true);
     try {
       if (editingModel) {
-        // Update existing brand
         const modelRef = doc(db, 'vehicleModels', editingModel.id);
-        await updateDoc(modelRef, { name: brandName, models: models });
+        await updateDoc(modelRef, { name: brandName, models });
         toast({ title: 'Marca actualizada', description: `La marca "${brandName}" ha sido actualizada.` });
       } else {
-        // Create new brand
-        await addDoc(collection(db, 'vehicleModels'), { name: brandName, models: models });
+        await addDoc(collection(db, 'vehicleModels'), { name: brandName, models });
         toast({ title: 'Marca creada', description: `La marca "${brandName}" ha sido creada.` });
       }
       resetDialog();
@@ -124,89 +118,84 @@ export default function VehicleModelsPage() {
       await deleteDoc(doc(db, 'vehicleModels', modelId));
       toast({ title: 'Marca Eliminada', description: 'La marca ha sido eliminada correctamente.' });
     } catch (error) {
-       console.error("Error deleting brand:", error);
+      console.error("Error deleting brand:", error);
       toast({ variant: 'destructive', title: 'Error', description: 'No se pudo eliminar la marca.' });
     }
   };
 
-  return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <SidebarTrigger className="md:hidden" />
-          <div>
-            <h1 className="text-2xl font-bold sm:text-3xl font-headline">Gestión de Modelos de Vehículos</h1>
-            <p className="text-muted-foreground">Añade o edita las marcas y modelos disponibles en la plataforma.</p>
-          </div>
-        </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <PlusCircle className="mr-2" />
-          Añadir Marca
-        </Button>
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
 
+  return (
+    <>
       <Card>
-        <CardHeader>
-          <CardTitle>Marcas y Modelos Registrados</CardTitle>
-          <CardDescription>Esta es la lista central de vehículos que los conductores pueden seleccionar.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Marcas y Modelos de Vehículos</CardTitle>
+            <CardDescription>Añade, edita o elimina las marcas y modelos disponibles en la plataforma.</CardDescription>
+          </div>
+          <Button onClick={() => handleOpenDialog()}>
+            <PlusCircle className="mr-2" />
+            Añadir Marca
+          </Button>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Marca</TableHead>
-                  <TableHead>Modelos Disponibles</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vehicleModels.map((brand) => (
-                  <TableRow key={brand.id}>
-                    <TableCell className="font-bold text-lg">{brand.name}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-2 max-w-lg">
-                        {brand.models.map(model => <Badge key={model} variant="secondary">{model}</Badge>)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                       <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>¿Estás seguro de que quieres eliminar la marca "{brand.name}"?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta acción es permanente y eliminará todos los modelos asociados a esta marca.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteBrand(brand.id)}>Sí, eliminar</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(brand)}>
-                            <Edit className="h-4 w-4" />
-                        </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {vehicleModels.map((brand) => (
+              <Card key={brand.id} className="flex flex-col">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>{brand.name}</span>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(brand)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>¿Eliminar la marca "{brand.name}"?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta acción es permanente y eliminará todos los modelos asociados.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeleteBrand(brand.id)}>Sí, eliminar</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <div className="flex flex-wrap gap-2">
+                    {brand.models.length > 0 ? (
+                      brand.models.map(model => <Badge key={model} variant="secondary">{model}</Badge>)
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No hay modelos</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={resetDialog}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>{editingModel ? 'Editar Marca' : 'Añadir Nueva Marca'}</DialogTitle>
+            <DialogTitle>{editingModel ? `Editar Marca: ${editingModel.name}` : 'Añadir Nueva Marca'}</DialogTitle>
             <DialogDescription>
               Gestiona el nombre de la marca y la lista de modelos asociados.
             </DialogDescription>
@@ -227,9 +216,14 @@ export default function VehicleModelsPage() {
                 {models.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {models.map(model => (
-                      <Badge key={model} variant="default" className="flex items-center gap-1">
+                      <Badge key={model} variant="default" className="flex items-center gap-1.5 py-1 text-sm">
                         {model}
-                        <button onClick={() => handleRemoveModel(model)}><X className="h-3 w-3" /></button>
+                        <button
+                          onClick={() => handleRemoveModel(model)}
+                          className="rounded-full hover:bg-background/20 p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       </Badge>
                     ))}
                   </div>
@@ -263,6 +257,6 @@ export default function VehicleModelsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
