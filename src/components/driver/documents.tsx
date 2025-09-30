@@ -4,7 +4,7 @@
 import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileText, ShieldCheck, ShieldAlert, ShieldX, Upload } from 'lucide-react';
+import { Loader2, FileText, Upload } from 'lucide-react';
 import type { Driver, DocumentName, DocumentStatus, EnrichedDriver } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -39,42 +39,27 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
 
     const handleUploadClick = (docName: DocumentName) => {
         setIsUploading(docName);
-        // Simulate file picker opening
         fileInputRef.current?.click();
 
-        // Simulate file upload and update
         setTimeout(async () => {
             if (!driver) return;
             
             const currentDocumentStatus = driver.documentStatus || {} as Partial<Record<DocumentName, DocumentStatus>>;
             const newDocumentStatus: Record<DocumentName, DocumentStatus> = {
-                license: currentDocumentStatus.license || 'pending',
-                insurance: currentDocumentStatus.insurance || 'pending',
-                technicalReview: currentDocumentStatus.technicalReview || 'pending',
-                backgroundCheck: currentDocumentStatus.backgroundCheck || 'pending',
+                ...currentDocumentStatus,
                 [docName]: 'pending',
             };
-
-            const allPendingOrApproved = Object.values(newDocumentStatus).every(s => s === 'pending' || s === 'approved');
-            const anyRejected = Object.values(newDocumentStatus).some(s => s === 'rejected');
-            
-            let newOverallStatus: Driver['documentsStatus'] = 'pending';
-            if (anyRejected) {
-                newOverallStatus = 'rejected';
-            } else if (Object.values(newDocumentStatus).every(s => s === 'approved')) {
-                newOverallStatus = 'approved';
-            }
             
             const driverRef = doc(db, 'drivers', driver.id);
             try {
                 await updateDoc(driverRef, { 
                     documentStatus: newDocumentStatus,
-                    documentsStatus: newOverallStatus
+                    documentsStatus: 'pending' // Always set to pending on new upload
                 });
                 const updatedDriver = { 
                     ...driver, 
                     documentStatus: newDocumentStatus,
-                    documentsStatus: newOverallStatus
+                    documentsStatus: 'pending' as const
                 };
                 onUpdate(updatedDriver);
 
@@ -91,68 +76,117 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
             }
         }, 2000); // Simulate 2-second upload
     };
-
-    const documentDetails: { name: DocumentName, label: string, expiryDate?: string }[] = [
+    
+    // Separating driver personal documents from vehicle documents
+    const personalDocuments: { name: DocumentName, label: string, expiryDate?: string }[] = [
         { name: 'license', label: 'Licencia de Conducir', expiryDate: driver.licenseExpiry },
-        { name: 'insurance', label: 'SOAT / Póliza de Seguro', expiryDate: driver.insuranceExpiry },
-        { name: 'technicalReview', label: 'Revisión Técnica', expiryDate: driver.technicalReviewExpiry },
         { name: 'backgroundCheck', label: 'Certificado de Antecedentes', expiryDate: driver.backgroundCheckExpiry },
+    ];
+    
+    const vehicleDocuments: { name: DocumentName, label: string, expiryDate?: string }[] = [
+        { name: 'insurance', label: 'SOAT / Póliza de Seguro', expiryDate: driver.vehicle.insuranceExpiry },
+        { name: 'technicalReview', label: 'Revisión Técnica', expiryDate: driver.vehicle.technicalReviewExpiry },
     ];
     
     return (
         <>
             <input type="file" ref={fileInputRef} className="hidden" />
-            <Card>
-                <CardHeader>
-                    <CardTitle>Gestión de Documentos</CardTitle>
-                    <CardDescription>
-                        Mantén tus documentos actualizados para poder recibir viajes. Los documentos serán revisados por nuestro equipo.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    {documentDetails.map(({ name, label, expiryDate }) => {
-                        const status = driver.documentStatus?.[name] || 'pending';
-                        const expiryInfo = expiryDate ? getDocumentStatus(expiryDate) : null;
-                        return (
-                            <Card key={name} className={cn(status === 'rejected' && "border-destructive bg-destructive/5")}>
-                                <CardHeader>
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <CardTitle className="text-lg flex items-center gap-2">
-                                                <FileText className="h-5 w-5" />
-                                                <span>{label}</span>
-                                            </CardTitle>
-                                             {expiryDate && (
-                                                <CardDescription className={cn("flex items-center gap-1.5 mt-2", expiryInfo?.color)}>
-                                                    {expiryInfo?.icon}
-                                                    <span>{expiryInfo?.label} (Vence: {format(new Date(expiryDate), 'dd/MM/yyyy')})</span>
-                                                </CardDescription>
-                                            )}
+            <div className="space-y-8">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Mis Documentos Personales</CardTitle>
+                        <CardDescription>
+                            Mantén tus documentos personales actualizados para poder recibir viajes.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {personalDocuments.map(({ name, label, expiryDate }) => {
+                            const status = driver.documentStatus?.[name] || 'pending';
+                            const expiryInfo = expiryDate ? getDocumentStatus(expiryDate) : null;
+                            return (
+                                <Card key={name} className={cn(status === 'rejected' && "border-destructive bg-destructive/5")}>
+                                    <CardHeader>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <CardTitle className="text-lg flex items-center gap-2">
+                                                    <FileText className="h-5 w-5" />
+                                                    <span>{label}</span>
+                                                </CardTitle>
+                                                 {expiryDate && (
+                                                    <CardDescription className={cn("flex items-center gap-1.5 mt-2", expiryInfo?.color)}>
+                                                        {expiryInfo?.icon}
+                                                        <span>{expiryInfo?.label} (Vence: {format(new Date(expiryDate), 'dd/MM/yyyy')})</span>
+                                                    </CardDescription>
+                                                )}
+                                            </div>
+                                            <Badge variant={individualDocStatusConfig[status].variant}>
+                                                {individualDocStatusConfig[status].label}
+                                            </Badge>
                                         </div>
-                                        <Badge variant={individualDocStatusConfig[status].variant}>
-                                            {individualDocStatusConfig[status].label}
-                                        </Badge>
-                                    </div>
-                                </CardHeader>
-                                <CardContent>
-                                    <Button 
-                                        className="w-full sm:w-auto"
-                                        onClick={() => handleUploadClick(name)}
-                                        disabled={isUploading === name}
-                                    >
-                                        {isUploading === name ? (
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <Upload className="mr-2 h-4 w-4" />
-                                        )}
-                                        {status === 'rejected' || status === 'pending' ? 'Volver a Subir Documento' : 'Actualizar Documento'}
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        )
-                    })}
-                </CardContent>
-            </Card>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <Button 
+                                            className="w-full sm:w-auto"
+                                            onClick={() => handleUploadClick(name)}
+                                            disabled={isUploading === name}
+                                        >
+                                            {isUploading === name ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                            {status === 'rejected' || status === 'pending' ? 'Volver a Subir' : 'Actualizar'}
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            )
+                        })}
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Documentos de Mi Vehículo</CardTitle>
+                        <CardDescription>
+                            Estos son los documentos asociados al vehículo con placa <Badge variant="secondary">{driver.vehicle.licensePlate}</Badge>.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                         {vehicleDocuments.map(({ name, label, expiryDate }) => {
+                            const status = driver.documentStatus?.[name] || 'pending';
+                            const expiryInfo = expiryDate ? getDocumentStatus(expiryDate) : null;
+                            return (
+                                <Card key={name} className={cn(status === 'rejected' && "border-destructive bg-destructive/5")}>
+                                    <CardHeader>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <CardTitle className="text-lg flex items-center gap-2">
+                                                    <FileText className="h-5 w-5" />
+                                                    <span>{label}</span>
+                                                </CardTitle>
+                                                 {expiryDate && (
+                                                    <CardDescription className={cn("flex items-center gap-1.5 mt-2", expiryInfo?.color)}>
+                                                        {expiryInfo?.icon}
+                                                        <span>{expiryInfo?.label} (Vence: {format(new Date(expiryDate), 'dd/MM/yyyy')})</span>
+                                                    </CardDescription>
+                                                )}
+                                            </div>
+                                            <Badge variant={individualDocStatusConfig[status].variant}>
+                                                {individualDocStatusConfig[status].label}
+                                            </Badge>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <Button 
+                                            className="w-full sm:w-auto"
+                                            onClick={() => handleUploadClick(name)}
+                                            disabled={isUploading === name}
+                                        >
+                                            {isUploading === name ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                            {status === 'rejected' || status === 'pending' ? 'Volver a Subir' : 'Actualizar'}
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            )
+                        })}
+                    </CardContent>
+                </Card>
+            </div>
         </>
     );
 }
