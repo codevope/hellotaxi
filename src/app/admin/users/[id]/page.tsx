@@ -26,7 +26,7 @@ import {
   Save,
 } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import type { User, Ride } from '@/lib/types';
+import type { User, Ride, FirebaseUser } from '@/lib/types';
 import {
   doc,
   getDoc,
@@ -63,6 +63,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import ProfileValidationStatus from '@/components/profile-validation-status';
+import { getAuth } from 'firebase/auth';
 
 const rideStatusConfig = {
   searching: { label: 'Buscando', variant: 'default' as const },
@@ -82,6 +84,7 @@ export default function UserDetailsPage() {
   const { toast } = useToast();
 
   const [user, setUser] = useState<User | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -98,6 +101,24 @@ export default function UserDetailsPage() {
         // Fetch user data
         const userDocRef = doc(db, 'users', id as string);
         const userSnap = await getDoc(userDocRef);
+        
+        // This is a placeholder as we can't get the real auth object for another user on the client.
+        // In a real app, this would come from a secure admin backend.
+        const mockFirebaseUser: FirebaseUser = {
+            uid: id,
+            email: userSnap.data()?.email || '',
+            displayName: userSnap.data()?.name || '',
+            photoURL: userSnap.data()?.avatarUrl || '',
+            phoneNumber: userSnap.data()?.phone || '',
+            providerData: [
+                // We simulate this based on what we *could* know.
+                // In a real scenario, you'd need a backend to fetch this.
+                { providerId: userSnap.data()?.email ? 'password' : '' },
+                { providerId: userSnap.data()?.avatarUrl?.includes('googleusercontent') ? 'google.com' : '' }
+            ].filter(p => p.providerId),
+            metadata: {}
+        }
+        setFirebaseUser(mockFirebaseUser);
 
         if (userSnap.exists()) {
           const userData = { id: userSnap.id, ...userSnap.data() } as User;
@@ -303,6 +324,9 @@ export default function UserDetailsPage() {
               </Button>
             </CardFooter>
           </Card>
+
+          <ProfileValidationStatus user={firebaseUser} userProfile={user} />
+
         </div>
 
         <div className="md:col-span-2 space-y-8">

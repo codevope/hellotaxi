@@ -10,13 +10,16 @@ import {
   Lock,
   Phone,
   Shield,
+  ShieldQuestion,
 } from "lucide-react";
 import type { User as FirebaseUser } from "firebase/auth";
 import { cn } from "@/lib/utils";
+import type { User } from '@/lib/types';
+
 
 interface ProfileValidationStatusProps {
-  user: FirebaseUser | null;
-  userProfile?: { phone?: string } | null;
+  user: (FirebaseUser & { providerData: { providerId: string }[] }) | null;
+  userProfile?: User | null;
   className?: string;
   showActions?: boolean;
   onActionClick?: (action: "google" | "password" | "phone") => void;
@@ -29,14 +32,10 @@ export default function ProfileValidationStatus({
   showActions = false,
   onActionClick,
 }: ProfileValidationStatusProps) {
-  if (!user) {
-    return null;
-  }
 
-  const providerIds = user.providerData.map((p) => p.providerId);
-  const hasGoogle = providerIds.includes("google.com");
-  const hasPassword = providerIds.includes("password");
-  const hasPhoneInProfile = userProfile?.phone && userProfile.phone.trim().length > 0;
+  const hasGoogle = user?.providerData?.some(p => p.providerId === 'google.com') ?? false;
+  const hasPassword = user?.providerData?.some(p => p.providerId === 'password') ?? false;
+  const hasPhoneInProfile = !!userProfile?.phone && userProfile.phone.trim().length > 0;
 
   // User needs Google AND password AND phone in profile
   const isComplete = hasGoogle && hasPassword && hasPhoneInProfile;
@@ -50,7 +49,7 @@ export default function ProfileValidationStatus({
       id: "google",
       icon: Mail,
       title: "Google",
-      description: hasGoogle ? "Vinculada" : "Vincula tu cuenta de Google",
+      description: hasGoogle ? "Vinculada" : "No vinculada",
       isComplete: hasGoogle,
       action: hasGoogle ? "Listo" : "Vincular",
     },
@@ -58,7 +57,7 @@ export default function ProfileValidationStatus({
       id: "password",
       icon: Lock,
       title: "Email/Contraseña",
-      description: hasPassword ? "Activo" : "Configura tu contraseña",
+      description: hasPassword ? "Activa" : "No configurada",
       isComplete: hasPassword,
       action: hasPassword ? "Listo" : "Configurar",
     },
@@ -67,12 +66,28 @@ export default function ProfileValidationStatus({
       icon: Phone,
       title: "Teléfono",
       description: hasPhoneInProfile 
-        ? `Registrado: ${userProfile?.phone?.startsWith('+51') ? userProfile.phone : `+51${userProfile?.phone}`}` 
-        : "Registra tu número (+51)",
+        ? `Registrado: ${userProfile?.phone}` 
+        : "No registrado",
       isComplete: hasPhoneInProfile,
       action: hasPhoneInProfile ? "Actualizar" : "Registrar",
     },
   ];
+
+  if (!user) {
+    return (
+       <Card className={cn("bg-muted border-dashed", className)}>
+         <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <ShieldQuestion className="h-6 w-6 text-muted-foreground"/>
+              <div>
+                <CardTitle className="text-lg">Estado de Validación Desconocido</CardTitle>
+                <p className="text-sm text-muted-foreground">No se pudo cargar la información de autenticación del usuario.</p>
+              </div>
+            </div>
+         </CardHeader>
+       </Card>
+    )
+  }
 
   return (
     <Card className={cn("bg-[#F2F2F2] border-none shadow-md", className)}>
@@ -171,13 +186,13 @@ export default function ProfileValidationStatus({
         {/* Mensaje final */}
         {!isComplete && (
           <div className="mt-3 p-3 rounded-lg bg-[#F2F2F2] border border-[#049DD9] text-[#0477BF] text-sm text-center">
-            Completa tu perfil para mayor seguridad y beneficios
+            El perfil de seguridad del usuario está incompleto.
           </div>
         )}
 
         {isComplete && (
           <div className="mt-3 p-3 rounded-lg bg-[#2E4CA6] text-white text-sm text-center">
-            Perfil seguro y completo
+            Perfil de seguridad completo.
           </div>
         )}
       </CardContent>
