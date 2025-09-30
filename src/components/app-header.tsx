@@ -29,7 +29,7 @@ export default function AppHeader() {
   const navLinks = [
     // Conditionally render "Viaja" link
     !isDriver && { href: '/ride', label: 'Viaja' },
-    !isDriver && { href: '/driver', label: 'Conduce' },
+    !isDriver && { href: '/drive', label: 'Conduce' },
     { href: '/about', label: 'Quiénes Somos' },
   ].filter(Boolean) as { href: string; label: string }[];
 
@@ -47,6 +47,11 @@ export default function AppHeader() {
         {isAdmin && (
            <Button variant="ghost" asChild className={cn(pathname.startsWith('/admin') && 'font-bold bg-secondary')}>
             <Link href="/admin">Panel de Admin</Link>
+          </Button>
+        )}
+        {isDriver && (
+          <Button variant="ghost" asChild className={cn(pathname.startsWith('/driver') && 'font-bold bg-secondary')}>
+            <Link href="/driver">Panel de Conductor</Link>
           </Button>
         )}
       </nav>
@@ -79,14 +84,6 @@ export default function AppHeader() {
                     <span>Mi Perfil</span>
                  </Link>
               </DropdownMenuItem>
-              {isDriver && (
-                <DropdownMenuItem asChild>
-                  <Link href="/driver/dashboard">
-                      <LayoutDashboard className="mr-2 h-4 w-4" />
-                      <span>Panel de Conductor</span>
-                  </Link>
-                </DropdownMenuItem>
-              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={signOut}>
                 <LogOut className="mr-2 h-4 w-4" />
