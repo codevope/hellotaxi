@@ -29,6 +29,7 @@ import {
   SidebarFooter,
   SidebarMenuSub,
   SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
