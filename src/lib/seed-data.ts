@@ -51,7 +51,7 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         color: 'Gris',
         insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
         technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-        propertyCardExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 10)).toISOString(),
+        propertyCardRegistrationDate: new Date('2018-05-10').toISOString(),
         status: 'active',
     },
     {
@@ -63,7 +63,7 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         color: 'Negro',
         insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
         technicalReviewExpiry: new Date(new Date().setDate(new Date().getDate() + 20)).toISOString(), // Expires soon
-        propertyCardExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 10)).toISOString(),
+        propertyCardRegistrationDate: new Date('2022-01-15').toISOString(),
         status: 'active',
     },
     {
@@ -75,7 +75,7 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         color: 'Blanco',
         insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
         technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-        propertyCardExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 10)).toISOString(),
+        propertyCardRegistrationDate: new Date('2020-03-20').toISOString(),
         status: 'in_review',
     },
     {
@@ -87,7 +87,7 @@ export const vehicles: Omit<Vehicle, 'id' | 'driverId'>[] = [
         color: 'Azul',
         insuranceExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString(), // Expired
         technicalReviewExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString(), // Expired
-        propertyCardExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 8)).toISOString(),
+        propertyCardRegistrationDate: new Date('2023-08-01').toISOString(),
         status: 'inactive',
     }
 ];

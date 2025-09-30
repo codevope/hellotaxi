@@ -1,10 +1,11 @@
 
+
 'use client';
 
 import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileText, Upload, Car, User } from 'lucide-react';
+import { Loader2, FileText, Upload, Car, User, Calendar } from 'lucide-react';
 import type { Driver, DocumentName, DocumentStatus, EnrichedDriver } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -80,14 +81,14 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
     };
     
     // Separating driver personal documents from vehicle documents
-    const personalDocuments: { name: DocumentName, label: string, expiryDate?: string }[] = [
+    const personalDocuments: { name: DocumentName; label: string; expiryDate?: string }[] = [
         { name: 'dni', label: 'DNI', expiryDate: driver.dniExpiry },
         { name: 'license', label: 'Licencia de Conducir', expiryDate: driver.licenseExpiry },
         { name: 'backgroundCheck', label: 'Certificado de Antecedentes', expiryDate: driver.backgroundCheckExpiry },
     ];
     
-    const vehicleDocuments: { name: DocumentName, label: string, expiryDate?: string }[] = [
-        { name: 'propertyCard', label: 'Tarjeta de Propiedad', expiryDate: driver.vehicle.propertyCardExpiry },
+    const vehicleDocuments: { name: DocumentName; label: string; expiryDate?: string, registrationDate?: string }[] = [
+        { name: 'propertyCard', label: 'Tarjeta de Propiedad', registrationDate: driver.vehicle.propertyCardRegistrationDate },
         { name: 'insurance', label: 'SOAT / Póliza de Seguro', expiryDate: driver.vehicle.insuranceExpiry },
         { name: 'technicalReview', label: 'Revisión Técnica', expiryDate: driver.vehicle.technicalReviewExpiry },
     ];
@@ -151,7 +152,7 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                         {vehicleDocuments.map(({ name, label, expiryDate }) => {
+                         {vehicleDocuments.map(({ name, label, expiryDate, registrationDate }) => {
                             const status = driver.documentStatus?.[name] || 'pending';
                             const expiryInfo = expiryDate ? getDocumentStatus(expiryDate) : null;
                             return (
@@ -163,10 +164,15 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
                                                     <Car className="h-5 w-5" />
                                                     <span>{label}</span>
                                                 </CardTitle>
-                                                 {expiryDate && (
-                                                    <CardDescription className={cn("flex items-center gap-1.5 mt-2", expiryInfo?.color)}>
-                                                        {expiryInfo?.icon}
-                                                        <span>{expiryInfo?.label} (Vence: {format(new Date(expiryDate), 'dd/MM/yyyy')})</span>
+                                                 {expiryInfo ? (
+                                                    <CardDescription className={cn("flex items-center gap-1.5 mt-2", expiryInfo.color)}>
+                                                        {expiryInfo.icon}
+                                                        <span>{expiryInfo.label} (Vence: {format(new Date(expiryDate!), 'dd/MM/yyyy')})</span>
+                                                    </CardDescription>
+                                                ) : (
+                                                    <CardDescription className="flex items-center gap-1.5 mt-2 text-muted-foreground">
+                                                        <Calendar className="h-4 w-4" />
+                                                        <span>Registrado: {format(new Date(registrationDate!), 'dd/MM/yyyy')}</span>
                                                     </CardDescription>
                                                 )}
                                             </div>

@@ -30,6 +30,7 @@ import {
   MoreVertical,
   Car,
   User,
+  Calendar,
 } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
@@ -320,8 +321,8 @@ export default function DriverDetailsPage() {
     { name: 'backgroundCheck', label: 'Certificado de Antecedentes', expiryDate: driver.backgroundCheckExpiry },
   ];
 
-  const vehicleDocumentDetails: { name: DocumentName; label: string; expiryDate: string }[] = [
-    { name: 'propertyCard', label: 'Tarjeta de Propiedad', expiryDate: driver.vehicle.propertyCardExpiry },
+  const vehicleDocumentDetails: { name: DocumentName; label: string; expiryDate?: string, registrationDate?: string }[] = [
+    { name: 'propertyCard', label: 'Tarjeta de Propiedad', registrationDate: driver.vehicle.propertyCardRegistrationDate },
     { name: 'insurance', label: 'SOAT / Póliza de Seguro', expiryDate: driver.vehicle.insuranceExpiry },
     { name: 'technicalReview', label: 'Revisión Técnica', expiryDate: driver.vehicle.technicalReviewExpiry },
   ];
@@ -520,7 +521,7 @@ export default function DriverDetailsPage() {
                 <h3 className="font-semibold">Documentos del Vehículo</h3>
                 <ul className="space-y-3">
                   {vehicleDocumentDetails.map(docDetail => {
-                      const statusInfo = getDocumentStatus(docDetail.expiryDate);
+                      const statusInfo = docDetail.expiryDate ? getDocumentStatus(docDetail.expiryDate) : null;
                       return (
                          <li key={docDetail.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
                             <div className="flex flex-col gap-1.5">
@@ -528,10 +529,17 @@ export default function DriverDetailsPage() {
                                     <Car className="h-5 w-5 text-muted-foreground" />
                                     <span>{docDetail.label}</span>
                                 </div>
-                                <div className={cn("flex items-center gap-1.5 text-sm font-medium ml-7", statusInfo.color)}>
-                                    {statusInfo.icon}
-                                    <span>{statusInfo.label} (Vence: {format(new Date(docDetail.expiryDate), 'dd/MM/yyyy')})</span>
-                                </div>
+                                {statusInfo ? (
+                                    <div className={cn("flex items-center gap-1.5 text-sm font-medium ml-7", statusInfo.color)}>
+                                        {statusInfo.icon}
+                                        <span>{statusInfo.label} (Vence: {format(new Date(docDetail.expiryDate!), 'dd/MM/yyyy')})</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-1.5 text-sm font-medium ml-7 text-muted-foreground">
+                                        <Calendar className="h-4 w-4" />
+                                        <span>Registrado: {format(new Date(docDetail.registrationDate!), 'dd/MM/yyyy')}</span>
+                                    </div>
+                                )}
                             </div>
                             <div className='flex items-center gap-2'>
                               {getIndividualDocBadge(docDetail.name)}

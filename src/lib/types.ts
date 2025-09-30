@@ -29,7 +29,7 @@ export interface Vehicle {
   driverId: string;
   insuranceExpiry: string; // ISO Date string
   technicalReviewExpiry: string; // ISO Date string
-  propertyCardExpiry: string; // ISO Date string
+  propertyCardRegistrationDate: string; // ISO Date string
   status: 'active' | 'inactive' | 'in_review';
 }
 
