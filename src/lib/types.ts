@@ -29,7 +29,7 @@ export interface Vehicle {
   driverId: string;
   insuranceExpiry: string; // ISO Date string
   technicalReviewExpiry: string; // ISO Date string
-  propertyCardRegistrationDate: string; // ISO Date string
+  propertyCardRegistrationDate?: string; // ISO Date string
   status: 'active' | 'inactive' | 'in_review';
 }
 
@@ -52,6 +52,7 @@ export interface Driver {
   dniExpiry: string; // ISO Date string
   paymentModel: PaymentModel;
   membershipStatus: MembershipStatus;
+  membershipExpiryDate?: string; // ISO Date string
   documentStatus?: Record<DocumentName, DocumentStatus>;
   totalRides?: number;
   location?: Location;

@@ -117,6 +117,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString(),
     paymentModel: 'commission',
     membershipStatus: 'active',
+    membershipExpiryDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString(),
     documentStatus: {
         license: 'approved',
         insurance: 'approved',
@@ -140,6 +141,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 4)).toISOString(),
     paymentModel: 'membership',
     membershipStatus: 'active',
+    membershipExpiryDate: new Date(new Date().setDate(new Date().getDate() + 15)).toISOString(),
     documentStatus: {
         license: 'approved',
         insurance: 'approved',
@@ -163,6 +165,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toISOString(),
     paymentModel: 'membership',
     membershipStatus: 'pending',
+    membershipExpiryDate: new Date(new Date().setDate(new Date().getDate() - 5)).toISOString(), // Expired
      documentStatus: {
         license: 'pending',
         insurance: 'pending',
@@ -186,6 +189,7 @@ export const drivers: (Omit<Driver, 'id' | 'vehicle'> & {licensePlate: string})[
     backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() - 2)).toISOString(), // Expired
     paymentModel: 'commission',
     membershipStatus: 'expired',
+    membershipExpiryDate: new Date(new Date().setDate(new Date().getDate() - 90)).toISOString(), // Expired long ago
      documentStatus: {
         license: 'approved',
         insurance: 'rejected',

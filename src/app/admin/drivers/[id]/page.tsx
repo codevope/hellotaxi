@@ -31,6 +31,7 @@ import {
   Car,
   User,
   Calendar,
+  CalendarCheck,
 } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
@@ -89,10 +90,16 @@ const paymentModelConfig: Record<PaymentModel, string> = {
   membership: 'Membresía Mensual',
 };
 
-const membershipStatusConfig: Record<MembershipStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-    active: { label: 'Activa', variant: 'default' },
-    pending: { label: 'Pendiente de Pago', variant: 'outline' },
-    expired: { label: 'Vencida', variant: 'destructive' },
+const getMembershipStatus = (expiryDate?: string): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } => {
+    if (!expiryDate) return { label: 'N/A', variant: 'secondary' };
+    
+    const now = new Date();
+    const expiry = new Date(expiryDate);
+    const diffDays = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (diffDays < 0) return { label: 'Vencida', variant: 'destructive' };
+    if (diffDays <= 7) return { label: 'Por Vencer', variant: 'outline' };
+    return { label: 'Activa', variant: 'default' };
 }
 
 type EnrichedRide = Omit<Ride, 'passenger' | 'driver' | 'vehicle'> & { passenger: AppUser, driver: Driver, vehicle: Vehicle };
@@ -218,14 +225,15 @@ export default function DriverDetailsPage() {
 
     try {
       // Validate unique license plate
-      if (licensePlate !== driver.vehicle.licensePlate) {
-        const q = query(collection(db, 'vehicles'), where('licensePlate', '==', licensePlate));
+      if (licensePlate.toUpperCase() !== driver.vehicle.licensePlate.toUpperCase()) {
+        const q = query(collection(db, 'vehicles'), where('licensePlate', '==', licensePlate.toUpperCase()));
         const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
+         const otherVehicle = querySnapshot.docs.find(d => d.id !== driver.vehicle.id);
+        if (otherVehicle) {
           toast({
             variant: 'destructive',
             title: 'Placa Duplicada',
-            description: 'Esta placa ya está registrada en el sistema.',
+            description: 'Esta placa ya está registrada en el sistema para otro vehículo.',
           });
           setIsUpdating(false);
           return;
@@ -243,11 +251,15 @@ export default function DriverDetailsPage() {
         documentStatus: individualDocStatuses as Record<DocumentName, DocumentStatus>,
         documentsStatus: finalDocumentsStatus,
       };
+       if (paymentModel === 'membership' && !driver.membershipExpiryDate) {
+        driverUpdates.membershipExpiryDate = new Date(new Date().setDate(new Date().getDate() + 30)).toISOString();
+      }
+
       
       const vehicleUpdates: Partial<Vehicle> = {
         brand: vehicleBrand,
         model: vehicleModel,
-        licensePlate: licensePlate,
+        licensePlate: licensePlate.toUpperCase(),
       }
 
       await updateDoc(driverRef, driverUpdates);
@@ -314,6 +326,8 @@ export default function DriverDetailsPage() {
   };
   
   const docStatus = documentStatusConfig[documentsStatus];
+  const membershipStatus = getMembershipStatus(driver.membershipExpiryDate);
+
 
   const driverDocumentDetails: { name: DocumentName; label: string; expiryDate: string }[] = [
     { name: 'dni', label: 'DNI', expiryDate: driver.dniExpiry },
@@ -325,7 +339,7 @@ export default function DriverDetailsPage() {
     { name: 'propertyCard', label: 'Tarjeta de Propiedad', registrationDate: driver.vehicle.propertyCardRegistrationDate },
     { name: 'insurance', label: 'SOAT / Póliza de Seguro', expiryDate: driver.vehicle.insuranceExpiry },
     { name: 'technicalReview', label: 'Revisión Técnica', expiryDate: driver.vehicle.technicalReviewExpiry },
-  ];
+];
 
   const availableModels = allVehicleModels.find(b => b.name === vehicleBrand)?.models || [];
 
@@ -450,11 +464,19 @@ export default function DriverDetailsPage() {
                     </Select>
                     
                     {paymentModel === 'membership' && (
-                        <div className="flex justify-between items-center pt-2">
-                            <span className="text-muted-foreground">Membresía:</span>
-                            <Badge variant={membershipStatusConfig[driver.membershipStatus].variant}>
-                                {membershipStatusConfig[driver.membershipStatus].label}
-                            </Badge>
+                        <div className="space-y-2 pt-2">
+                           <div className="flex justify-between items-center">
+                              <span className="text-muted-foreground">Estado Membresía:</span>
+                              <Badge variant={membershipStatus.variant}>
+                                  {membershipStatus.label}
+                              </Badge>
+                           </div>
+                           {driver.membershipExpiryDate && (
+                              <div className="flex justify-between items-center text-xs">
+                                 <span className="text-muted-foreground">Vence:</span>
+                                 <span>{format(new Date(driver.membershipExpiryDate), 'dd MMM yyyy')}</span>
+                              </div>
+                           )}
                         </div>
                     )}
                 </div>
@@ -536,7 +558,7 @@ export default function DriverDetailsPage() {
                                     </div>
                                 ) : (
                                     <div className="flex items-center gap-1.5 text-sm font-medium ml-7 text-muted-foreground">
-                                        <Calendar className="h-4 w-4" />
+                                        <CalendarCheck className="h-4 w-4" />
                                         {docDetail.registrationDate ? (
                                             <span>Registrado: {format(new Date(docDetail.registrationDate), 'dd/MM/yyyy')}</span>
                                         ) : (

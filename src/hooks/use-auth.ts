@@ -255,7 +255,7 @@ export function useAuth() {
             driverId: firebaseUser.uid,
             insuranceExpiry: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString(),
             technicalReviewExpiry: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString(),
-            propertyCardExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString(),
+            propertyCardRegistrationDate: new Date().toISOString(),
             status: 'in_review',
         };
         batch.set(vehicleRef, newVehicle);
@@ -271,8 +271,9 @@ export function useAuth() {
           dniExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 8)).toISOString(),
           licenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
           backgroundCheckExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-          paymentModel: 'commission',
+          paymentModel: 'membership',
           membershipStatus: 'active',
+          membershipExpiryDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString(),
           documentStatus: {
             dni: 'pending',
             license: 'pending',
