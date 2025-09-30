@@ -537,7 +537,11 @@ export default function DriverDetailsPage() {
                                 ) : (
                                     <div className="flex items-center gap-1.5 text-sm font-medium ml-7 text-muted-foreground">
                                         <Calendar className="h-4 w-4" />
-                                        <span>Registrado: {format(new Date(docDetail.registrationDate!), 'dd/MM/yyyy')}</span>
+                                        {docDetail.registrationDate ? (
+                                            <span>Registrado: {format(new Date(docDetail.registrationDate), 'dd/MM/yyyy')}</span>
+                                        ) : (
+                                            <span>Fecha no registrada</span>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -630,7 +634,3 @@ export default function DriverDetailsPage() {
     </div>
   );
 }
-
-    
-
-    

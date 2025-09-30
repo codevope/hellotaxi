@@ -172,7 +172,11 @@ export default function DriverDocuments({ driver, onUpdate }: DriverDocumentsPro
                                                 ) : (
                                                     <CardDescription className="flex items-center gap-1.5 mt-2 text-muted-foreground">
                                                         <Calendar className="h-4 w-4" />
-                                                        <span>Registrado: {format(new Date(registrationDate!), 'dd/MM/yyyy')}</span>
+                                                        {registrationDate ? (
+                                                            <span>Registrado: {format(new Date(registrationDate), 'dd/MM/yyyy')}</span>
+                                                        ) : (
+                                                            <span>Fecha no registrada</span>
+                                                        )}
                                                     </CardDescription>
                                                 )}
                                             </div>
