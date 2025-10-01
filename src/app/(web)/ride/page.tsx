@@ -10,7 +10,7 @@ import MapView from '@/components/map-view';
 import RideRequestForm from '@/components/ride-request-form';
 import RideHistory from '@/components/ride-history';
 import type { Ride, Driver, ChatMessage, CancellationReason, User } from '@/lib/types';
-import { History, Car, Siren, LayoutDashboard, MessageCircle, Bot, X, LogIn, Shield } from 'lucide-react';
+import { History, Car, Siren, LayoutDashboard, MessageCircle, Bot, X, LogIn, Shield, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -87,6 +87,7 @@ function RidePageContent() {
     assignDriver,
     completeRideForRating,
     resetRide,
+    resetAll,
     toggleSupportChat,
     setCounterOffer,
     setStatus,
@@ -121,28 +122,36 @@ function RidePageContent() {
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
+        console.log('📡 Snapshot received, docs count:', snapshot.docs.length);
+        
         const activeRides = snapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as Ride))
           .filter(ride => !['completed', 'cancelled'].includes(ride.status) || (ride.status === 'completed' && !ride.isRatedByPassenger));
 
+        console.log('🔍 Active rides found:', activeRides.length);
+
         if (activeRides.length === 0) {
             // Only reset if we are not in the middle of rating a just-completed ride.
             if (useRideStore.getState().status !== 'rating') {
+               console.log('🔄 No active rides, resetting');
                resetRide();
             }
             return;
         }
         
         const rideData = activeRides[0]; // Assuming user has only one active ride
+        console.log('🚗 Processing ride:', { id: rideData.id, status: rideData.status });
         
         setActiveRide(rideData);
 
         switch (rideData.status) {
             case 'searching':
+                console.log('🔍 Setting status to searching');
                 setStatus('searching');
                 break;
             
             case 'counter-offered':
+                console.log('💰 Counter offer received:', rideData.fare);
                 if (useRideStore.getState().counterOfferValue !== rideData.fare) {
                   setCounterOffer(rideData.fare);
                 }
@@ -151,6 +160,7 @@ function RidePageContent() {
             case 'accepted':
             case 'arrived':
             case 'in-progress':
+                console.log('👨‍💼 Driver assigned, status:', rideData.status);
                 setStatus('assigned');
                 if (rideData.driver) {
                     const driverSnap = await getDoc(rideData.driver);
@@ -166,6 +176,7 @@ function RidePageContent() {
                 break;
             
             case 'completed':
+                 console.log('✅ Ride completed');
                  if (!rideData.isRatedByPassenger) {
                     if(rideData.driver) {
                         const driverSnap = await getDoc(rideData.driver);
@@ -176,6 +187,10 @@ function RidePageContent() {
                         }
                     }
                  }
+                break;
+                
+            default:
+                console.log('⚠️ Unknown ride status:', rideData.status);
                 break;
         }
     });
@@ -285,7 +300,7 @@ function RidePageContent() {
         description: 'Tu opinión ayuda a mantener la calidad de nuestra comunidad.',
       });
       completeRideForRating(currentDriver); // This will set the status to 'rating'
-      resetRide(); // This will clear the ride and show the form again
+      resetAll(); // This will clear everything including pickup/dropoff locations
     } catch (error) {
       console.error('Error submitting rating:', error);
       toast({
@@ -399,20 +414,56 @@ function RidePageContent() {
                         </TabsList>
 
                         <TabsContent value="book" className="p-6">
+                            
                             {status === 'searching' && (
-                                <div className="flex flex-col items-center justify-center text-center space-y-4 p-8">
-                                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                                    <p className="font-semibold text-lg">Buscando conductor...</p>
-                                    <p className="text-muted-foreground">Estamos encontrando el mejor conductor para ti.</p>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="outline" className="mt-4">
-                                                <X className="mr-2 h-4 w-4" /> Cancelar Búsqueda
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>¿Cancelar la búsqueda?</AlertDialogTitle>
+                                <div className="space-y-6">
+                                    {/* Trip Details Card */}
+                                    <Card>
+                                        <CardContent className="p-6">
+                                            <h3 className="font-semibold text-lg mb-4">Detalles de tu viaje</h3>
+                                            <div className="space-y-4">
+                                                <div className="flex items-start space-x-3">
+                                                    <MapPin className="h-5 w-5 text-green-600 mt-1" />
+                                                    <div>
+                                                        <p className="font-medium text-gray-900">Recojo</p>
+                                                        <p className="text-gray-600 text-sm">{pickupLocation?.address || activeRide?.pickup}</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="flex items-start space-x-3">
+                                                    <MapPin className="h-5 w-5 text-red-600 mt-1" />
+                                                    <div>
+                                                        <p className="font-medium text-gray-900">Destino</p>
+                                                        <p className="text-gray-600 text-sm">{dropoffLocation?.address || activeRide?.dropoff}</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                {activeRide && (
+                                                    <div className="border-t pt-4">
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="font-semibold">Precio</span>
+                                                            <span className="font-bold text-primary text-lg">S/ {activeRide.fare.toFixed(2)}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                    
+                                    {/* Searching Status */}
+                                    <div className="flex flex-col items-center justify-center text-center space-y-4 p-8">
+                                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                                        <p className="font-semibold text-lg">Buscando conductor...</p>
+                                        <p className="text-muted-foreground">Estamos encontrando el mejor conductor para ti.</p>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="outline" className="mt-4">
+                                                    <X className="mr-2 h-4 w-4" /> Cancelar Búsqueda
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Cancelar la búsqueda?</AlertDialogTitle>
                                                 <AlertDialogDescription>
                                                     ¿Estás seguro de que quieres cancelar la búsqueda de tu viaje?
                                                 </AlertDialogDescription>
@@ -425,6 +476,7 @@ function RidePageContent() {
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
                                     </AlertDialog>
+                                </div>
                                 </div>
                             )}
                             {status === 'assigned' && activeRide && assignedDriver && (
@@ -489,27 +541,93 @@ function RidePageContent() {
                                 </CardContent>
                             </Card>
                             )}
-                            {status === 'negotiating' && useRideStore.getState().counterOfferValue && activeRide && (
-                                <Alert>
-                                  <AlertTitle>El conductor ha hecho una contraoferta de S/{useRideStore.getState().counterOfferValue?.toFixed(2)}</AlertTitle>
-                                  <AlertDescription>
-                                      Puedes aceptar la oferta o rechazarla y cancelar el viaje.
-                                  </AlertDescription>
-                                  <div className='flex gap-2 mt-4'>
-                                    <Button className='w-full' onClick={async () => {
-                                      const rideRef = doc(db, 'rides', activeRide.id);
-                                      await updateDoc(rideRef, { status: 'searching', offeredTo: null });
-                                      setCounterOffer(null);
-                                      setStatus('searching');
-                                    }}>Aceptar y Buscar</Button>
-                                    <Button className='w-full' variant={'destructive'} onClick={() => {
-                                       handleCancelRide({code: 'REJECTED_COUNTER', reason: 'Contraoferta rechazada'})
-                                    }}>Rechazar</Button>
-                                  </div>
-                                </Alert>
+                            {status === 'counter-offered' && useRideStore.getState().counterOfferValue && activeRide && (
+                                <Card className="border-blue-200 shadow-lg">
+                                  <CardContent className="p-0">
+                                    <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-6 text-white">
+                                      <div className="text-center space-y-4">
+                                        <h3 className="text-xl font-bold">
+                                          Nueva Contraoferta Recibida
+                                        </h3>
+                                        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+                                          <div className="flex justify-between items-center mb-3">
+                                            <span className="text-blue-100">Tarifa Original:</span>
+                                            <span className="font-semibold text-white">S/{activeRide.fare.toFixed(2)}</span>
+                                          </div>
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-blue-100">Contraoferta del Conductor:</span>
+                                            <span className="font-bold text-2xl text-yellow-300">S/{useRideStore.getState().counterOfferValue?.toFixed(2)}</span>
+                                          </div>
+                                        </div>
+                                        <p className="text-blue-100">
+                                          ¿Deseas aceptar esta nueva tarifa?
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="p-6">
+                                      <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+                                        <Button 
+                                          className='w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 rounded-lg shadow-md transition-all duration-200' 
+                                          onClick={async () => {
+                                        try {
+                                          const rideRef = doc(db, 'rides', activeRide.id);
+                                          
+                                          // Get the driver reference from offeredTo field
+                                          const currentRideDoc = await getDoc(rideRef);
+                                          if (!currentRideDoc.exists()) {
+                                            throw new Error('Ride not found');
+                                          }
+                                          
+                                          const currentRideData = currentRideDoc.data();
+                                          const driverRef = currentRideData.offeredTo; // This is the driver who made the counter-offer
+                                          
+                                          if (!driverRef) {
+                                            throw new Error('Driver reference not found');
+                                          }
+                                          
+                                          console.log('🎯 Accepting counter-offer and assigning driver:', driverRef.id);
+                                          
+                                          await updateDoc(rideRef, { 
+                                            status: 'accepted',
+                                            fare: useRideStore.getState().counterOfferValue,
+                                            driver: driverRef, // Assign the driver to the ride
+                                            offeredTo: null 
+                                          });
+                                          
+                                          setCounterOffer(null);
+                                          setStatus('assigned');
+                                          toast({
+                                            title: 'Contraoferta aceptada',
+                                            description: `Has aceptado la tarifa de S/${useRideStore.getState().counterOfferValue?.toFixed(2)}`,
+                                          });
+                                        } catch (error) {
+                                          console.error('Error accepting counter-offer:', error);
+                                          toast({
+                                            variant: 'destructive',
+                                            title: 'Error',
+                                            description: 'No se pudo aceptar la contraoferta.',
+                                          });
+                                        }
+                                      }}
+                                    >
+                                          Aceptar Contraoferta S/{useRideStore.getState().counterOfferValue?.toFixed(2)}
+                                        </Button>
+                                        <Button 
+                                          className='w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold py-3 rounded-lg shadow-md transition-all duration-200' 
+                                          onClick={() => {
+                                            handleCancelRide({code: 'REJECTED_COUNTER', reason: 'Contraoferta rechazada'})
+                                          }}
+                                        >
+                                          Rechazar y Cancelar
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
                             )}
-                            {status !== 'searching' && status !== 'assigned' && status !== 'rating' && status !== 'negotiating' && (
+                            {(status === 'idle' || status === 'calculating' || status === 'calculated' || status === 'confirmed') && (
                                 <RideRequestForm onRideCreated={(ride) => {
+                                  console.log('🚗 Ride created:', ride);
                                   setActiveRide(ride);
                                   setStatus('searching');
                                 }} />
@@ -521,6 +639,19 @@ function RidePageContent() {
                                 onSubmit={handleRatingSubmit}
                                 isSubmitting={isRatingSubmitting}
                             />
+                            )}
+                            
+                            {/* Fallback for unexpected states */}
+                            {!['searching', 'assigned', 'rating', 'counter-offered', 'idle', 'calculating', 'calculated', 'confirmed'].includes(status) && (
+                                <div className="text-center p-8">
+                                    <p className="text-muted-foreground">Estado inesperado: {status}</p>
+                                    <Button onClick={() => {
+                                        console.log('🔄 Resetting ride state');
+                                        resetRide();
+                                    }}>
+                                        Reiniciar
+                                    </Button>
+                                </div>
                             )}
                         </TabsContent>
                         <TabsContent value="history" className="p-6">

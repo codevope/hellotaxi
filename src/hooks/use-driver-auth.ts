@@ -27,6 +27,7 @@ export function useDriverAuth() {
         unsubscribe = onSnapshot(driverDocRef, async (driverSnap) => {
           if (driverSnap.exists()) {
             const driverData = { id: driverSnap.id, ...driverSnap.data() } as Driver;
+            
             if(driverData.vehicle && driverData.vehicle instanceof DocumentReference) {
                 const vehicleSnap = await getDoc(driverData.vehicle);
                 if (vehicleSnap.exists()) {

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Form,
   FormControl,
@@ -23,7 +24,6 @@ import {
   CarFront,
   Sparkles,
   ChevronRight,
-  Bot,
   Calendar as CalendarIcon,
   Ticket,
 } from 'lucide-react';
@@ -37,13 +37,17 @@ import type {
   ScheduledRide,
 } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import FareNegotiation from './fare-negotiation';
 import { useToast } from '@/hooks/use-toast';
 import {
   collection,
   doc,
   addDoc,
   setDoc,
+  query,
+  where,
+  getDocs,
+  getDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getSettings } from '@/services/settings-service';
@@ -101,7 +105,6 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
     setPickupLocation,
     setDropoffLocation,
     setRouteInfo,
-    startNegotiation,
     resetRide,
     setStatus,
   } = useRideStore();
@@ -114,6 +117,27 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
   const { user } = useAuth();
   const { toast } = useToast();
   const { calculateRoute, isCalculating, error: routeError } = useETACalculator();
+
+  // Check if there are available drivers
+  const checkAvailableDrivers = async (): Promise<boolean> => {
+    try {
+      console.log('🔍 Checking for available drivers...');
+      const driversQuery = query(
+        collection(db, 'drivers'),
+        where('status', '==', 'available')
+      );
+      const driversSnapshot = await getDocs(driversQuery);
+      console.log('👨‍💼 Available drivers found:', driversSnapshot.size);
+      driversSnapshot.docs.forEach(doc => {
+        const driver = doc.data();
+        console.log('Driver:', { id: doc.id, name: driver.name, status: driver.status });
+      });
+      return !driversSnapshot.empty;
+    } catch (error) {
+      console.error('❌ Error checking available drivers:', error);
+      return false; // If there's an error, assume no drivers to be safe
+    }
+  };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -188,7 +212,7 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
         return;
     }
 
-
+    // Calculate route and create ride immediately
     const route = await calculateRoute(
       pickupLocation,
       dropoffLocation,
@@ -197,30 +221,51 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
         couponCode: form.getValues('couponCode') || undefined
       }
     );
-    if (route) {
+    
+    if (route && route.fareBreakdown) {
       setRouteInfo(route);
+      // Go to confirmed state to show trip details
+      setStatus('confirmed');
     }
   };
 
-  async function handleNegotiationComplete(
-    fare: number,
-    breakdown: FareBreakdown
-  ) {
-    if (!user) return;
+  async function handleCreateRide(fare: number, breakdown: FareBreakdown) {
+    if (!user) {
+      console.log('❌ No user found');
+      return;
+    }
+    
+    console.log('🎯 Creating ride directly...');
+    
+    // First, check if there are available drivers
+    const hasAvailableDrivers = await checkAvailableDrivers();
+    console.log('🚗 Available drivers check result:', hasAvailableDrivers);
+    
+    if (!hasAvailableDrivers) {
+      console.log('❌ No available drivers, showing error toast');
+      toast({
+        variant: 'destructive',
+        title: 'No hay conductores disponibles',
+        description: 'En este momento no hay conductores activos en tu zona. Por favor, intenta más tarde.',
+      });
+      return;
+    }
+    
+    console.log('✅ Proceeding with ride creation...');
     
     const passengerRef = doc(db, 'users', user.uid);
-    const rideRef = doc(collection(db, 'rides')); // Create a new document reference with an auto-generated ID
+    const rideRef = doc(collection(db, 'rides'));
     
     try {
       const newRideData: Ride = {
-        id: rideRef.id, // Use the generated ID
+        id: rideRef.id,
         pickup: form.getValues('pickup'),
         dropoff: form.getValues('dropoff'),
         date: new Date().toISOString(),
         fare: fare,
         driver: null,
         passenger: passengerRef,
-        vehicle: null, // Se asignará cuando se asigne un conductor
+        vehicle: null,
         serviceType: form.getValues('serviceType'),
         paymentMethod: form.getValues('paymentMethod'),
         couponCode: form.getValues('couponCode') || '',
@@ -231,12 +276,48 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
         isRatedByPassenger: false,
       };
 
-      await setDoc(rideRef, newRideData); // Use setDoc with the new reference
+      await setDoc(rideRef, newRideData);
+      console.log('🚗 Ride created successfully:', newRideData.id);
+      
       onRideCreated(newRideData);
+
+      // Set a timeout to handle no driver acceptance
+      setTimeout(async () => {
+        try {
+          const currentRideRef = doc(db, 'rides', newRideData.id);
+          const currentRideDoc = await getDoc(currentRideRef);
+          
+          if (currentRideDoc.exists()) {
+            const rideData = currentRideDoc.data() as Ride;
+            if (rideData.status === 'searching') {
+              await updateDoc(currentRideRef, {
+                status: 'cancelled',
+                cancellationReason: {
+                  code: 'NO_DRIVER_AVAILABLE',
+                  reason: 'No se encontró conductor disponible'
+                },
+                cancelledBy: 'system'
+              });
+              
+              toast({
+                variant: 'destructive',
+                title: 'No se encontró conductor',
+                description: 'No hay conductores disponibles en este momento. Intenta nuevamente.',
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error in timeout handler:', error);
+        }
+      }, 180000); // 3 minutes timeout
 
     } catch (error) {
       console.error('Error creating ride:', error);
-      toast({ variant: 'destructive', title: 'Error al crear el viaje', description: 'No se pudo registrar el viaje. Inténtalo de nuevo.' });
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error al crear el viaje', 
+        description: 'No se pudo registrar el viaje. Inténtalo de nuevo.' 
+      });
       resetForm();
     }
   }
@@ -248,34 +329,113 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
   }
 
 
-  if (status === 'negotiating' && routeInfo) {
-    return (
-      <FareNegotiation
-        routeInfo={routeInfo}
-        onNegotiationComplete={handleNegotiationComplete}
-        onCancel={() => {
-            resetRide();
-            if(pickupLocation && dropoffLocation) {
-                 calculateRoute(
-                    pickupLocation,
-                    dropoffLocation,
-                    {
-                        serviceType: form.getValues('serviceType'),
-                        couponCode: form.getValues('couponCode') || undefined
-                    }
-                ).then(route => {
-                    if (route) setRouteInfo(route);
-                });
-            }
-        }}
-      />
-    );
-  }
-
   if (!appSettings) {
     return (
       <div className="flex justify-center items-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Show trip confirmation view
+  if (status === 'confirmed' && routeInfo) {
+    return (
+      <div className="space-y-6">
+        {/* Header with gradient background */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 p-6 text-white">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 via-blue-700/90 to-blue-800/90"></div>
+          <div className="relative z-10 text-center">
+            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
+              <Car className="h-8 w-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Confirmar tu viaje</h2>
+            <p className="text-blue-100">Revisa los detalles antes de buscar conductor</p>
+          </div>
+        </div>
+        
+        {/* Trip Details Card */}
+        <Card className="border-0 shadow-lg bg-gradient-to-r from-gray-50 to-white">
+          <CardContent className="p-6">
+            <div className="space-y-6">
+              {/* Route Information */}
+              <div className="space-y-4">
+                <div className="flex items-start space-x-4">
+                  <div className="flex flex-col items-center">
+                    <div className="h-3 w-3 rounded-full bg-green-500"></div>
+                    <div className="h-8 w-0.5 bg-gray-300"></div>
+                    <MapPin className="h-4 w-4 text-red-500" />
+                  </div>
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <p className="text-sm font-medium text-green-700">Recojo</p>
+                      <p className="text-gray-900 font-medium">{pickupLocation?.address}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-red-700">Destino</p>
+                      <p className="text-gray-900 font-medium">{dropoffLocation?.address}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Trip Metrics */}
+              <div className="grid grid-cols-3 gap-4 rounded-xl bg-blue-50 p-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-blue-600">{routeInfo.distance.text}</p>
+                  <p className="text-xs text-blue-700 font-medium">Distancia</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-blue-600">{routeInfo.duration.text}</p>
+                  <p className="text-xs text-blue-700 font-medium">Duración</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-green-600">S/ {(routeInfo.estimatedFare || 0).toFixed(2)}</p>
+                  <p className="text-xs text-green-700 font-medium">Precio</p>
+                </div>
+              </div>
+              
+              {/* Traffic Information */}
+              {routeInfo.duration && routeInfo.duration.value > 0 && (
+                <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></div>
+                    <p className="text-sm font-medium text-amber-800">
+                      Condiciones de tráfico en tiempo real incluidas
+                    </p>
+                  </div>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Tiempo estimado considerando el tráfico actual
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Action Buttons */}
+        <div className="space-y-3">
+          <Button
+            size="lg"
+            className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg"
+            onClick={async () => {
+              if (routeInfo.fareBreakdown) {
+                await handleCreateRide(routeInfo.estimatedFare || 0, routeInfo.fareBreakdown);
+              }
+            }}
+          >
+            <Car className="mr-3 h-6 w-6" />
+            Buscar Conductor
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full h-12 border-2 border-gray-300 hover:bg-gray-50"
+            onClick={() => setStatus('calculated')}
+          >
+            Volver a editar
+          </Button>
+        </div>
       </div>
     );
   }
@@ -526,6 +686,16 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
                 {status === 'idle' && (
                   <>
                   <Button
+                    type={isScheduling ? 'submit' : 'button'}
+                    variant="outline"
+                    className="w-full"
+                    disabled={isCalculating || !pickupLocation || !dropoffLocation}
+                    onClick={() => setIsScheduling(prev => !prev)}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {isScheduling ? 'Agendar Viaje' : 'Agendar para más tarde'}
+                  </Button>
+                  <Button
                     type="submit"
                     className="w-full"
                     disabled={isCalculating || !pickupLocation || !dropoffLocation}
@@ -538,28 +708,18 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
                     )}
                     {isCalculating && !isScheduling ? 'Calculando...' : 'Pedir Ahora'}
                   </Button>
-                   <Button
-                    type={isScheduling ? 'submit' : 'button'}
-                    variant="outline"
-                    className="w-full"
-                    disabled={isCalculating || !pickupLocation || !dropoffLocation}
-                    onClick={() => setIsScheduling(prev => !prev)}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {isScheduling ? 'Agendar Viaje' : 'Agendar para más tarde'}
-                  </Button>
                   </>
                 )}
               </div>
 
-              {status === 'calculated' && (
+              {status === 'calculated' && routeInfo && (
                   <div className="space-y-2">
                     <Button
                       type="button"
                       className="w-full"
-                      onClick={startNegotiation}
+                      onClick={() => setStatus('confirmed')}
                     >
-                      Continuar a la Negociación
+                      Confirmar Viaje
                       <ChevronRight className="ml-2 h-4 w-4" />
                     </Button>
                      <Button

@@ -28,6 +28,7 @@ import {
   CalendarCheck,
 } from "lucide-react";
 import { useDriverAuth } from "@/hooks/use-driver-auth";
+import { useCounterOffer } from "@/hooks/use-counter-offer";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,9 @@ import type {
   EnrichedDriver,
   PaymentModel,
 } from "@/lib/types";
+
+// Import the type from the store file
+type DriverActiveRide = Omit<Ride, 'passenger' | 'driver'> & { passenger: User; driver: EnrichedDriver };
 import { useEffect, useState } from "react";
 import {
   collection,
@@ -186,6 +190,9 @@ function DriverPageContent() {
   const [rejectedRideIds, setRejectedRideIds] = useState<string[]>([]);
   const [counterOfferAmount, setCounterOfferAmount] = useState(0);
 
+  // Counter-offer hook
+  const { isListening: isCounterOfferListening, error: counterOfferError } = useCounterOffer(driver, activeRide);
+
   // Local state for payment model selection
   const [selectedPaymentModel, setSelectedPaymentModel] = useState<
     PaymentModel | undefined
@@ -197,18 +204,27 @@ function DriverPageContent() {
     }
   }, [driver]);
 
+  // Sync driver availability status with local state
+  useEffect(() => {
+    if (driver) {
+      const isDriverAvailable = driver.status === "available";
+      setAvailability(isDriverAvailable);
+    }
+  }, [driver, setAvailability]);
+
   // MASTER useEffect for driver's active ride
   useEffect(() => {
     if (!driver) return;
     const driverRef = doc(db, "drivers", driver.id);
 
-    const q = query(
+    // Listen to both: rides assigned to this driver AND rides offered to this driver that are accepted
+    const q1 = query(
       collection(db, "rides"),
       where("driver", "==", driverRef),
       where("status", "in", ["accepted", "arrived", "in-progress", "completed"])
     );
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
+    const unsubscribe1 = onSnapshot(q1, async (snapshot) => {
       if (!snapshot.empty) {
         const rideDoc = snapshot.docs.find(
           (doc) => doc.data().status !== "completed"
@@ -292,7 +308,9 @@ function DriverPageContent() {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe1();
+    };
   }, [driver, setActiveRide, startSimulation, stopSimulation]);
 
   // MASTER useEffect for new ride requests
@@ -389,8 +407,115 @@ function DriverPageContent() {
     return () => unsubscribe();
   }, [activeRide, setChatMessages]);
 
+  // Listener for counter-offer status changes
+  useEffect(() => {
+    if (!driver) return;
+
+    // Listen to ALL rides where this driver made a counter-offer
+    const q = query(
+      collection(db, "rides"),
+      where("offeredTo", "==", doc(db, "drivers", driver.id))
+    );
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "modified") {
+          const rideData = change.doc.data() as Ride;
+          const rideId = change.doc.id;
+          
+          console.log(`� Ride ${rideId} modified, new status: ${rideData.status}`);
+          
+          // If a counter-offered ride was accepted
+          if (rideData.status === 'accepted' && !activeRide) {
+            console.log(`✅ Counter-offer accepted! Ride ${rideId} is now accepted`);
+            
+            // Enrich the ride data like the main listener does
+            try {
+              const passengerDoc = await getDoc(rideData.passenger);
+              const passengerData = passengerDoc.data() as User;
+              
+              const enrichedRide: DriverActiveRide = {
+                ...rideData,
+                id: rideId,
+                passenger: passengerData,
+                driver: driver
+              };
+              
+              setActiveRide(enrichedRide);
+              
+              toast({
+                title: "¡Contraoferta Aceptada!",
+                description: `El pasajero aceptó tu contraoferta de S/${rideData.fare.toFixed(2)}. El viaje comenzará pronto.`,
+              });
+              
+              // Clear any incoming request since we now have an active ride
+              setIncomingRequest(null);
+              setIsCountering(false);
+            } catch (error) {
+              console.error('Error enriching accepted counter-offer ride:', error);
+            }
+          }
+        }
+      });
+    });
+
+  }, [driver, activeRide, setIncomingRequest, setIsCountering, toast]);
+
+  // Load ride history for the driver
+  useEffect(() => {
+    if (!driver) return;
+
+    const loadRideHistory = async () => {
+      try {
+        const driverRef = doc(db, "drivers", driver.id);
+        const q = query(
+          collection(db, "rides"),
+          where("driver", "==", driverRef),
+          orderBy("date", "desc"),
+          limit(20) // Load last 20 rides
+        );
+
+        const querySnapshot = await getDocs(q);
+        const ridesWithPassengers = await Promise.all(
+          querySnapshot.docs.map(async (rideDoc) => {
+            const rideData = rideDoc.data() as Ride;
+            const passengerDoc = await getDoc(rideData.passenger);
+            const passengerData = passengerDoc.exists() ? passengerDoc.data() as User : {
+              id: 'unknown',
+              name: 'Pasajero no encontrado',
+              email: '',
+              avatarUrl: '',
+              role: 'passenger' as const,
+              signupDate: new Date().toISOString(),
+              documentStatus: 'pending' as const
+            };
+            
+            return {
+              ...rideData,
+              id: rideDoc.id,
+              passenger: passengerData,
+              driver: driver
+            } as EnrichedRide;
+          })
+        );
+
+        setAllRides(ridesWithPassengers);
+      } catch (error) {
+        console.error("Error loading ride history:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo cargar el historial de viajes.",
+        });
+      }
+    };
+
+    loadRideHistory();
+  }, [driver, toast]);
+
   const handleAvailabilityChange = async (available: boolean) => {
     if (!driver) return;
+    
     setIsUpdatingStatus(true);
     const newStatus = available ? "available" : "unavailable";
     const driverRef = doc(db, "drivers", driver.id);
@@ -399,6 +524,7 @@ function DriverPageContent() {
       await updateDoc(driverRef, { status: newStatus });
       setDriver({ ...driver, status: newStatus });
       setAvailability(available);
+      
       toast({
         title: `Estado actualizado: ${
           available ? "Disponible" : "No Disponible"
@@ -679,78 +805,97 @@ function DriverPageContent() {
             if (!open && !isCountering) handleRideRequestResponse(false);
           }}
         >
-          <DialogContent>
+          <DialogContent className="max-w-md mx-auto">
             <DialogHeader>
-              <DialogTitle>¡Nueva Solicitud de Viaje!</DialogTitle>
-              <CardDescription>
+              <DialogTitle className="text-xl font-bold text-blue-800">
+                ¡Nueva Solicitud de Viaje!
+              </DialogTitle>
+              <CardDescription className="text-gray-600">
                 Tienes 30 segundos para responder.
               </CardDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="p-4 bg-muted rounded-lg">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-sm">
-                      De:{" "}
-                      <span className="font-medium">
-                        {incomingRequest.pickup}
-                      </span>
+            <div className="space-y-6 py-4">
+              <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium text-gray-800">Desde:</span>{" "}
+                      {incomingRequest.pickup}
                     </p>
-                    <p className="text-sm">
-                      A:{" "}
-                      <span className="font-medium">
-                        {incomingRequest.dropoff}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium text-gray-800">Hacia:</span>{" "}
+                      {incomingRequest.dropoff}
+                    </p>
+                  </div>
+                  <div className="pt-3 border-t border-blue-200">
+                    <p className="text-center">
+                      <span className="text-sm text-gray-600">Tarifa propuesta:</span>
+                      <span className="block text-2xl font-bold text-blue-800">
+                        S/{incomingRequest.fare.toFixed(2)}
                       </span>
                     </p>
                   </div>
-                  <p className="font-bold text-lg">
-                    S/{incomingRequest.fare.toFixed(2)}
-                  </p>
                 </div>
               </div>
+              
               {isCountering ? (
-                <div className="space-y-2">
-                  <Label htmlFor="counter-offer">Tu contraoferta (S/)</Label>
-                  <Input
-                    id="counter-offer"
-                    type="number"
-                    value={counterOfferAmount}
-                    onChange={(e) =>
-                      setCounterOfferAmount(Number(e.target.value))
-                    }
-                  />
-                  <Button className="w-full" onClick={handleCounterOffer}>
-                    Enviar Contraoferta
-                  </Button>
-                  <Button
-                    className="w-full"
-                    variant={"ghost"}
-                    onClick={() => setIsCountering(false)}
-                  >
-                    Cancelar
-                  </Button>
+                <div className="space-y-4">
+                  <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200">
+                    <Label htmlFor="counter-offer" className="text-sm font-medium text-gray-700">
+                      Tu contraoferta (S/)
+                    </Label>
+                    <Input
+                      id="counter-offer"
+                      type="number"
+                      step="0.10"
+                      min="0"
+                      value={counterOfferAmount}
+                      onChange={(e) =>
+                        setCounterOfferAmount(Number(e.target.value))
+                      }
+                      className="mt-2 text-lg font-semibold text-center"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Button 
+                      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium py-3" 
+                      onClick={handleCounterOffer}
+                    >
+                      Enviar Contraoferta
+                    </Button>
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => setIsCountering(false)}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
                 </div>
               ) : (
-                <div className="flex gap-2">
+                <div className="space-y-3">
                   <Button
-                    className="w-full"
+                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium py-3"
                     onClick={() => handleRideRequestResponse(true)}
                   >
-                    Aceptar
+                    Aceptar Viaje
                   </Button>
                   <Button
-                    className="w-full"
-                    variant="outline"
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium py-3"
                     onClick={() => {
                       setCounterOfferAmount(incomingRequest.fare);
                       setIsCountering(true);
                     }}
                   >
-                    Contraofertar
+                    Hacer Contraoferta
                   </Button>
                   <Button
                     className="w-full"
-                    variant="destructive"
+                    variant="outline"
                     onClick={() => handleRideRequestResponse(false)}
                   >
                     Rechazar

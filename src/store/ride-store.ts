@@ -7,11 +7,11 @@ export type RideStoreStatus =
   | 'idle' // The form is ready to be filled.
   | 'calculating' // Calculating the route and initial fare.
   | 'calculated' // Calculation is done, showing ETA and fare.
-  | 'negotiating' // Fare negotiation screen is active.
-  | 'searching' // Searching for a driver after fare is agreed upon.
+  | 'confirmed' // User confirmed the ride, showing trip details before searching.
+  | 'searching' // Searching for a driver after ride is created.
+  | 'counter-offered' // Driver sent a counter-offer.
   | 'assigned' // Driver has been found and is on the way or with the passenger.
-  | 'rating' // Ride is complete, waiting for user to rate the driver.
-  | 'negotiating'; // A counter-offer has been received.
+  | 'rating'; // Ride is complete, waiting for user to rate the driver.
 
 interface RideState {
   status: RideStoreStatus;
@@ -37,10 +37,10 @@ interface RideActions {
   setDriverLocation: (location: Location | null) => void;
   setCounterOffer: (value: number | null) => void;
   toggleSupportChat: () => void;
-  startNegotiation: () => void;
   assignDriver: (driver: DriverWithVehicleInfo) => void;
   completeRideForRating: (driver: DriverWithVehicleInfo) => void;
   resetRide: () => void;
+  resetAll: () => void;
 }
 
 const initialState: RideState = {
@@ -67,20 +67,45 @@ export const useRideStore = create<RideState & RideActions>((set, get) => ({
   setDropoffLocation: (location) => set({ dropoffLocation: location }),
   setDriverLocation: (location) => set({ driverLocation: location }),
   setCounterOffer: (value) => {
-    set({ status: 'negotiating', counterOfferValue: value });
+    console.log('💰 Setting counter offer:', value);
+    if (value !== null) {
+      set({ status: 'counter-offered', counterOfferValue: value });
+    } else {
+      // If clearing counter offer, check if we should go back to a different state
+      const currentState = get();
+      if (currentState.activeRide) {
+        const newStatus = currentState.activeRide.status === 'searching' ? 'searching' : 'assigned';
+        set({ counterOfferValue: null, status: newStatus });
+      } else {
+        set({ counterOfferValue: null, status: 'idle' });
+      }
+    }
   },
   setRouteInfo: (info) => {
-    set({ routeInfo: info, status: info ? 'calculated' : 'idle' });
+    console.log('📍 Setting route info:', !!info);
+    const currentState = get();
+    // Only change status to calculated/idle if not in a more advanced state
+    if (!['searching', 'assigned', 'rating', 'counter-offered'].includes(currentState.status)) {
+      set({ routeInfo: info, status: info ? 'calculated' : 'idle' });
+    } else {
+      set({ routeInfo: info });
+    }
   },
 
   toggleSupportChat: () => set((state) => ({ isSupportChatOpen: !state.isSupportChatOpen })),
-  startNegotiation: () => set({ status: 'negotiating', counterOfferValue: null }),
+  // Remove startNegotiation - no longer needed
   assignDriver: (driver) => set({ status: 'assigned', assignedDriver: driver }),
   completeRideForRating: (driver) => set({ status: 'rating', assignedDriver: driver }),
   
   resetRide: () => {
+    console.log('🔄 Resetting ride state');
     // Keep pickup and dropoff locations for convenience
     const { pickupLocation, dropoffLocation } = get();
     set({ ...initialState, pickupLocation, dropoffLocation });
+  },
+  
+  resetAll: () => {
+    console.log('🔄 Resetting all ride state including locations');
+    set(initialState);
   },
 }));
