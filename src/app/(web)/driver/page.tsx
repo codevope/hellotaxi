@@ -1,3 +1,4 @@
+
 "use client";
 
 import AppHeader from "@/components/app-header";
@@ -63,6 +64,7 @@ import {
   orderBy,
   runTransaction,
   arrayUnion,
+  DocumentReference,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -423,7 +425,7 @@ function DriverPageContent() {
           const rideData = change.doc.data() as Ride;
           const rideId = change.doc.id;
           
-          console.log(`� Ride ${rideId} modified, new status: ${rideData.status}`);
+          console.log(` Ride ${rideId} modified, new status: ${rideData.status}`);
           
           // If a counter-offered ride was accepted
           if (rideData.status === 'accepted' && !activeRide) {
@@ -464,7 +466,7 @@ function DriverPageContent() {
   // Load ride history for the driver
   useEffect(() => {
     if (!driver) return;
-
+  
     const loadRideHistory = async () => {
       try {
         const driverRef = doc(db, "drivers", driver.id);
@@ -474,31 +476,34 @@ function DriverPageContent() {
           orderBy("date", "desc"),
           limit(20) // Load last 20 rides
         );
-
+  
         const querySnapshot = await getDocs(q);
-        const ridesWithPassengers = await Promise.all(
-          querySnapshot.docs.map(async (rideDoc) => {
-            const rideData = rideDoc.data() as Ride;
-            const passengerDoc = await getDoc(rideData.passenger);
-            const passengerData = passengerDoc.exists() ? passengerDoc.data() as User : {
-              id: 'unknown',
-              name: 'Pasajero no encontrado',
-              email: '',
-              avatarUrl: '',
-              role: 'passenger' as const,
-              signupDate: new Date().toISOString(),
-              documentStatus: 'pending' as const
-            };
-            
-            return {
-              ...rideData,
-              id: rideDoc.id,
-              passenger: passengerData,
-              driver: driver
-            } as EnrichedRide;
-          })
-        );
+        const ridesWithPassengersPromises = querySnapshot.docs.map(async (rideDoc) => {
+          const rideData = rideDoc.data() as Ride;
+          
+          if (!(rideData.passenger instanceof DocumentReference)) {
+            console.warn(`Ride ${rideDoc.id} has an invalid passenger reference.`);
+            return null;
+          }
 
+          const passengerDoc = await getDoc(rideData.passenger);
+          if (!passengerDoc.exists()) {
+             console.warn(`Passenger for ride ${rideDoc.id} not found.`);
+             return null;
+          }
+          
+          const passengerData = passengerDoc.data() as User;
+          
+          return {
+            ...rideData,
+            id: rideDoc.id,
+            passenger: passengerData,
+            driver: driver
+          } as EnrichedRide;
+        });
+
+        const ridesWithPassengers = (await Promise.all(ridesWithPassengersPromises)).filter(Boolean) as EnrichedRide[];
+  
         setAllRides(ridesWithPassengers);
       } catch (error) {
         console.error("Error loading ride history:", error);
@@ -509,7 +514,7 @@ function DriverPageContent() {
         });
       }
     };
-
+  
     loadRideHistory();
   }, [driver, toast]);
 
@@ -1475,3 +1480,5 @@ export default function DriverPage() {
 
   return <DriverPageContent />;
 }
+
+    
