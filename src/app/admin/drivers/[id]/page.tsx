@@ -102,7 +102,7 @@ const getMembershipStatus = (expiryDate?: string): { label: string; variant: 'de
     return { label: 'Activa', variant: 'default' };
 }
 
-type EnrichedRide = Omit<Ride, 'passenger' | 'driver' | 'vehicle'> & { passenger: AppUser, driver: Driver, vehicle: Vehicle };
+type EnrichedRide = Omit<Ride, 'passenger' | 'driver' | 'vehicle'> & { passenger: AppUser, driver: Driver, vehicle?: Vehicle };
 type EnrichedDriver = Omit<Driver, 'vehicle'> & { vehicle: Vehicle };
 
 
@@ -176,14 +176,20 @@ export default function DriverDetailsPage() {
           const driverRidesPromises = ridesSnapshot.docs.map(async (rideDoc) => {
               const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
               const passengerSnap = await getDoc(rideData.passenger as DocumentReference);
-              const rideVehicleSnap = await getDoc(rideData.vehicle as DocumentReference);
 
-              if (passengerSnap.exists() && rideVehicleSnap.exists()) {
-                  const passengerData = passengerSnap.data() as AppUser;
-                  const rideVehicleData = rideVehicleSnap.data() as Vehicle;
-                  return { ...rideData, driver: driverData, passenger: passengerData, vehicle: rideVehicleData };
+              if (!passengerSnap.exists()) return null; // Skip if passenger is missing
+
+              const passengerData = passengerSnap.data() as AppUser;
+              
+              let rideVehicleData: Vehicle | undefined = undefined;
+              if (rideData.vehicle) {
+                const rideVehicleSnap = await getDoc(rideData.vehicle as DocumentReference);
+                if (rideVehicleSnap.exists()) {
+                    rideVehicleData = rideVehicleSnap.data() as Vehicle;
+                }
               }
-              return null;
+
+              return { ...rideData, driver: driverData, passenger: passengerData, vehicle: rideVehicleData };
           });
 
           const driverRides = (await Promise.all(driverRidesPromises)).filter(Boolean) as EnrichedRide[];
