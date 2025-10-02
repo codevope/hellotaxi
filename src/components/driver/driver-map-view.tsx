@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageCircle, Siren } from "lucide-react";
+import { MessageCircle, Siren, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -72,8 +72,9 @@ export function DriverMapView({
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle className="text-red-600">
-                  ⚠️ Alerta de Pánico
+                <AlertDialogTitle className="text-red-600 flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  Alerta de Pánico
                 </AlertDialogTitle>
                 <AlertDialogDescription>
                   ¿Estás seguro de que quieres activar la alerta de pánico?

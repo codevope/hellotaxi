@@ -373,7 +373,6 @@ function DriverPageContent() {
     };
   }, [
     driver,
-    activeRide,
     setActiveRide,
     setIncomingRequest,
     startSimulation,
@@ -844,6 +843,8 @@ function DriverPageContent() {
           fare={incomingRequest.fare}
           requestTimeLeft={requestTimeLeft}
           isCountering={isCountering}
+          counterOfferAmount={counterOfferAmount}
+          onCounterOfferChange={setCounterOfferAmount}
           onAccept={() => handleRideRequestResponse(true)}
           onReject={() => handleRideRequestResponse(false)}
           onStartCounterOffer={() => {

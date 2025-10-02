@@ -434,8 +434,8 @@ function RidePageContent() {
         description:
           "Tu opinión ayuda a mantener la calidad de nuestra comunidad.",
       });
-      completeRideForRating(currentDriver); // This will set the status to 'rating'
-      resetAll(); // This will clear everything including pickup/dropoff locations
+      completeRideForRating(currentDriver);
+      resetAll();
     } catch (error) {
       console.error("Error submitting rating:", error);
       toast({
@@ -535,7 +535,7 @@ function RidePageContent() {
           )}
         </div>
 
-        <Card className="overflow-hidden rounded-2xl border border-[#049DD9]/20 shadow-2xl">
+        <Card className="overflow-hidden rounded-2xl shadow-2xl">
           <CardContent className="p-0">
             <Tabs
               value={activeTab}

@@ -54,7 +54,7 @@ export function ActiveRideCard({
             onClick={() => onStatusUpdate("arrived")}
             disabled={isCompletingRide}
           >
-            ✅ He Llegado
+            He Llegado
           </Button>
         );
       case "arrived":
@@ -64,7 +64,7 @@ export function ActiveRideCard({
             onClick={() => onStatusUpdate("in-progress")}
             disabled={isCompletingRide}
           >
-            🚗 Iniciar Viaje
+            Iniciar Viaje
           </Button>
         );
       case "in-progress":
@@ -74,7 +74,7 @@ export function ActiveRideCard({
             onClick={() => onStatusUpdate("completed")}
             disabled={isCompletingRide}
           >
-            🏁 Finalizar Viaje
+            Finalizar Viaje
           </Button>
         );
       default:
@@ -83,7 +83,7 @@ export function ActiveRideCard({
   };
 
   return (
-    <Card className="border-primary border-2 shadow-xl">
+    <Card className="shadow-xl">
       <CardHeader className="bg-gradient-to-r from-[#2E4CA6] to-[#0477BF] text-white rounded-t-lg">
         <CardTitle className="flex items-center gap-2">
           <Car className="h-6 w-6" />

@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Wallet } from 'lucide-react';
+import { X, Wallet, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PriceDisplay } from '@/components/price-display';
 import type { Ride, CancellationReason } from '@/lib/types';
@@ -25,10 +25,10 @@ export function CounterOfferCard({
         <div className="relative space-y-4">
           <div className="flex items-center justify-center gap-2">
             <div className="rounded-full bg-white/20 p-2 backdrop-blur-sm">
-              <Wallet className="h-5 w-5 text-[#05C7F2]" />
+              <DollarSign className="h-5 w-5 text-[#05C7F2]" />
             </div>
             <h3 className="text-xl font-bold text-white">
-              💰 Nueva Contraoferta
+              Nueva Contraoferta
             </h3>
           </div>
           
@@ -84,12 +84,6 @@ export function CounterOfferCard({
         </Button>
       </div>
 
-      {/* Info adicional */}
-      <div className="rounded-xl bg-[#F2F2F2] p-4">
-        <p className="text-center text-xs text-gray-600">
-          💡 <span className="font-medium">Consejo:</span> Revisa si el precio se ajusta a tu presupuesto antes de decidir
-        </p>
-      </div>
     </div>
   );
 }

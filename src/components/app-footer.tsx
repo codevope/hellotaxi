@@ -87,7 +87,7 @@ export default function AppFooter() {
             <ul className="space-y-3">
               <li className="flex items-start gap-2 text-sm text-muted-foreground">
                 <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>Lima, Perú</span>
+                <span>Chiclayo, Perú</span>
               </li>
               <li className="flex items-start gap-2 text-sm text-muted-foreground">
                 <Phone className="h-4 w-4 mt-0.5 flex-shrink-0" />
@@ -95,7 +95,7 @@ export default function AppFooter() {
                   href="tel:+51987654321"
                   className="hover:text-primary transition-colors"
                 >
-                  +51 987 654 321
+                  +51 999 999 999
                 </a>
               </li>
               <li className="flex items-start gap-2 text-sm text-muted-foreground">
@@ -104,7 +104,7 @@ export default function AppFooter() {
                   href="mailto:contacto@hellotaxi.pe"
                   className="hover:text-primary transition-colors"
                 >
-                  contacto@hellotaxi.pe
+                  contacto@hellotaxi.com.pe
                 </a>
               </li>
             </ul>

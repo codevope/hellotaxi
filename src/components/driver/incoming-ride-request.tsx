@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { Car, Star } from "lucide-react";
+import { Car, Star, DollarSign } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -23,10 +22,12 @@ interface IncomingRideRequestProps {
   fare: number;
   requestTimeLeft: number;
   isCountering: boolean;
+  counterOfferAmount: number;
+  onCounterOfferChange: (amount: number) => void;
   onAccept: () => void;
   onReject: () => void;
   onStartCounterOffer: () => void;
-  onSubmitCounterOffer: (amount: number) => void;
+  onSubmitCounterOffer: () => void;
   onCancelCounterOffer: () => void;
 }
 
@@ -39,21 +40,19 @@ export function IncomingRideRequest({
   fare,
   requestTimeLeft,
   isCountering,
+  counterOfferAmount,
+  onCounterOfferChange,
   onAccept,
   onReject,
   onStartCounterOffer,
   onSubmitCounterOffer,
   onCancelCounterOffer,
 }: IncomingRideRequestProps) {
-  const [counterOfferAmount, setCounterOfferAmount] = useState(fare);
-
   const handleCounterOfferSubmit = () => {
-    onSubmitCounterOffer(counterOfferAmount);
-    setCounterOfferAmount(fare);
+    onSubmitCounterOffer();
   };
 
   const handleStartCounterOffer = () => {
-    setCounterOfferAmount(fare);
     onStartCounterOffer();
   };
 
@@ -170,7 +169,7 @@ export function IncomingRideRequest({
                     min="0"
                     value={counterOfferAmount}
                     onChange={(e) =>
-                      setCounterOfferAmount(Number(e.target.value))
+                      onCounterOfferChange(Number(e.target.value))
                     }
                     className="mt-2 text-lg font-semibold text-center"
                   />
@@ -178,10 +177,11 @@ export function IncomingRideRequest({
                 <div className="space-y-2">
                   <Button
                     size="lg"
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4"
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 flex items-center justify-center gap-2"
                     onClick={handleCounterOfferSubmit}
                   >
-                    💰 Enviar Contraoferta
+                    <DollarSign className="h-5 w-5" />
+                    Enviar Contraoferta
                   </Button>
                   <Button
                     size="lg"
@@ -197,25 +197,27 @@ export function IncomingRideRequest({
               <>
                 <Button
                   size="lg"
-                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-4 text-base shadow-lg"
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-4 text-base shadow-lg flex items-center justify-center gap-2"
                   onClick={onAccept}
                 >
-                  ✅ Aceptar Viaje
+                  <Car className="h-5 w-5" />
+                  Aceptar Viaje
                 </Button>
                 <Button
                   size="lg"
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4"
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 flex items-center justify-center gap-2"
                   onClick={handleStartCounterOffer}
                 >
-                  💰 Hacer Contraoferta
+                  <DollarSign className="h-5 w-5" />
+                  Hacer Contraoferta
                 </Button>
                 <Button
                   size="lg"
-                  className="w-full py-4 border-2"
+                  className="w-full py-4 border-2 flex items-center justify-center gap-2"
                   variant="outline"
                   onClick={onReject}
                 >
-                  ❌ Rechazar
+                  Rechazar
                 </Button>
               </>
             )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { CreditCard, CalendarCheck, Save, Loader2 } from "lucide-react";
+import { CreditCard, CalendarCheck, Save, Loader2, Percent } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -92,8 +92,9 @@ export function PaymentPlanSelector({
                 className="sr-only"
               />
               <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-xl text-gray-900">
-                  💰 Comisión
+                <span className="font-bold text-xl text-gray-900 flex items-center gap-2">
+                  <Percent className="h-5 w-5 text-[#0477BF]" />
+                  Comisión
                 </span>
                 {selectedPaymentModel === "commission" && (
                   <Badge className="bg-[#0477BF]">Seleccionado</Badge>

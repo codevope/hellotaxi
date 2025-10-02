@@ -33,17 +33,17 @@ export function AssignedDriverCard({
     switch (activeRide.status) {
       case 'accepted':
         return {
-          title: '🚗 Conductor en Camino',
+          title: 'Conductor en Camino',
           description: 'Preparándose para recogerte',
         };
       case 'arrived':
         return {
-          title: '✅ ¡Conductor Aquí!',
+          title: '¡Tu Conductor ha Llegado!',
           description: 'Dirígete al punto de encuentro',
         };
       case 'in-progress':
         return {
-          title: '🛣️ Viaje en Curso',
+          title: 'Viaje en Curso',
           description: 'Disfruta tu viaje seguro',
         };
       default:
@@ -65,19 +65,18 @@ export function AssignedDriverCard({
           <h3 className="text-xl font-bold text-white">
             {statusHeader.title}
           </h3>
-          <p className="text-sm text-[#05C7F2]">
+          <p className="text-sm text-[#f0ff22]">
             {statusHeader.description}
           </p>
         </div>
       </div>
 
       {/* Driver Card - Diseño Premium */}
-      <div className="overflow-hidden rounded-2xl border border-[#049DD9]/20 bg-white shadow-lg">
+      <div className="overflow-hidden rounded-2xl bg-white shadow-lg">
         <div className="bg-gradient-to-r from-[#F2F2F2] to-white p-5">
           <div className="flex items-start gap-4">
             {/* Avatar con borde gradiente */}
             <div className="relative">
-              <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-[#049DD9] to-[#05C7F2] opacity-75 blur"></div>
               <Avatar className="relative h-16 w-16 border-4 border-white shadow-md">
                 <AvatarImage
                   src={assignedDriver.avatarUrl}
@@ -95,17 +94,17 @@ export function AssignedDriverCard({
                 {assignedDriver.name}
               </p>
               <div className="mt-1 flex items-center gap-1.5">
-                <div className="rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 px-2 py-0.5">
+                <div className="rounded-full px-2 py-0.5">
                   <DriverRating
                     rating={assignedDriver.rating}
-                    size="sm"
+                    size="lg"
                     showLabel={false}
                   />
                 </div>
               </div>
               <div className="mt-2 space-y-1">
                 <p className="text-xs font-medium text-gray-600">
-                  🚘 {assignedDriver.vehicleBrand} {assignedDriver.vehicleModel}
+                  {assignedDriver.vehicleBrand} {assignedDriver.vehicleModel}
                 </p>
                 <p className="text-xs font-mono font-semibold text-[#0477BF]">
                   {assignedDriver.licensePlate}
@@ -126,36 +125,46 @@ export function AssignedDriverCard({
         </div>
         
         <div className="border-t border-gray-100 p-4">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button 
-                variant="outline" 
-                className="w-full h-12 border-2 border-red-200 bg-white font-semibold text-red-600 transition-all hover:border-red-300 hover:bg-red-50"
-              >
-                <X className="mr-2 h-4 w-4" /> Cancelar Viaje
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  ¿Seguro que quieres cancelar?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta acción podría afectar negativamente tu
-                  calificación como pasajero. ¿Aún deseas
-                  cancelar?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>
-                  No, continuar viaje
-                </AlertDialogCancel>
-                <AlertDialogAction onClick={onOpenCancelDialog}>
-                  Sí, cancelar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          {activeRide.status === 'accepted' ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full h-12 border-2 border-red-200 bg-white font-semibold text-red-600 transition-all hover:border-red-300 hover:bg-red-500 hover:text-red-50"
+                >
+                  <X className="mr-2 h-4 w-4" /> Cancelar Viaje
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    ¿Seguro que quieres cancelar?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción podría afectar negativamente tu
+                    calificación como pasajero. ¿Aún deseas
+                    cancelar?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>
+                    No, continuar viaje
+                  </AlertDialogCancel>
+                  <AlertDialogAction onClick={onOpenCancelDialog}>
+                    Sí, cancelar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button
+              variant="outline"
+              disabled
+              className="w-full h-12 border-2 border-gray-200 bg-gray-50 font-semibold text-gray-400 cursor-not-allowed"
+            >
+              <X className="mr-2 h-4 w-4" /> No se puede cancelar
+            </Button>
+          )}
         </div>
       </div>
     </div>

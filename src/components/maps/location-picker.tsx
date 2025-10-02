@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Target, Navigation, Loader2 } from 'lucide-react';
@@ -26,6 +26,8 @@ interface LocationPickerProps {
   isPickup?: boolean;
 }
 
+const COOLDOWN_SECONDS = 5; // Tiempo de cooldown después de obtener ubicación
+
 const LocationPicker: React.FC<LocationPickerProps> = ({
   onLocationSelect,
   onCancel,
@@ -35,8 +37,10 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
 }) => {
   const [selectedLocation, setSelectedLocation] =
     useState<Location | null>(initialLocation || null);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const { location: userLocation, requestLocation, loading: isLoadingLocation, error } = useGeolocation();
   const { toast } = useToast();
+  const cooldownTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Efecto para reaccionar a la nueva ubicación del hook
   useEffect(() => {
@@ -49,6 +53,9 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             lng: userLocation.longitude,
             address: address,
           });
+          
+          // Iniciar cooldown después de obtener ubicación exitosamente
+          startCooldown();
         } catch (geocodingError) {
            toast({
             variant: 'destructive',
@@ -60,6 +67,9 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             lng: userLocation.longitude,
             address: `Coords: ${userLocation.latitude.toFixed(4)}, ${userLocation.longitude.toFixed(4)}`,
           });
+          
+          // Iniciar cooldown incluso si falla la geocodificación
+          startCooldown();
         }
       }
       geocodeAndUpdate();
@@ -88,11 +98,46 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     }
   };
 
+  // Función para iniciar el cooldown
+  const startCooldown = () => {
+    setCooldownRemaining(COOLDOWN_SECONDS);
+    
+    // Limpiar timer anterior si existe
+    if (cooldownTimerRef.current) {
+      clearInterval(cooldownTimerRef.current);
+    }
+    
+    // Crear nuevo timer que decrementa cada segundo
+    cooldownTimerRef.current = setInterval(() => {
+      setCooldownRemaining((prev) => {
+        if (prev <= 1) {
+          if (cooldownTimerRef.current) {
+            clearInterval(cooldownTimerRef.current);
+            cooldownTimerRef.current = null;
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // Limpiar timer al desmontar
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleCurrentLocation = () => {
     // Llama al hook para forzar una nueva lectura de alta precisión.
     // El useEffect se encargará de actualizar el estado cuando la tenga.
     requestLocation();
   };
+
+  const isButtonDisabled = isLoadingLocation || cooldownRemaining > 0;
 
   return (
     <GoogleMapsProvider libraries={['places', 'geocoding', 'marker']}>
@@ -110,14 +155,19 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
                 variant="outline"
                 className="w-full justify-center"
                 onClick={handleCurrentLocation}
-                disabled={isLoadingLocation}
+                disabled={isButtonDisabled}
               >
                 {isLoadingLocation ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                     <Navigation className="mr-2 h-4 w-4" />
                 )}
-                {isLoadingLocation ? 'Obteniendo ubicación...' : 'Usar mi ubicación actual'}
+                {isLoadingLocation 
+                  ? 'Obteniendo ubicación...' 
+                  : cooldownRemaining > 0 
+                    ? `Espera ${cooldownRemaining}s...`
+                    : 'Usar mi ubicación actual'
+                }
               </Button>
             )}
           </div>
