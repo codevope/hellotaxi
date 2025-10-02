@@ -35,7 +35,7 @@ export default function AppHeader() {
   return (
     <header className="flex items-center justify-between p-4 bg-card border-b shadow-sm sticky top-0 z-50">
       <Link href="/" className="flex items-center gap-2 text-blue-600">
-        <h1 className="text-xl lg:text-2xl font-extrabold font-headline bg-gradient-to-r from-[#2E4CA6] to-[#049DD9] bg-clip-text text-transparent">
+        <h1 className="text-3xl lg:text-4xl font-bold font-headline bg-gradient-to-r from-[#2E4CA6] to-[#049DD9] bg-clip-text text-transparent">
           Hello TAXI
         </h1>
       </Link>

@@ -2,7 +2,6 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import AppHeader from '@/components/app-header';
 import { Briefcase, TrendingUp, ShieldCheck, CheckCircle, Bell, Users, Wallet, HelpCircle, Car, MapPin, Clock, Star } from 'lucide-react';
 import Link from 'next/link';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -10,9 +9,7 @@ import Image from 'next/image';
 
 export default function DriverPage() {
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      <AppHeader />
-      <main className="flex-1">
+    <>
         {/* Hero Section */}
         <section className="relative h-[35vh] flex items-center justify-center text-center">
           <div className="absolute inset-0 bg-gradient-to-br from-[#2E4CA6]/80 via-[#0477BF]/70 to-[#049DD9]/60 z-10"></div>
@@ -249,7 +246,6 @@ export default function DriverPage() {
             </div>
           </div>
         </section>
-      </main>
-    </div>
+    </>
   );
 }

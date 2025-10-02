@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import AppHeader from '@/components/app-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -100,10 +99,8 @@ export default function LoginPage() {
 
 
   return (
-    <div className="flex flex-col min-h-screen bg-secondary/30">
-      <AppHeader />
-      <main className="flex-1 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full shadow-2xl">
+    <div className="flex items-center justify-center p-4 min-h-[80vh]">
+      <Card className="max-w-md w-full shadow-2xl">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-headline">Inicia Sesión o Regístrate</CardTitle>
             <CardDescription>Elige tu método preferido para continuar</CardDescription>
@@ -168,7 +165,6 @@ export default function LoginPage() {
             </Button>
           </CardContent>
         </Card>
-      </main>
     </div>
   );
 }

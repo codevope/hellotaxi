@@ -50,7 +50,6 @@ function DriverRegistrationContent() {
 
   return (
     <div className="flex flex-col min-h-screen bg-secondary/30">
-      <AppHeader />
       <main className="flex-1 flex flex-col items-center py-16 md:py-24 p-4">
         <Card className="max-w-lg w-full">
           <CardHeader>
@@ -97,7 +96,6 @@ export default function DriverRegistrationPage() {
   if (!user) {
     return (
       <>
-        <AppHeader />
         <main className="flex-1 flex flex-col items-center justify-center text-center p-8 py-16 md:py-24">
           <Card className="max-w-md p-8">
             <CardHeader>

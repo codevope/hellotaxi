@@ -1,6 +1,5 @@
 "use client";
 
-import AppHeader from "@/components/app-header";
 import { useAuth } from "@/hooks/use-auth";
 import {
   Card,
@@ -101,15 +100,12 @@ function ProfilePageContent() {
 
   if (appUser.status === "incomplete") {
     return (
-      <div className="flex flex-col min-h-screen bg-secondary/30">
-        <AppHeader />
-        <main className="flex-1 p-4 sm:p-8">
-          <IncompleteProfile
-            user={user!}
-            appUser={appUser}
-            setAppUser={setAppUser}
-          />
-        </main>
+      <div className="p-4 sm:p-8">
+        <IncompleteProfile
+          user={user!}
+          appUser={appUser}
+          setAppUser={setAppUser}
+        />
       </div>
     );
   }
@@ -191,10 +187,8 @@ function ProfilePageContent() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-secondary/30">
-      <AppHeader />
-      <main className="flex-1 p-4 sm:p-8">
-        <div className="max-w-4xl mx-auto space-y-8">
+    <div className="p-4 sm:p-8 bg-secondary/30">
+      <div className="max-w-4xl mx-auto space-y-8">
           
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -392,8 +386,7 @@ function ProfilePageContent() {
               </div>
             </div>
           )}
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
@@ -411,27 +404,24 @@ export default function ProfilePage() {
 
   if (!user) {
     return (
-      <>
-        <AppHeader />
-        <main className="flex flex-col items-center justify-center text-center p-4 py-16 md:py-24">
-          <Card className="max-w-md p-8">
-            <CardHeader>
-              <CardTitle>Acceso Restringido</CardTitle>
-              <CardDescription>
-                Para ver tu perfil, por favor, inicia sesión.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild size="lg">
-                <Link href="/login">
-                  <LogIn className="mr-2" />
-                  Ir a Iniciar Sesión
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </main>
-      </>
+      <div className="flex flex-col items-center justify-center text-center p-4 py-16 md:py-24">
+        <Card className="max-w-md p-8">
+          <CardHeader>
+            <CardTitle>Acceso Restringido</CardTitle>
+            <CardDescription>
+              Para ver tu perfil, por favor, inicia sesión.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild size="lg">
+              <Link href="/login">
+                <LogIn className="mr-2" />
+                Ir a Iniciar Sesión
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 

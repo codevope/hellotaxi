@@ -1,7 +1,6 @@
 
 'use client';
 
-import AppHeader from '@/components/app-header';
 import {
   Card,
   CardContent,
@@ -19,9 +18,7 @@ import Image from 'next/image';
 
 export default function AboutPage() {
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      <AppHeader />
-      <main className="flex-1">
+    <>
         {/* Hero Section */}
         <section className="relative h-[60vh] flex items-center justify-center text-center text-white">
           <Image
@@ -161,7 +158,6 @@ export default function AboutPage() {
             </div>
           </div>
         </section>
-      </main>
-    </div>
+    </>
   );
 }

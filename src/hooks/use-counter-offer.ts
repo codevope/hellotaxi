@@ -85,14 +85,18 @@ export function useCounterOffer(
             };
             
             console.log('🎯 Setting active ride from counter-offer:', enrichedRide);
+            console.log('💰 Counter-offer fare from rideData:', rideData.fare);
+            console.log('💰 Counter-offer fare from enrichedRide:', enrichedRide.fare);
             
             // Set as active ride
             setActiveRide(enrichedRide);
             
-            // Show success notification
+            // Show success notification with proper null checking
+            const fareAmount = rideData.fare ?? enrichedRide.fare ?? 0;
+            console.log('💵 Final fare amount to display:', fareAmount);
             toast({
               title: '¡Contraoferta Aceptada!',
-              description: `El pasajero aceptó tu contraoferta de S/${rideData.fare.toFixed(2)}. El viaje comenzará pronto.`,
+              description: `El pasajero aceptó tu contraoferta de S/${fareAmount.toFixed(2)}. El viaje comenzará pronto.`,
             });
             
             // Clear any incoming request states
