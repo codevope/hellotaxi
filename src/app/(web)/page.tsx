@@ -63,12 +63,8 @@ export default function HomePage() {
 
   return (
     <>
-      <AppHeader />
-
       <main className="flex-1">
-        {/* Hero Section - ULTRA ESPECTACULAR */}
         <section className="relative min-h-[95vh] flex items-center overflow-hidden bg-gradient-to-br from-[#2E4CA6] via-[#0477BF] to-[#049DD9]">
-          {/* Fondo animado con imagen */}
           <div className="absolute inset-0 z-0">
             <Image
               src="/img/bg-hero.jpg"
@@ -79,8 +75,6 @@ export default function HomePage() {
             />
             <div className="absolute inset-0 bg-gradient-to-br from-[#2E4CA6]/90 via-[#0477BF]/85 to-[#049DD9]/80"></div>
           </div>
-
-          {/* Partículas flotantes animadas */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             {[...Array(15)].map((_, i) => (
               <motion.div
@@ -135,14 +129,12 @@ export default function HomePage() {
 
           <div className="container mx-auto px-4 relative z-10">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
-              {/* LADO IZQUIERDO - INFORMACIÓN */}
               <motion.div
                 className="text-white space-y-8"
                 initial={{ opacity: 0, x: -100 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8 }}
               >
-                {/* Badge animado */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -730,8 +722,6 @@ export default function HomePage() {
           </div>
         </section>
       </main>
-
-      <AppFooter />
     </>
   );
 }
