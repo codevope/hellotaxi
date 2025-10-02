@@ -261,6 +261,8 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
         id: rideRef.id,
         pickup: form.getValues('pickup'),
         dropoff: form.getValues('dropoff'),
+        pickupLocation: pickupLocation || undefined, // Guardar coordenadas de recojo
+        dropoffLocation: dropoffLocation || undefined, // Guardar coordenadas de destino
         date: new Date().toISOString(),
         fare: fare,
         driver: null,

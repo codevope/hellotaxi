@@ -78,14 +78,82 @@ const RouteDisplay: React.FC<RouteDisplayProps> = ({
 
   // Calculate and display route
   useEffect(() => {
+    // Log inicial para debugging
+    console.log('🗺️ RouteDisplay useEffect ejecutado:', {
+      hasDirectionsService: !!directionsService,
+      hasDirectionsRenderer: !!directionsRenderer,
+      origin,
+      destination
+    });
+
     if (!directionsService || !directionsRenderer || !origin || !destination) {
       // Clear existing route
       if (directionsRenderer) {
         directionsRenderer.setMap(null);
         directionsRenderer.setMap(map);
       }
+      
+      if (!origin) console.warn('⚠️ No hay ubicación de origen');
+      if (!destination) console.warn('⚠️ No hay ubicación de destino');
+      
       return;
     }
+
+    // Validar coordenadas
+    const isValidLat = (lat: number) => lat >= -90 && lat <= 90;
+    const isValidLng = (lng: number) => lng >= -180 && lng <= 180;
+
+    if (!isValidLat(origin.lat) || !isValidLng(origin.lng)) {
+      console.error('❌ Coordenadas de origen inválidas:', origin);
+      if (onError) {
+        onError('Las coordenadas de origen son inválidas');
+      }
+      return;
+    }
+
+    if (!isValidLat(destination.lat) || !isValidLng(destination.lng)) {
+      console.error('❌ Coordenadas de destino inválidas:', destination);
+      if (onError) {
+        onError('Las coordenadas de destino son inválidas');
+      }
+      return;
+    }
+
+    // Verificar que los puntos no sean idénticos o muy cercanos
+    const distance = Math.sqrt(
+      Math.pow(destination.lat - origin.lat, 2) + 
+      Math.pow(destination.lng - origin.lng, 2)
+    );
+
+    const distanceInKm = distance * 111; // Aproximadamente 111 km por grado
+
+    console.log('📏 Distancia calculada entre puntos:', {
+      distance,
+      distanceInKm: distanceInKm.toFixed(2) + ' km'
+    });
+
+    if (distance < 0.0001) { // Aproximadamente 11 metros
+      console.error('❌ Los puntos de origen y destino están muy cerca o son idénticos:', {
+        origin,
+        destination,
+        distanceInMeters: (distance * 111000).toFixed(2)
+      });
+      if (onError) {
+        onError('El origen y destino deben estar más separados (mínimo 50 metros)');
+      }
+      return;
+    }
+
+    console.log('✅ Calculando ruta de Google Maps:', {
+      origin: { 
+        lat: origin.lat, 
+        lng: origin.lng
+      },
+      destination: { 
+        lat: destination.lat, 
+        lng: destination.lng
+      }
+    });
 
     const request: google.maps.DirectionsRequest = {
       origin: new google.maps.LatLng(origin.lat, origin.lng),
@@ -100,6 +168,7 @@ const RouteDisplay: React.FC<RouteDisplayProps> = ({
 
     directionsService.route(request, (result, status) => {
       if (status === 'OK' && result) {
+        console.log('Ruta calculada exitosamente:', result);
         directionsRenderer.setDirections(result);
         
         // Ajustar el mapa para mostrar toda la ruta
@@ -123,9 +192,38 @@ const RouteDisplay: React.FC<RouteDisplayProps> = ({
           onRouteCalculated(result);
         }
       } else {
-        console.error('Error calculating route:', status);
+        let errorMessage = 'No se pudo calcular la ruta';
+        
+        switch (status) {
+          case 'ZERO_RESULTS':
+            errorMessage = 'No se encontró ninguna ruta entre estos puntos. Verifica que ambas ubicaciones sean accesibles por carretera.';
+            console.error('ZERO_RESULTS - No hay ruta disponible entre:', {
+              origin: { lat: origin.lat, lng: origin.lng },
+              destination: { lat: destination.lat, lng: destination.lng }
+            });
+            break;
+          case 'NOT_FOUND':
+            errorMessage = 'Una o ambas ubicaciones no se pudieron encontrar';
+            break;
+          case 'INVALID_REQUEST':
+            errorMessage = 'La solicitud de ruta es inválida';
+            break;
+          case 'OVER_QUERY_LIMIT':
+            errorMessage = 'Se ha excedido el límite de consultas de la API';
+            break;
+          case 'REQUEST_DENIED':
+            errorMessage = 'Acceso denegado a la API de direcciones';
+            break;
+          case 'UNKNOWN_ERROR':
+            errorMessage = 'Error desconocido al calcular la ruta. Intenta nuevamente.';
+            break;
+          default:
+            errorMessage = `Error: ${status}`;
+        }
+        
+        console.error('Error calculating route:', status, errorMessage);
         if (onError) {
-          onError(`No se pudo calcular la ruta: ${status}`);
+          onError(errorMessage);
         }
       }
     });

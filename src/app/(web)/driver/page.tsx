@@ -1059,13 +1059,13 @@ function DriverPageContent() {
                 <MapView
                   driverLocation={driverLocation}
                   pickupLocation={
-                    activeRide
-                      ? { lat: 0, lng: 0, address: activeRide.pickup }
+                    activeRide?.pickupLocation
+                      ? activeRide.pickupLocation
                       : null
                   }
                   dropoffLocation={
-                    activeRide
-                      ? { lat: 0, lng: 0, address: activeRide.dropoff }
+                    activeRide?.dropoffLocation
+                      ? activeRide.dropoffLocation
                       : null
                   }
                   interactive={false}

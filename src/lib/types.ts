@@ -112,6 +112,8 @@ export interface Ride {
   id: string;
   pickup: string;
   dropoff: string;
+  pickupLocation?: Location; // Coordenadas del punto de recojo
+  dropoffLocation?: Location; // Coordenadas del punto de destino
   date: string;
   fare: number;
   driver: DocumentReference | null;
