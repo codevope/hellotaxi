@@ -42,48 +42,42 @@ const serviceTypeConfig = {
   exclusive: 'Exclusivo',
 };
 
-type EnrichedRide = Omit<Ride, 'driver' | 'passenger' | 'vehicle'> & { driver: Driver; passenger: User; vehicle: Vehicle };
+type EnrichedRide = Omit<Ride, 'driver' | 'passenger' | 'vehicle'> & { driver?: Driver; passenger?: User; vehicle?: Vehicle };
 
 async function getRides(): Promise<EnrichedRide[]> {
+  // 1. Cargar todas las colecciones relevantes en mapas para acceso rápido
+  const [usersSnap, driversSnap, vehiclesSnap] = await Promise.all([
+    getDocs(collection(db, 'users')),
+    getDocs(collection(db, 'drivers')),
+    getDocs(collection(db, 'vehicles')),
+  ]);
+
+  const usersMap = new Map<string, User>(usersSnap.docs.map(d => [d.id, { id: d.id, ...d.data() } as User]));
+  const driversMap = new Map<string, Driver>(driversSnap.docs.map(d => [d.id, { id: d.id, ...d.data() } as Driver]));
+  const vehiclesMap = new Map<string, Vehicle>(vehiclesSnap.docs.map(d => [d.id, { id: d.id, ...d.data() } as Vehicle]));
+
+  // 2. Obtener todos los viajes
   const ridesCol = collection(db, 'rides');
   const rideSnapshot = await getDocs(ridesCol);
   const ridesList = rideSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
 
-  const enrichedRides: EnrichedRide[] = [];
-
-  for (const ride of ridesList) {
-    let driver: Driver | null = null;
-    let passenger: User | null = null;
-    let vehicle: Vehicle | null = null;
-
-    if (ride.driver && ride.driver instanceof DocumentReference) {
-        const driverSnap = await getDoc(ride.driver);
-        if (driverSnap.exists()) {
-            driver = { id: driverSnap.id, ...driverSnap.data() } as Driver;
-        }
-    }
-
-    if (ride.passenger && ride.passenger instanceof DocumentReference) {
-        const passengerSnap = await getDoc(ride.passenger);
-        if (passengerSnap.exists()) {
-            passenger = { id: passengerSnap.id, ...passengerSnap.data() } as User;
-        }
-    }
-
-    if (ride.vehicle && ride.vehicle instanceof DocumentReference) {
-        const vehicleSnap = await getDoc(ride.vehicle);
-        if (vehicleSnap.exists()) {
-            vehicle = { id: vehicleSnap.id, ...vehicleSnap.data() } as Vehicle;
-        }
-    }
+  // 3. Enriquecer los datos del viaje usando los mapas locales (sin más consultas)
+  const enrichedRides = ridesList.map(ride => {
+    const passenger = ride.passenger instanceof DocumentReference ? usersMap.get(ride.passenger.id) : undefined;
+    const driver = ride.driver instanceof DocumentReference ? driversMap.get(ride.driver.id) : undefined;
+    const vehicle = ride.vehicle instanceof DocumentReference ? vehiclesMap.get(ride.vehicle.id) : undefined;
     
-    if (driver && passenger && vehicle) {
-        enrichedRides.push({ ...ride, driver, passenger, vehicle });
-    }
-  }
+    return {
+      ...ride,
+      passenger,
+      driver,
+      vehicle,
+    };
+  });
 
   return enrichedRides.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
+
 
 export default function RidesTable() {
   const [rides, setRides] = useState<EnrichedRide[]>([]);
@@ -140,20 +134,24 @@ export default function RidesTable() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage
-                        src={ride.driver.avatarUrl}
-                        alt={ride.driver.name}
-                      />
-                      <AvatarFallback>
-                        {ride.driver.name.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-medium">{ride.driver.name}</div>
+                  {ride.driver ? (
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage
+                          src={ride.driver.avatarUrl}
+                          alt={ride.driver.name}
+                        />
+                        <AvatarFallback>
+                          {ride.driver.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="font-medium">{ride.driver.name}</div>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">No asignado</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   {new Date(ride.date).toLocaleDateString('es-PE')}
