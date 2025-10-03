@@ -1,3 +1,4 @@
+
 "use client";
 import {
   Card,
@@ -61,15 +62,18 @@ interface AdminDashboardProps {
   selectedMonth: number;
 }
 
+// --- OPTIMIZED DATA FETCHING ---
+
 async function getRidesForMonth(
   year: number,
-  month: number
+  month: number,
+  driversMap: Map<string, Driver>,
+  usersMap: Map<string, User>
 ): Promise<EnrichedRide[]> {
-  // Calcular primer y último día del mes
   const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0);
+  const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-  let ridesQuery = query(
+  const ridesQuery = query(
     collection(db, "rides"),
     where("status", "==", "completed"),
     where("date", ">=", startDate.toISOString()),
@@ -82,24 +86,12 @@ async function getRidesForMonth(
   );
 
   const enrichedRides: EnrichedRide[] = [];
-
   for (const ride of ridesList) {
-    let driver: Driver | null = null;
-    let passenger: User | null = null;
+    const driverId = (ride.driver as DocumentReference)?.id;
+    const passengerId = (ride.passenger as DocumentReference)?.id;
 
-    if (ride.driver && ride.driver instanceof DocumentReference) {
-      const driverSnap = await getDoc(ride.driver);
-      if (driverSnap.exists()) {
-        driver = { id: driverSnap.id, ...driverSnap.data() } as Driver;
-      }
-    }
-
-    if (ride.passenger && ride.passenger instanceof DocumentReference) {
-      const passengerSnap = await getDoc(ride.passenger);
-      if (passengerSnap.exists()) {
-        passenger = { id: passengerSnap.id, ...passengerSnap.data() } as User;
-      }
-    }
+    const driver = driverId ? driversMap.get(driverId) : undefined;
+    const passenger = passengerId ? usersMap.get(passengerId) : undefined;
 
     if (driver && passenger) {
       enrichedRides.push({ ...ride, driver, passenger });
@@ -109,40 +101,40 @@ async function getRidesForMonth(
   return enrichedRides;
 }
 
-async function getMonthlyRevenueChart(year: number, month: number) {
-  // Generar datos para los últimos 6 meses
+async function getMonthlyRevenueChart(
+  year: number,
+  month: number,
+  driversMap: Map<string, Driver>,
+  usersMap: Map<string, User>
+) {
   const chartData = [];
   const months = [
-    "Enero",
-    "Febrero",
-    "Marzo",
-    "Abril",
-    "Mayo",
-    "Junio",
-    "Julio",
-    "Agosto",
-    "Septiembre",
-    "Octubre",
-    "Noviembre",
-    "Diciembre",
+    "Ene", "Feb", "Mar", "Abr", "May", "Jun", 
+    "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
   ];
 
   for (let i = 5; i >= 0; i--) {
-    const targetMonth = month - i;
-    const targetYear = targetMonth <= 0 ? year - 1 : year;
-    const adjustedMonth = targetMonth <= 0 ? targetMonth + 12 : targetMonth;
+    let targetMonth = month - i;
+    let targetYear = year;
+    if (targetMonth <= 0) {
+      targetMonth += 12;
+      targetYear -= 1;
+    }
 
-    const monthRides = await getRidesForMonth(targetYear, adjustedMonth);
+    const monthRides = await getRidesForMonth(targetYear, targetMonth, driversMap, usersMap);
     const total = monthRides.reduce((acc, ride) => acc + ride.fare, 0);
 
     chartData.push({
-      month: months[adjustedMonth - 1],
+      month: months[targetMonth - 1],
       total: Math.round(total),
     });
   }
 
   return chartData;
 }
+
+
+// --- COMPONENT ---
 
 export default function AdminDashboard({
   selectedYear,
@@ -165,18 +157,26 @@ export default function AdminDashboard({
     async function loadData() {
       setLoading(true);
       try {
-        // Cargar conductores
-        const driversCol = collection(db, "drivers");
-        const driverSnapshot = await getDocs(driversCol);
+        // Step 1: Fetch all drivers and users and store them in maps for efficient lookup.
+        const [driverSnapshot, userSnapshot] = await Promise.all([
+          getDocs(collection(db, "drivers")),
+          getDocs(collection(db, "users"))
+        ]);
+
         const driverList = driverSnapshot.docs.map(
           (doc) => ({ id: doc.id, ...doc.data() } as Driver)
         );
         setDrivers(driverList);
+        
+        const driversMap = new Map<string, Driver>(driverList.map(d => [d.id, d]));
+        const usersMap = new Map<string, User>(userSnapshot.docs.map(u => [u.id, { id: u.id, ...u.data() } as User]));
 
-        // Cargar viajes del mes seleccionado
+        // Step 2: Fetch rides for the selected month using the maps.
         const fetchedRides = await getRidesForMonth(
           selectedYear,
-          selectedMonth
+          selectedMonth,
+          driversMap,
+          usersMap
         );
         setRides(
           fetchedRides.sort(
@@ -184,12 +184,15 @@ export default function AdminDashboard({
           )
         );
 
-        // Cargar datos del gráfico
-        const chartData = await getMonthlyRevenueChart(
+        // Step 3: Fetch chart data, also using the maps.
+        const fetchedChartData = await getMonthlyRevenueChart(
           selectedYear,
-          selectedMonth
+          selectedMonth,
+          driversMap,
+          usersMap
         );
-        setChartData(chartData);
+        setChartData(fetchedChartData);
+        
       } catch (error) {
         console.error("Error loading dashboard data:", error);
       } finally {
@@ -296,7 +299,7 @@ export default function AdminDashboard({
             </CardHeader>
             <CardContent className="h-80">
               {loading ? (
-                <div className="flex items-center justify-center h-32">
+                <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
               ) : (
@@ -390,3 +393,5 @@ export default function AdminDashboard({
     </div>
   );
 }
+
+    
