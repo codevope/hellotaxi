@@ -125,6 +125,8 @@ export default function DriverDetailsPage() {
   const [vehicleBrand, setVehicleBrand] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
   const [licensePlate, setLicensePlate] = useState('');
+  const [vehicleYear, setVehicleYear] = useState<number>(new Date().getFullYear());
+  const [vehicleColor, setVehicleColor] = useState('');
 
 
   useEffect(() => {
@@ -156,6 +158,8 @@ export default function DriverDetailsPage() {
           setVehicleBrand(enrichedDriver.vehicle.brand);
           setVehicleModel(enrichedDriver.vehicle.model);
           setLicensePlate(enrichedDriver.vehicle.licensePlate);
+          setVehicleYear(enrichedDriver.vehicle.year);
+          setVehicleColor(enrichedDriver.vehicle.color);
           setIndividualDocStatuses(enrichedDriver.documentStatus || {
             license: 'pending',
             insurance: 'pending',
@@ -266,6 +270,8 @@ export default function DriverDetailsPage() {
         brand: vehicleBrand,
         model: vehicleModel,
         licensePlate: licensePlate.toUpperCase(),
+        year: vehicleYear,
+        color: vehicleColor,
       }
 
       await updateDoc(driverRef, driverUpdates);
@@ -443,9 +449,19 @@ export default function DriverDetailsPage() {
                       </SelectContent>
                     </Select>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="vehicleYear">Año</Label>
+                        <Input id="vehicleYear" type="number" value={vehicleYear} onChange={(e) => setVehicleYear(Number(e.target.value))} disabled={isUpdating} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="vehicleColor">Color</Label>
+                        <Input id="vehicleColor" value={vehicleColor} onChange={(e) => setVehicleColor(e.target.value)} disabled={isUpdating} />
+                    </div>
+                </div>
                 <div className="space-y-2">
                     <Label htmlFor="licensePlate">Placa</Label>
-                    <Input id="licensePlate" value={licensePlate} onChange={(e) => setLicensePlate(e.target.value)} disabled={isUpdating} />
+                    <Input id="licensePlate" value={licensePlate} onChange={(e) => setLicensePlate(e.target.value.toUpperCase())} disabled={isUpdating} />
                 </div>
             </CardContent>
           </Card>
