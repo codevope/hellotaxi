@@ -1,0 +1,15 @@
+[33ma765d95[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Te ayudao a refrescar:
+[33m80c1d85[m no porfavor, lo has empeorado regresa haces 3 cambios atras  de verdad m
+[33mde1286a[m Me molesta porque te pedi un cambio de membreisa no de mapas en el admin
+[33ma0f1489[m sigue igual, lo has jodido todo de nuevo, siempre haces lo mismo porque
+[33m49acbc2[m Ok, todo bien firy pero porque siempre que cambias algo mi maoa no carga
+[33m5675f25[m ok , debeo reiniciar la bd ?
+[33m54540c6[m Si, vamos con ello meagrada
+[33m38faac4[m http://localhost:3000/admin/drivers/ND3vzIfzi1a1ex6FaBhk
+[33m1bfbf95[m en esta parte:
+[33md191d33[m perfecto, puedes tambien con la ia si se ingresa un observación corregir
+[33me8fdd52[m Me queda claro, pero tambien me queda claro que cuando no ingresa la obs
+[33ma18f756[m Ya pero en la bd cmo ACTUA
+[33m2a2b285[m feat(driver): implement driver state panel and related hooks for ride management
+[33m7f8c7c4[m Eliminar la importación del componente PaymentPlanSelector en la página del conductor
+[33m9b2492c[m Eliminar el componente PaymentPlanSelector y su lógica asociada
