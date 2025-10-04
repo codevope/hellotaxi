@@ -89,7 +89,7 @@ export function PaymentPlanSelector({
               <RadioGroupItem
                 value="commission"
                 id="payment-commission"
-                className="sr-only"
+                className="peer sr-only"
               />
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-xl text-gray-900 flex items-center gap-2">
