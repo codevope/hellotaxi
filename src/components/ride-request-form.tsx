@@ -72,7 +72,7 @@ const formSchema = z.object({
 });
 
 const paymentMethodIcons: Record<Exclude<PaymentMethod, 'card'>, React.ReactNode> = {
-  cash: <Image src="/img/cash.png" alt="Efectivo" width={40} height={40} className="object-contain h-10" />,
+  cash: <Image src="/img/cash.webp" alt="Efectivo" width={40} height={40} className="object-contain h-10" />,
   yape: <Image src="/img/yape.png" alt="Yape" width={80} height={40} className="object-contain h-10" />,
   plin: <Image src="/img/plin.png" alt="Plin" width={80} height={40} className="object-contain h-10" />,
 };
@@ -295,9 +295,73 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
             </div>
 
             {routeInfo.duration && (
-              <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
-                <p className="text-sm font-medium text-amber-800">Condiciones de tráfico en tiempo real incluidas</p>
-                <p className="text-xs text-amber-700 mt-1">Tiempo estimado considerando el tráfico actual</p>
+              <div className="rounded-lg shadow p-4 space-y-3 bg-gradient-to-br from-[#F2F2F2] via-white to-[#F2F2F2]">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-[#2E4CA6] flex items-center gap-2">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#05C7F2] animate-pulse" />
+                    Tráfico en Tiempo Real
+                  </p>
+                  <span
+                    className={cn(
+                      "text-xs font-medium px-2 py-0.5 rounded-full border",
+                      routeInfo.trafficCondition === 'light' && "bg-[#05C7F2]/15 text-[#049DD9] border-[#049DD9]/40",
+                      routeInfo.trafficCondition === 'moderate' && "bg-[#049DD9]/15 text-[#0477BF] border-[#0477BF]/40",
+                      routeInfo.trafficCondition === 'heavy' && "bg-[#0477BF]/15 text-[#2E4CA6] border-[#2E4CA6]/40",
+                      routeInfo.trafficCondition === 'unknown' && "bg-[#F2F2F2] text-[#2E4CA6] border-[#049DD9]/20"
+                    )}
+                  >
+                    {routeInfo.trafficCondition === 'light' && 'Fluido'}
+                    {routeInfo.trafficCondition === 'moderate' && 'Moderado'}
+                    {routeInfo.trafficCondition === 'heavy' && 'Pesado'}
+                    {routeInfo.trafficCondition === 'unknown' && 'Desconocido'}
+                  </span>
+                </div>
+                {/* <div className="text-xs text-[#0477BF] flex flex-wrap gap-4">
+                  {routeInfo.baselineDuration && (
+                    <span>
+                      Base: <strong>{routeInfo.baselineDuration.text}</strong>
+                    </span>
+                  )}
+                  <span>
+                    Actual: <strong>{routeInfo.duration.text}</strong>
+                  </span>
+                  {routeInfo.trafficDelaySeconds !== undefined && routeInfo.baselineDuration && (
+                    <span>
+                      Retraso: {Math.round(routeInfo.trafficDelaySeconds / 60)} min
+                    </span>
+                  )}
+                </div> */}
+                {/* {routeInfo.baselineDuration && routeInfo.trafficDelaySeconds !== undefined && (
+                  <div className="space-y-1">
+                    {(() => {
+                      const base = routeInfo.baselineDuration.value;
+                      const actual = routeInfo.duration.value;
+                      const ratio = Math.min(actual / base, 2); // cap 2x
+                      const pct = Math.min(((actual - base) / base) * 100, 100);
+                      return (
+                        <>
+                          <div className="h-2 w-full bg-[#F2F2F2] rounded-full overflow-hidden">
+                            <div
+                              className={cn(
+                                "h-full transition-all",
+                                ratio <= 1.15 && "bg-gradient-to-r from-[#05C7F2] to-[#049DD9]",
+                                ratio > 1.15 && ratio <= 1.4 && "bg-gradient-to-r from-[#049DD9] to-[#0477BF]",
+                                ratio > 1.4 && "bg-gradient-to-r from-[#0477BF] to-[#2E4CA6]"
+                              )}
+                              style={{ width: `${(ratio / 2) * 100}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[10px] text-[#0477BF]">
+                            <span>0%</span>
+                            <span>{pct.toFixed(0)}% atraso</span>
+                            <span>+100%</span>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )} */}
+                <p className="text-[11px] text-[#2E4CA6] italic">Los tiempos incluyen condiciones actuales de tráfico y pueden variar.</p>
               </div>
             )}
           </CardContent>
@@ -317,10 +381,10 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
             Buscar Conductor
           </Button>
           <Button
-            variant="outline"
+            variant="secondary"
             size="lg"
-            className="w-full h-12 border-2 border-gray-300 hover:bg-gray-50"
-            onClick={() => setStatus('calculated')}
+            className="w-full h-12 border-2 border-gray-300"
+            onClick={() => setStatus('idle')}
           >
             Volver a editar
           </Button>
@@ -434,7 +498,7 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
                             <FormLabel
                               htmlFor={`payment-${method}`}
                               className={cn(
-                                "flex flex-col items-center justify-center rounded-xl border-2 p-3 h-24 cursor-pointer transition shadow-sm",
+                                "flex flex-col items-center justify-center rounded-xl border-2 p-2 h-20 cursor-pointer transition shadow-sm",
                                 field.value === method
                                   ? "border-[#0477BF] bg-[#05C7F2]/10"
                                   : "border-gray-200 bg-[#F2F2F2] hover:border-[#049DD9] hover:bg-white",
@@ -442,7 +506,7 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
                               )}
                             >
                               {paymentMethodIcons[method]}
-                              <span className="mt-2 text-sm font-bold text-[#2E4CA6]">{method.toUpperCase()}</span>
+                              {/* <span className="mt-2 text-sm font-bold text-[#2E4CA6]">{method.toUpperCase()}</span> */}
                             </FormLabel>
                           </FormItem>
                         ))}
@@ -476,9 +540,9 @@ export default function RideRequestForm({ onRideCreated }: RideRequestFormProps)
               />
 
               {/* ETA */}
-              {(isCalculating || status === 'calculated') && routeInfo && (
+              {/* {(isCalculating || status === 'calculated') && routeInfo && (
                 <ETADisplay routeInfo={routeInfo} isCalculating={isCalculating} error={routeError} />
-              )}
+              )} */}
 
               {/* Botones */}
               <div className="flex flex-col sm:flex-row gap-2 pt-2">

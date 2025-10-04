@@ -17,6 +17,11 @@ export interface RouteInfo {
     text: string;
     value: number; // en segundos (con tráfico)
   };
+  baselineDuration?: {
+    text: string; // duración sin tráfico
+    value: number; // en segundos
+  };
+  trafficDelaySeconds?: number; // diferencia entre con tráfico y baseline
   trafficCondition: TrafficCondition;
   startAddress: string;
   endAddress: string;
@@ -148,6 +153,8 @@ export function useETACalculator(): UseETACalculatorReturn {
 
       const trafficCondition = getTrafficCondition(durationSecondsWithTraffic, durationSecondsBaseline);
 
+      const trafficDelaySeconds = durationSecondsWithTraffic - durationSecondsBaseline;
+
       const finalRouteInfo: RouteInfo = {
         distance: {
           text: leg.distance?.text || formatDistance(distanceMeters),
@@ -157,6 +164,11 @@ export function useETACalculator(): UseETACalculatorReturn {
           text: leg.duration_in_traffic?.text || formatDuration(durationSecondsWithTraffic),
           value: durationSecondsWithTraffic
         },
+        baselineDuration: {
+          text: leg.duration?.text || formatDuration(durationSecondsBaseline),
+          value: durationSecondsBaseline,
+        },
+        trafficDelaySeconds,
         trafficCondition,
         startAddress: leg.start_address,
         endAddress: leg.end_address,

@@ -1,6 +1,6 @@
 "use client";
 
-import { Car } from "lucide-react";
+import { Car, Star } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -16,17 +16,17 @@ import type { User, EnrichedDriver } from "@/lib/types";
 interface ActiveRideCardProps {
   status: "accepted" | "arrived" | "in-progress";
   passenger: User;
+  pickup: string;
   dropoff: string;
   fare: number;
   isCompletingRide: boolean;
-  onStatusUpdate: (
-    newStatus: "arrived" | "in-progress" | "completed"
-  ) => void;
+  onStatusUpdate: (newStatus: "arrived" | "in-progress" | "completed") => void;
 }
 
 export function ActiveRideCard({
   status,
   passenger,
+  pickup,
   dropoff,
   fare,
   isCompletingRide,
@@ -95,9 +95,9 @@ export function ActiveRideCard({
       </CardHeader>
       <CardContent className="space-y-4 pt-6">
         {/* Información del pasajero */}
-        <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+        <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg shadow-lg">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               <Avatar className="h-14 w-14 ring-2 ring-[#049DD9]">
                 <AvatarImage src={passenger.avatarUrl} alt={passenger.name} />
                 <AvatarFallback className="bg-gradient-to-br from-[#0477BF] to-[#049DD9] text-white font-bold text-lg">
@@ -105,17 +105,27 @@ export function ActiveRideCard({
                 </AvatarFallback>
               </Avatar>
               <div>
-                <p className="font-bold text-lg text-gray-900">
+                <p className="font-bold text-lg text-gray-900 flex items-center gap-3">
                   {passenger.name}
+                  {typeof passenger.rating === 'number' && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-[#F2F2F2] px-2 py-0.5 rounded-full border border-[#049DD9]/30 text-[#0477BF]">
+                      <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
+                      {passenger.rating.toFixed(1)}
+                    </span>
+                  )}
                 </p>
-                <p className="text-sm text-gray-600">
-                  Destino:{" "}
-                  <span className="font-medium text-gray-800">{dropoff}</span>
-                </p>
+                <div className="mt-1 space-y-1 text-sm text-gray-600">
+                  <p>
+                    Recojo: <span className="font-medium text-gray-800">{pickup}</span>
+                  </p>
+                  <p>
+                    Destino: <span className="font-medium text-gray-800">{dropoff}</span>
+                  </p>
+                </div>
               </div>
             </div>
             <div className="text-right">
-              <PriceDisplay amount={fare} label="Tarifa" size="md" variant="highlight" />
+              <PriceDisplay amount={fare} label="Tarifa" size="lg" variant="highlight" />
             </div>
           </div>
         </div>

@@ -49,25 +49,7 @@ type DriverActiveRide = Omit<Ride, "passenger" | "driver"> & {
   driver: EnrichedDriver;
 };
 import { useEffect, useState, useCallback } from "react";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  writeBatch,
-  onSnapshot,
-  Unsubscribe,
-  updateDoc,
-  increment,
-  getDoc,
-  limit,
-  addDoc,
-  orderBy,
-  runTransaction,
-  arrayUnion,
-  DocumentReference,
-} from "firebase/firestore";
+import { collection, doc, updateDoc, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import RatingForm from "@/components/rating-form";
@@ -85,7 +67,9 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { useRouteSimulator } from "@/hooks/use-route-simulator";
+// simulación ahora gestionada dentro de useDriverActiveRide
+import { useDriverActiveRide } from "@/hooks/driver/use-driver-active-ride";
+import { useIncomingRideRequests } from "@/hooks/driver/use-incoming-ride-requests";
 import {
   Sheet,
   SheetContent,
@@ -123,6 +107,10 @@ import { IncomingRideRequest } from "@/components/driver/incoming-ride-request";
 import { ActiveRideCard } from "@/components/driver/active-ride-card";
 import { DriverMapView } from "@/components/driver/driver-map-view";
 import { DriverProfileCard } from "@/components/driver/driver-profile-card";
+import { useDriverChat } from "@/hooks/driver/use-driver-chat";
+import { useDriverRideHistory } from "@/hooks/driver/use-driver-ride-history";
+import { useDriverPaymentPlan } from "@/hooks/driver/use-driver-payment-plan";
+import { DriverStatePanel } from "@/components/driver/driver-state-panel";
 
 const statusConfig: Record<
   Driver["status"],
@@ -146,27 +134,7 @@ const rideStatusConfig: Record<
   "counter-offered": { label: "Contraoferta", variant: "default" },
 };
 
-type EnrichedRide = Omit<Ride, "passenger" | "driver"> & {
-  passenger: User;
-  driver: EnrichedDriver;
-};
-
-const getMembershipStatus = (
-  expiryDate?: string
-): {
-  label: string;
-  variant: "default" | "secondary" | "destructive" | "outline";
-} => {
-  if (!expiryDate) return { label: "N/A", variant: "secondary" };
-
-  const now = new Date();
-  const expiry = new Date(expiryDate);
-  const diffDays = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-
-  if (diffDays < 0) return { label: "Vencida", variant: "destructive" };
-  if (diffDays <= 7) return { label: "Por Vencer", variant: "outline" };
-  return { label: "Activa", variant: "default" };
-};
+type EnrichedRide = Omit<Ride, "passenger" | "driver"> & { passenger: User; driver: EnrichedDriver };
 
 function DriverPageContent() {
   const {
@@ -182,39 +150,53 @@ function DriverPageContent() {
 
   const { user, driver, setDriver, loading } = useDriverAuth();
   const { toast } = useToast();
-  const [allRides, setAllRides] = useState<EnrichedRide[]>([]);
+  // Historial (reemplaza allRides + efecto manual)
+  const { rides: allRides } = useDriverRideHistory(driver, 25);
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
-  const [completedRideForRating, setCompletedRideForRating] =
-    useState<EnrichedRide | null>(null);
-  const [isCompletingRide, setIsCompletingRide] = useState(false);
+  // Estado desplazado ahora en hook useDriverActiveRide
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [isSavingPlan, setIsSavingPlan] = useState(false);
 
-  const {
-    startSimulation,
-    stopSimulation,
-    simulatedLocation: driverLocation,
-  } = useRouteSimulator();
   const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [rejectedRideIds, setRejectedRideIds] = useState<string[]>([]);
-  const [requestTimeLeft, setRequestTimeLeft] = useState<number>(30); // 30 seconds countdown
-  const [counterOfferAmount, setCounterOfferAmount] = useState(0);
+
+  // Hook: activo y rating
+  const { activeRide: activeRideHook, completedRideForRating, setCompletedRideForRating, updateRideStatus, isCompletingRide, driverLocation } = useDriverActiveRide({ driver, setAvailability });
+
+  // Chat (reemplaza chatMessages + listener manual) - debe ir después de obtener activeRideHook
+  const { messages: chatMessages, sendMessage } = useDriverChat({ rideId: activeRideHook?.id, userId: user?.uid });
+
+  // Mantener compat con store hasta migración completa
+  useEffect(() => {
+    if (activeRideHook && !activeRide) {
+      setActiveRide(activeRideHook as any);
+    }
+  }, [activeRideHook, activeRide, setActiveRide]);
+
+  // Hook: solicitudes entrantes
+  const {
+    incomingRequest: incomingRequestHook,
+    requestTimeLeft,
+    isCountering: isCounteringHook,
+    counterOfferAmount,
+    setCounterOfferAmount,
+    acceptRequest,
+    rejectRequest,
+    submitCounterOffer,
+    startCounterMode,
+  } = useIncomingRideRequests({ driver, isAvailable, rejectedRideIds, setRejectedRideIds });
+
+  useEffect(() => {
+    if (incomingRequestHook !== incomingRequest) {
+      setIncomingRequest(incomingRequestHook as any);
+    }
+  }, [incomingRequestHook, incomingRequest, setIncomingRequest]);
 
   // Counter-offer hook
   const { isListening: isCounterOfferListening, error: counterOfferError } =
     useCounterOffer(driver, activeRide);
 
-  // Local state for payment model selection
-  const [selectedPaymentModel, setSelectedPaymentModel] = useState<
-    PaymentModel | undefined
-  >(driver?.paymentModel);
-
-  useEffect(() => {
-    if (driver) {
-      setSelectedPaymentModel(driver.paymentModel);
-    }
-  }, [driver]);
+  // Plan de pago (hook)
+  const { selectedPaymentModel, setSelectedPaymentModel, save: handleSavePaymentPlan, isSavingPlan, membershipStatus } = useDriverPaymentPlan(driver, setDriver as any);
 
   // Sync driver availability status with local state
   useEffect(() => {
@@ -225,318 +207,20 @@ function DriverPageContent() {
   }, [driver, setAvailability]);
 
   // 30-second countdown timer for incoming ride requests
-  useEffect(() => {
-    if (!incomingRequest) {
-      setRequestTimeLeft(30); // Reset timer when no request
-      return;
-    }
-
-    // Start countdown
-    setRequestTimeLeft(30);
-
-    const timer = setInterval(() => {
-      setRequestTimeLeft((prevTime) => {
-        if (prevTime <= 1) {
-          // Time's up! Auto-reject the request
-          console.log("⏰ 30 seconds elapsed - auto-rejecting ride request");
-
-          // Auto-reject logic inline to avoid dependency issues
-          const currentRequest = useDriverRideStore.getState().incomingRequest;
-          if (currentRequest && driver) {
-            const rideRef = doc(db, "rides", currentRequest.id);
-            setIncomingRequest(null);
-            setRejectedRideIds((prev) => [...prev, currentRequest.id]);
-            updateDoc(rideRef, {
-              rejectedBy: arrayUnion(doc(db, "drivers", driver.id)),
-              offeredTo: null,
-            }).catch((error) => {
-              console.error("Error auto-rejecting ride:", error);
-            });
-          }
-
-          return 0;
-        }
-        return prevTime - 1;
-      });
-    }, 1000);
-
-    return () => {
-      clearInterval(timer);
-    };
-  }, [
-    incomingRequest,
-    isCountering,
-    driver,
-    setIncomingRequest,
-    setRejectedRideIds,
-  ]);
+  // Countdown movido a useIncomingRideRequests
 
   // MASTER useEffect for driver's active ride
-  useEffect(() => {
-    if (!driver) return;
-    const driverRef = doc(db, "drivers", driver.id);
-
-    // Listen to both: rides assigned to this driver AND rides offered to this driver that are accepted
-    const q1 = query(
-      collection(db, "rides"),
-      where("driver", "==", driverRef),
-      where("status", "in", ["accepted", "arrived", "in-progress", "completed"])
-    );
-
-    const unsubscribe1 = onSnapshot(q1, async (snapshot) => {
-      if (!snapshot.empty) {
-        const rideDoc = snapshot.docs.find(
-          (doc) => doc.data().status !== "completed"
-        ); // Find the non-completed ride
-        if (!rideDoc) {
-          if (useDriverRideStore.getState().activeRide !== null) {
-            const completedRideDoc = snapshot.docs.find(
-              (doc) =>
-                doc.data().status === "completed" &&
-                doc.id === useDriverRideStore.getState().activeRide?.id
-            );
-            if (completedRideDoc) {
-              const rideData = {
-                id: completedRideDoc.id,
-                ...completedRideDoc.data(),
-              } as Ride;
-              const passengerSnap = await getDoc(rideData.passenger);
-              if (passengerSnap.exists() && driver) {
-                setCompletedRideForRating({
-                  ...rideData,
-                  driver,
-                  passenger: passengerSnap.data() as User,
-                });
-              }
-            }
-            stopSimulation();
-            setActiveRide(null);
-          }
-          return;
-        }
-
-        const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
-
-        if (rideData.passenger && driver) {
-          const passengerSnap = await getDoc(rideData.passenger);
-          if (passengerSnap.exists()) {
-            const passengerData = passengerSnap.data() as User;
-            // Create a driver-specific ride object without the DocumentReference fields
-            const {
-              driver: driverRef,
-              passenger: passengerRef,
-              ...rideDataWithoutRefs
-            } = rideData;
-            const rideWithPassenger = {
-              ...rideDataWithoutRefs,
-              driver,
-              passenger: passengerData,
-            };
-            setActiveRide(rideWithPassenger);
-
-            const pickup = {
-              lat: -12.05,
-              lng: -77.05,
-              address: rideData.pickup,
-            };
-            const dropoff = {
-              lat: -12.1,
-              lng: -77.0,
-              address: rideData.dropoff,
-            };
-
-            if (
-              rideData.status === "accepted" ||
-              rideData.status === "arrived"
-            ) {
-              const driverInitialPos = driver.location || {
-                lat: -12.045,
-                lng: -77.03,
-              };
-              startSimulation(driverInitialPos, pickup);
-            } else if (rideData.status === "in-progress") {
-              startSimulation(pickup, dropoff);
-            }
-          }
-        }
-      } else {
-        if (useDriverRideStore.getState().activeRide !== null) {
-          stopSimulation();
-          setActiveRide(null);
-        }
-      }
-    });
-
-    return () => {
-      unsubscribe1();
-    };
-  }, [
-    driver,
-    activeRide,
-    setActiveRide,
-    setIncomingRequest,
-    startSimulation,
-    stopSimulation,
-    toast,
-  ]);
+  // Active ride listener movido a useDriverActiveRide
 
   // MASTER useEffect for new ride requests
-  useEffect(() => {
-    if (!driver || !isAvailable || activeRide || incomingRequest) return;
+  // Incoming ride listener movido a useIncomingRideRequests
 
-    const q = query(
-      collection(db, "rides"),
-      where("status", "==", "searching")
-    );
-
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      if (
-        useDriverRideStore.getState().activeRide ||
-        useDriverRideStore.getState().incomingRequest
-      ) {
-        return; // Don't process new requests if already busy
-      }
-
-      const potentialRides = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() } as Ride))
-        .filter((ride) => {
-          const alreadyOffered = !!ride.offeredTo;
-          const alreadyRejectedByMe =
-            rejectedRideIds.includes(ride.id) ||
-            ride.rejectedBy?.some((ref) => ref.id === driver.id);
-          return !alreadyOffered && !alreadyRejectedByMe;
-        });
-
-      if (potentialRides.length === 0) return;
-
-      const rideToOffer = potentialRides[0];
-      const rideRef = doc(db, "rides", rideToOffer.id);
-
-      try {
-        // Attempt to "claim" this ride offer
-        await runTransaction(db, async (transaction) => {
-          const freshRideDoc = await transaction.get(rideRef);
-          if (
-            !freshRideDoc.exists() ||
-            freshRideDoc.data().status !== "searching" ||
-            freshRideDoc.data().offeredTo
-          ) {
-            throw new Error("Ride was taken by another driver or cancelled.");
-          }
-          transaction.update(rideRef, {
-            offeredTo: doc(db, "drivers", driver.id),
-          });
-        });
-
-        // If transaction succeeds, show the request to this driver
-        const passengerSnap = await getDoc(rideToOffer.passenger);
-        if (passengerSnap.exists()) {
-          const passengerData = passengerSnap.data() as User;
-          // Create IncomingRequest without the passenger DocumentReference
-          const { passenger: passengerRef, ...rideWithoutPassengerRef } =
-            rideToOffer;
-          setIncomingRequest({
-            ...rideWithoutPassengerRef,
-            passenger: passengerData,
-          });
-        }
-      } catch (error) {
-        // This error is expected if another driver was faster. We just log it and do nothing.
-        console.log("Could not secure ride offer:", (error as Error).message);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [
-    driver,
-    isAvailable,
-    activeRide,
-    incomingRequest,
-    rejectedRideIds,
-    setIncomingRequest,
-  ]);
-
-  // Listener for chat messages
-  useEffect(() => {
-    if (!activeRide) return;
-
-    const chatQuery = query(
-      collection(db, "rides", activeRide.id, "chatMessages"),
-      orderBy("timestamp", "asc")
-    );
-    const unsubscribe = onSnapshot(chatQuery, (querySnapshot) => {
-      const messages = querySnapshot.docs.map(
-        (doc) => ({ id: doc.id, ...doc.data() } as ChatMessage)
-      );
-      setChatMessages(messages);
-    });
-
-    return () => unsubscribe();
-  }, [activeRide, setChatMessages]);
+  // Listener de chat movido a useDriverChat
 
   // Note: Counter-offer acceptance is now handled by the useCounterOffer hook
   // This listener has been removed to avoid duplication and toast issues
 
-  // Load ride history for the driver
-  useEffect(() => {
-    if (!driver) return;
-
-    const loadRideHistory = async () => {
-      try {
-        const driverRef = doc(db, "drivers", driver.id);
-        const q = query(
-          collection(db, "rides"),
-          where("driver", "==", driverRef),
-          orderBy("date", "desc"),
-          limit(25) // Load last 25 rides
-        );
-
-        const querySnapshot = await getDocs(q);
-        const ridesWithPassengersPromises = querySnapshot.docs.map(
-          async (rideDoc) => {
-            const rideData = rideDoc.data() as Ride;
-
-            if (!(rideData.passenger instanceof DocumentReference)) {
-              console.warn(
-                `Ride ${rideDoc.id} has an invalid passenger reference.`
-              );
-              return null;
-            }
-
-            const passengerDoc = await getDoc(rideData.passenger);
-            if (!passengerDoc.exists()) {
-              console.warn(`Passenger for ride ${rideDoc.id} not found.`);
-              return null;
-            }
-
-            const passengerData = passengerDoc.data() as User;
-
-            return {
-              ...rideData,
-              id: rideDoc.id,
-              passenger: passengerData,
-              driver: driver,
-            } as EnrichedRide;
-          }
-        );
-
-        const ridesWithPassengers = (
-          await Promise.all(ridesWithPassengersPromises)
-        ).filter(Boolean) as EnrichedRide[];
-
-        setAllRides(ridesWithPassengers);
-      } catch (error) {
-        console.error("Error loading ride history:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudo cargar el historial de viajes.",
-        });
-      }
-    };
-
-    loadRideHistory();
-  }, [driver, toast]);
+  // Historial movido a useDriverRideHistory
 
   const handleAvailabilityChange = async (available: boolean) => {
     if (!driver) return;
@@ -570,132 +254,11 @@ function DriverPageContent() {
     }
   };
 
-  const handleRideRequestResponse = useCallback(
-    async (accepted: boolean) => {
-      if (!incomingRequest || !driver) return;
+  // Reemplazado por acceptRequest / rejectRequest hooks
 
-      const rideId = incomingRequest.id;
-      const rideRef = doc(db, "rides", rideId);
+  // Contraoferta movida a hook (submitCounterOffer / startCounterMode)
 
-      setIncomingRequest(null);
-
-      if (accepted) {
-        try {
-          await runTransaction(db, async (transaction) => {
-            const rideDoc = await transaction.get(rideRef);
-            if (
-              !rideDoc.exists() ||
-              !["searching", "counter-offered"].includes(rideDoc.data().status)
-            ) {
-              throw new Error("El viaje ya no está disponible.");
-            }
-
-            transaction.update(rideRef, {
-              status: "accepted",
-              driver: doc(db, "drivers", driver.id),
-              offeredTo: null,
-            });
-            transaction.update(doc(db, "drivers", driver.id), {
-              status: "on-ride",
-            });
-          });
-
-          setAvailability(false);
-        } catch (e: any) {
-          console.error("Error accepting ride:", e);
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: e.message || "No se pudo aceptar el viaje.",
-          });
-        }
-      } else {
-        // Driver rejected, add them to the rejectedBy list and free up the offer
-        setRejectedRideIds((prev) => [...prev, rideId]);
-        await updateDoc(rideRef, {
-          rejectedBy: arrayUnion(doc(db, "drivers", driver.id)),
-          offeredTo: null,
-        });
-      }
-    },
-    [
-      incomingRequest,
-      driver,
-      setIncomingRequest,
-      setAvailability,
-      setRejectedRideIds,
-      toast,
-    ]
-  );
-
-  const handleCounterOffer = async () => {
-    if (!incomingRequest || !counterOfferAmount || !driver) return;
-    const rideRef = doc(db, "rides", incomingRequest.id);
-
-    try {
-      await updateDoc(rideRef, {
-        fare: counterOfferAmount,
-        status: "counter-offered",
-        offeredTo: doc(db, "drivers", driver.id),
-      });
-      toast({
-        title: "Contraoferta Enviada",
-        description: `Has propuesto una tarifa de S/${counterOfferAmount.toFixed(
-          2
-        )}`,
-      });
-      setIncomingRequest(null);
-      setIsCountering(false);
-    } catch (e) {
-      console.error("Error submitting counter offer:", e);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo enviar la contraoferta.",
-      });
-    }
-  };
-
-  const handleUpdateRideStatus = async (
-    newStatus: "arrived" | "in-progress" | "completed"
-  ) => {
-    if (!activeRide) return;
-    setIsCompletingRide(true);
-
-    const rideRef = doc(db, "rides", activeRide.id);
-    const driverRef = doc(db, "drivers", activeRide.driver.id);
-
-    try {
-      if (newStatus === "completed") {
-        const batch = writeBatch(db);
-        batch.update(rideRef, { status: "completed" });
-        batch.update(driverRef, { status: "available" });
-        batch.update(doc(db, "users", activeRide.passenger.id), {
-          totalRides: increment(1),
-        });
-        await batch.commit();
-
-        toast({
-          title: "¡Viaje Finalizado!",
-          description: "Ahora califica al pasajero.",
-        });
-
-        stopSimulation();
-        setAvailability(true);
-      } else {
-        await updateDoc(rideRef, { status: newStatus });
-      }
-    } catch (error) {
-      console.error("Error updating ride status:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo actualizar el estado del viaje.",
-      });
-    } finally {
-      setIsCompletingRide(false);
-    }
-  };
+  // Actualización de estado movida al hook updateRideStatus
 
   const handleSosConfirm = async () => {
     if (!activeRide || !user || !driver) return;
@@ -757,68 +320,7 @@ function DriverPageContent() {
     }
   };
 
-  const handleSendMessage = async (text: string) => {
-    if (!user || !activeRide) return;
-
-    const chatMessagesRef = collection(
-      db,
-      "rides",
-      activeRide.id,
-      "chatMessages"
-    );
-    await addDoc(chatMessagesRef, {
-      userId: user.uid,
-      text,
-      timestamp: new Date().toISOString(),
-    });
-  };
-
-  const handleSavePaymentPlan = async () => {
-    if (
-      !driver ||
-      !selectedPaymentModel ||
-      selectedPaymentModel === driver.paymentModel
-    )
-      return;
-    setIsSavingPlan(true);
-
-    const driverRef = doc(db, "drivers", driver.id);
-    const updates: {
-      paymentModel: PaymentModel;
-      membershipExpiryDate?: string;
-    } = {
-      paymentModel: selectedPaymentModel,
-    };
-
-    if (
-      selectedPaymentModel === "membership" &&
-      driver.paymentModel !== "membership"
-    ) {
-      updates.membershipExpiryDate = new Date(
-        new Date().setDate(new Date().getDate() + 30)
-      ).toISOString();
-    }
-
-    try {
-      await updateDoc(driverRef, updates);
-      setDriver({ ...driver, ...updates });
-      toast({
-        title: "Plan de Pago Actualizado",
-        description: `Tu modelo de pago ahora es: ${
-          selectedPaymentModel === "membership" ? "Membresía" : "Comisión"
-        }.`,
-      });
-    } catch (error) {
-      console.error("Error updating payment model:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo actualizar tu plan de pago.",
-      });
-    } finally {
-      setIsSavingPlan(false);
-    }
-  };
+  // Envío de mensajes movido a useDriverChat (sendMessage)
 
   if (loading || !driver) {
     return (
@@ -829,81 +331,7 @@ function DriverPageContent() {
   }
 
   const isApproved = driver.documentsStatus === "approved";
-  const membershipStatus = getMembershipStatus(driver.membershipExpiryDate);
-
-  const renderDashboardContent = () => {
-    if (incomingRequest) {
-      return (
-        <IncomingRideRequest
-          isOpen={!!incomingRequest}
-          onOpenChange={() => {}}
-          passenger={incomingRequest.passenger}
-          pickup={incomingRequest.pickup}
-          dropoff={incomingRequest.dropoff}
-          fare={incomingRequest.fare}
-          requestTimeLeft={requestTimeLeft}
-          isCountering={isCountering}
-          counterOfferAmount={counterOfferAmount}
-          onCounterOfferChange={setCounterOfferAmount}
-          onAccept={() => handleRideRequestResponse(true)}
-          onReject={() => handleRideRequestResponse(false)}
-          onStartCounterOffer={() => {
-            setCounterOfferAmount(incomingRequest.fare);
-            setIsCountering(true);
-          }}
-          onSubmitCounterOffer={handleCounterOffer}
-          onCancelCounterOffer={() => setIsCountering(false)}
-        />
-      );
-    }
-    if (activeRide) {
-      return (
-        <ActiveRideCard
-          status={activeRide.status as "accepted" | "arrived" | "in-progress"}
-          passenger={activeRide.passenger}
-          dropoff={activeRide.dropoff}
-          fare={activeRide.fare}
-          isCompletingRide={isCompletingRide}
-          onStatusUpdate={handleUpdateRideStatus}
-        />
-      );
-    }
-
-    if (completedRideForRating) {
-      return (
-        <RatingForm
-          userToRate={completedRideForRating.passenger}
-          isDriver={false}
-          onSubmit={(rating, comment) =>
-            handleRatingSubmit(
-              completedRideForRating!.passenger.id,
-              rating,
-              comment
-            )
-          }
-          isSubmitting={isRatingSubmitting}
-        />
-      );
-    }
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Car className="h-6 w-6 text-primary" />
-            <span>Esperando Solicitudes</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <AlertTitle>No hay solicitudes pendientes</AlertTitle>
-            <AlertDescription>
-              Cuando un pasajero solicite un viaje, aparecerá aquí.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  };
+  // membershipStatus lo provee hook de plan de pago
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -937,19 +365,11 @@ function DriverPageContent() {
               <div className="lg:col-span-2 flex flex-col min-h-[60vh] rounded-xl overflow-hidden shadow-lg relative">
                 <MapView
                   driverLocation={driverLocation}
-                  pickupLocation={
-                    activeRide?.pickupLocation
-                      ? activeRide.pickupLocation
-                      : null
-                  }
-                  dropoffLocation={
-                    activeRide?.dropoffLocation
-                      ? activeRide.dropoffLocation
-                      : null
-                  }
+                  pickupLocation={activeRideHook?.pickupLocation ? activeRideHook.pickupLocation : null}
+                  dropoffLocation={activeRideHook?.dropoffLocation ? activeRideHook.dropoffLocation : null}
                   interactive={false}
                 />
-                {activeRide && (
+                {activeRideHook && (
                   <>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -988,26 +408,20 @@ function DriverPageContent() {
                       open={isDriverChatOpen}
                       onOpenChange={setIsDriverChatOpen}
                     >
-                      <SheetTrigger asChild>
-                        <Button
-                          size="icon"
-                          className="absolute bottom-4 left-4 h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90"
-                        >
-                          <MessageCircle className="h-7 w-7" />
-                        </Button>
-                      </SheetTrigger>
-                      <SheetContent side="left" className="w-full max-w-sm p-0">
-                        <SheetHeader className="p-4 border-b text-left">
-                          <SheetTitle className="flex items-center gap-2">
-                            <MessageCircle className="h-5 w-5" />
-                            <span>Chat con {activeRide?.passenger.name}</span>
-                          </SheetTitle>
-                        </SheetHeader>
-                        <Chat
-                          messages={chatMessages}
-                          onSendMessage={handleSendMessage}
-                        />
-                      </SheetContent>
+                          <SheetTrigger asChild>
+                            <Button size="icon" className="absolute bottom-4 left-4 h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90">
+                              <MessageCircle className="h-7 w-7" />
+                            </Button>
+                          </SheetTrigger>
+                          <SheetContent side="left" className="w-full max-w-sm p-0">
+                            <SheetHeader className="p-4 border-b text-left">
+                              <SheetTitle className="flex items-center gap-2">
+                                <MessageCircle className="h-5 w-5" />
+                                <span>Chat con {activeRideHook?.passenger.name}</span>
+                              </SheetTitle>
+                            </SheetHeader>
+                            <Chat messages={chatMessages} onSendMessage={sendMessage} />
+                          </SheetContent>
                     </Sheet>
                   </>
                 )}
@@ -1029,9 +443,7 @@ function DriverPageContent() {
                           id="availability-switch"
                           checked={isAvailable}
                           onCheckedChange={handleAvailabilityChange}
-                          disabled={
-                            !isApproved || !!activeRide || isUpdatingStatus
-                          }
+                          disabled={!isApproved || !!activeRideHook || isUpdatingStatus}
                           aria-label="Estado de disponibilidad"
                         />
                         <Label htmlFor="availability-switch">
@@ -1060,7 +472,29 @@ function DriverPageContent() {
                   </CardContent>
                 </Card>
 
-                {renderDashboardContent()}
+                <DriverStatePanel
+                  incomingRequest={incomingRequestHook}
+                  requestTimeLeft={requestTimeLeft}
+                  isCountering={isCounteringHook}
+                  counterOfferAmount={counterOfferAmount}
+                  setCounterOfferAmount={setCounterOfferAmount}
+                  acceptRequest={acceptRequest}
+                  rejectRequest={rejectRequest}
+                  startCounterMode={startCounterMode}
+                  submitCounterOffer={submitCounterOffer}
+                  activeRide={activeRideHook as any}
+                  updateRideStatus={(status) => updateRideStatus(activeRideHook as any, status)}
+                  isCompletingRide={isCompletingRide}
+                  completedRideForRating={completedRideForRating as any}
+                  onRatingSubmit={handleRatingSubmit}
+                  isRatingSubmitting={isRatingSubmitting}
+                  isDriverChatOpen={isDriverChatOpen}
+                  setIsDriverChatOpen={setIsDriverChatOpen}
+                  chatMessages={chatMessages}
+                  onSendMessage={sendMessage}
+                  onSos={handleSosConfirm}
+                  passengerNameForChat={activeRideHook?.passenger.name}
+                />
               </div>
             </div>
           </TabsContent>
@@ -1239,13 +673,7 @@ function DriverPageContent() {
                     )}
                   </CardContent>
                   <CardFooter>
-                    <Button
-                      onClick={handleSavePaymentPlan}
-                      disabled={
-                        isSavingPlan ||
-                        selectedPaymentModel === driver.paymentModel
-                      }
-                    >
+                    <Button onClick={handleSavePaymentPlan} disabled={isSavingPlan || selectedPaymentModel === driver.paymentModel}>
                       {isSavingPlan && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}

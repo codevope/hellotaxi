@@ -125,7 +125,7 @@ export function SearchingRideStatus({
           
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="outline" className="mt-4 border-2 border-red-200 bg-white font-semibold text-red-600 hover:bg-red-50">
+              <Button variant="secondary" className="mt-4 border-2 border-[#049DD9] bg-white text-[#049DD9] hover:bg-[#049DD9]/10">
                 <X className="mr-2 h-4 w-4" /> Cancelar Búsqueda
               </Button>
             </AlertDialogTrigger>

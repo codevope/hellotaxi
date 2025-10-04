@@ -39,7 +39,7 @@ export function PriceDisplay({
   };
 
   return (
-    <div className="flex flex-col items-start">
+    <div className="flex flex-col items-center">
       {label && (
         <span className={`${labelSizeClasses[size]} text-gray-500 mb-1`}>
           {label}

@@ -103,11 +103,11 @@ export function AssignedDriverCard({
                 </div>
               </div>
               <div className="mt-2 space-y-1">
-                <p className="text-xs font-medium text-gray-600">
-                  {assignedDriver.vehicleBrand} {assignedDriver.vehicleModel}
+                <p className="font-bold text-gray-600">
+                  {assignedDriver.vehicleBrand}  {assignedDriver.vehicleModel} • {assignedDriver.vehicleYear} • {assignedDriver.vehicleColor}
                 </p>
-                <p className="text-xs font-mono font-semibold text-[#0477BF]">
-                  {assignedDriver.licensePlate}
+                <p className="text-xl font-mono font-semibold text-[#0477BF]">
+                  • {assignedDriver.licensePlate}
                 </p>
               </div>
             </div>
@@ -117,7 +117,7 @@ export function AssignedDriverCard({
               <PriceDisplay
                 amount={activeRide.fare}
                 label="Tarifa"
-                size="lg"
+                size="xl"
                 variant="highlight"
               />
             </div>
