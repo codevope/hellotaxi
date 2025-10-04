@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -24,9 +25,10 @@ import {
   Phone,
   ShieldPlus,
   Save,
+  MoreVertical,
 } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import type { User, Ride, FirebaseUser } from '@/lib/types';
+import type { User, Ride, FirebaseUser, Driver, Vehicle } from '@/lib/types';
 import {
   doc,
   getDoc,
@@ -35,6 +37,7 @@ import {
   query,
   where,
   getDocs,
+  DocumentReference,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
@@ -54,27 +57,17 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { DataTable } from '@/components/ui/data-table';
+import { columns as rideHistoryColumnsDefinition } from '@/components/admin/rides-table-columns';
 import ProfileValidationStatus from '@/components/profile-validation-status';
-import { getAuth } from 'firebase/auth';
+import Link from 'next/link';
 
-const rideStatusConfig = {
-  searching: { label: 'Buscando', variant: 'default' as const },
-  accepted: { label: 'Aceptado', variant: 'default' as const },
-  arrived: { label: 'Llegó', variant: 'default' as const },
-  'in-progress': { label: 'En Progreso', variant: 'default' as const },
-  completed: { label: 'Completado', variant: 'secondary' as const },
-  cancelled: { label: 'Cancelado', variant: 'destructive' as const },
-  'counter-offered': { label: 'Contraoferta', variant: 'default' as const },
+type EnrichedRide = Omit<Ride, "driver" | "passenger" | "vehicle"> & {
+  driver?: Driver;
+  passenger?: User;
+  vehicle?: Vehicle;
 };
+
 
 export default function UserDetailsPage() {
   const router = useRouter();
@@ -85,7 +78,7 @@ export default function UserDetailsPage() {
 
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [rides, setRides] = useState<Ride[]>([]);
+  const [rides, setRides] = useState<EnrichedRide[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -98,12 +91,9 @@ export default function UserDetailsPage() {
 
     async function fetchData() {
       try {
-        // Fetch user data
         const userDocRef = doc(db, 'users', id as string);
         const userSnap = await getDoc(userDocRef);
         
-        // This is a placeholder as we can't get the real auth object for another user on the client.
-        // In a real app, this would come from a secure admin backend.
         const mockFirebaseUser: FirebaseUser = {
             uid: typeof id === 'string' ? id : '',
             email: userSnap.data()?.email || '',
@@ -111,8 +101,6 @@ export default function UserDetailsPage() {
             photoURL: userSnap.data()?.avatarUrl || '',
             phoneNumber: userSnap.data()?.phone || '',
             providerData: [
-                // We simulate this based on what we *could* know.
-                // In a real scenario, you'd need a backend to fetch this.
                 { providerId: userSnap.data()?.email ? 'password' : '' },
                 { providerId: userSnap.data()?.avatarUrl?.includes('googleusercontent') ? 'google.com' : '' }
             ].filter(p => p.providerId),
@@ -127,15 +115,23 @@ export default function UserDetailsPage() {
           setPhone(userData.phone || '');
           setAddress(userData.address || '');
 
-          // Fetch user's rides
           const ridesQuery = query(
             collection(db, 'rides'),
             where('passenger', '==', userDocRef)
           );
           const ridesSnapshot = await getDocs(ridesQuery);
-          const userRides = ridesSnapshot.docs.map(
-            (doc) => ({ id: doc.id, ...doc.data() } as Ride)
+          const userRidesPromises = ridesSnapshot.docs.map(
+            async (rideDoc) => {
+              const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride
+              let driver: Driver | undefined;
+              if (rideData.driver) {
+                const driverSnap = await getDoc(rideData.driver as DocumentReference);
+                if (driverSnap.exists()) driver = driverSnap.data() as Driver;
+              }
+              return { ...rideData, driver, passenger: userData };
+            }
           );
+          const userRides = await Promise.all(userRidesPromises);
           setRides(userRides.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         } else {
           console.error('No such user!');
@@ -199,6 +195,21 @@ export default function UserDetailsPage() {
       setIsUpdating(false);
     }
   };
+  
+  const rideTableColumns = [
+    ...rideHistoryColumnsDefinition.filter(c => c.id !== 'passenger'), // Remove passenger column
+    {
+      id: "actions",
+      cell: ({ row }: { row: { original: EnrichedRide } }) => {
+        return (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/admin/rides/${row.original.id}`}>Ver Viaje</Link>
+          </Button>
+        );
+      },
+    },
+  ];
+
 
   if (loading) {
     return (
@@ -369,37 +380,17 @@ export default function UserDetailsPage() {
               <CardTitle>Historial de Viajes Recientes</CardTitle>
             </CardHeader>
             <CardContent>
-              {rides.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Ruta</TableHead>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead className="text-right">Tarifa</TableHead>
-                      <TableHead>Estado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rides.map((ride) => (
-                      <TableRow key={ride.id}>
-                        <TableCell className="font-medium">
-                          <div className="truncate max-w-xs">{ride.pickup} &rarr; {ride.dropoff}</div>
-                        </TableCell>
-                        <TableCell>{format(new Date(ride.date), 'dd/MM/yyyy')}</TableCell>
-                        <TableCell className="text-right">S/{ride.fare.toFixed(2)}</TableCell>
-                        <TableCell>
-                           <Badge variant={rideStatusConfig[ride.status].variant}>
-                                {rideStatusConfig[ride.status].label}
-                            </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              {loading ? (
+                 <div className="flex justify-center items-center h-48">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                 </div>
               ) : (
-                <p className="text-muted-foreground text-center py-4">
-                  Este usuario aún no ha realizado ningún viaje.
-                </p>
+                <DataTable 
+                    columns={rideTableColumns}
+                    data={rides}
+                    searchKey="driver"
+                    searchPlaceholder="Buscar por conductor..."
+                />
               )}
             </CardContent>
           </Card>
