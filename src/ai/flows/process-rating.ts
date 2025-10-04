@@ -46,24 +46,29 @@ const processRatingFlow = ai.defineFlow(
     const userDocRef = doc(db, collectionName, ratedUserId);
     
     let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
+    const reviewData: {
+        rating: number;
+        comment?: string;
+        sentiment: 'positive' | 'negative' | 'neutral';
+        createdAt: string;
+    } = {
+        rating,
+        sentiment,
+        createdAt: new Date().toISOString(),
+    };
     
     if (comment && comment.trim().length > 0) {
-        // Analizar sentimiento del comentario
+        // Analizar sentimiento solo si hay comentario
         const sentimentResult = await sentimentAnalysisPrompt({ comment });
         if(sentimentResult.output) {
-            sentiment = sentimentResult.output.sentiment;
+            reviewData.sentiment = sentimentResult.output.sentiment;
         }
-
-        // Guardar el comentario en una subcolección
-        const reviewsColRef = collection(userDocRef, 'reviews');
-        // addDoc will generate an ID, but we don't need to store it back for reviews
-        await addDoc(reviewsColRef, {
-            rating,
-            comment,
-            sentiment,
-            createdAt: new Date().toISOString(),
-        });
+        reviewData.comment = comment;
     }
+
+    // Guardar siempre la calificación en la subcolección, con o sin comentario
+    const reviewsColRef = collection(userDocRef, 'reviews');
+    await addDoc(reviewsColRef, reviewData);
 
     // Actualizar la calificación promedio del usuario en una transacción
     const newAverageRating = await runTransaction(db, async (transaction) => {
@@ -95,5 +100,3 @@ const processRatingFlow = ai.defineFlow(
     };
   }
 );
-
-    
