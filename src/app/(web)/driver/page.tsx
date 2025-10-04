@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
+  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,9 +15,17 @@ import {
   Car,
   ShieldAlert,
   FileText,
+  Star,
+  UserCog,
   Wallet,
   History,
+  MessageCircle,
   LogIn,
+  Siren,
+  CircleDollarSign,
+  Save,
+  CreditCard,
+  CalendarCheck,
 } from "lucide-react";
 import { useDriverAuth } from "@/hooks/use-driver-auth";
 import { useCounterOffer } from "@/hooks/use-counter-offer";
@@ -28,10 +37,17 @@ import { useToast } from "@/hooks/use-toast";
 import type {
   Ride,
   User,
+  Driver,
+  ChatMessage,
   EnrichedDriver,
   PaymentModel,
-  ChatMessage,
 } from "@/lib/types";
+
+// Import the type from the store file
+type DriverActiveRide = Omit<Ride, "passenger" | "driver"> & {
+  passenger: User;
+  driver: EnrichedDriver;
+};
 import { useEffect, useState, useCallback } from "react";
 import {
   collection,
@@ -41,6 +57,7 @@ import {
   doc,
   writeBatch,
   onSnapshot,
+  Unsubscribe,
   updateDoc,
   increment,
   getDoc,
@@ -52,13 +69,54 @@ import {
   DocumentReference,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import RatingForm from "@/components/rating-form";
 import { processRating } from "@/ai/flows/process-rating";
+import MapView from "@/components/map-view";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DriverDocuments from "@/components/driver/documents";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { useRouteSimulator } from "@/hooks/use-route-simulator";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import Chat from "@/components/chat";
 import Link from "next/link";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogHeader,
+  DialogContent,
+  DialogTrigger,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useDriverRideStore } from "@/store/driver-ride-store";
 import DriverVehicle from "@/components/driver/vehicle";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DataTable } from "@/components/ui/data-table";
 import { columns as rideHistoryColumns } from "@/components/driver/ride-history-columns";
 import { IncomingRideRequest } from "@/components/driver/incoming-ride-request";
@@ -68,7 +126,7 @@ import { DriverProfileCard } from "@/components/driver/driver-profile-card";
 import { PaymentPlanSelector } from "@/components/driver/payment-plan-selector";
 
 const statusConfig: Record<
-  EnrichedDriver["status"],
+  Driver["status"],
   { label: string; variant: "default" | "secondary" | "outline" }
 > = {
   available: { label: "Disponible", variant: "default" },
@@ -76,9 +134,39 @@ const statusConfig: Record<
   "on-ride": { label: "En Viaje", variant: "outline" },
 };
 
+const rideStatusConfig: Record<
+  Ride["status"],
+  { label: string; variant: "secondary" | "default" | "destructive" }
+> = {
+  searching: { label: "Buscando", variant: "default" },
+  accepted: { label: "Aceptado", variant: "default" },
+  arrived: { label: "Ha llegado", variant: "default" },
+  "in-progress": { label: "En Progreso", variant: "default" },
+  completed: { label: "Completado", variant: "secondary" },
+  cancelled: { label: "Cancelado", variant: "destructive" },
+  "counter-offered": { label: "Contraoferta", variant: "default" },
+};
+
 type EnrichedRide = Omit<Ride, "passenger" | "driver"> & {
   passenger: User;
   driver: EnrichedDriver;
+};
+
+const getMembershipStatus = (
+  expiryDate?: string
+): {
+  label: string;
+  variant: "default" | "secondary" | "destructive" | "outline";
+} => {
+  if (!expiryDate) return { label: "N/A", variant: "secondary" };
+
+  const now = new Date();
+  const expiry = new Date(expiryDate);
+  const diffDays = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+
+  if (diffDays < 0) return { label: "Vencida", variant: "destructive" };
+  if (diffDays <= 7) return { label: "Por Vencer", variant: "outline" };
+  return { label: "Activa", variant: "default" };
 };
 
 function DriverPageContent() {
@@ -103,15 +191,33 @@ function DriverPageContent() {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSavingPlan, setIsSavingPlan] = useState(false);
 
+  const {
+    startSimulation,
+    stopSimulation,
+    simulatedLocation: driverLocation,
+  } = useRouteSimulator();
+  const [isDriverChatOpen, setIsDriverChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [rejectedRideIds, setRejectedRideIds] = useState<string[]>([]);
-  const [requestTimeLeft, setRequestTimeLeft] = useState<number>(30);
+  const [requestTimeLeft, setRequestTimeLeft] = useState<number>(30); // 30 seconds countdown
   const [counterOfferAmount, setCounterOfferAmount] = useState(0);
 
   // Counter-offer hook
   const { isListening: isCounterOfferListening, error: counterOfferError } =
     useCounterOffer(driver, activeRide);
 
+  // Local state for payment model selection
+  const [selectedPaymentModel, setSelectedPaymentModel] = useState<
+    PaymentModel | undefined
+  >(driver?.paymentModel);
+
+  useEffect(() => {
+    if (driver) {
+      setSelectedPaymentModel(driver.paymentModel);
+    }
+  }, [driver]);
+
+  // Sync driver availability status with local state
   useEffect(() => {
     if (driver) {
       const isDriverAvailable = driver.status === "available";
@@ -122,13 +228,20 @@ function DriverPageContent() {
   // 30-second countdown timer for incoming ride requests
   useEffect(() => {
     if (!incomingRequest) {
-      setRequestTimeLeft(30);
+      setRequestTimeLeft(30); // Reset timer when no request
       return;
     }
+
+    // Start countdown
     setRequestTimeLeft(30);
+
     const timer = setInterval(() => {
       setRequestTimeLeft((prevTime) => {
         if (prevTime <= 1) {
+          // Time's up! Auto-reject the request
+          console.log("⏰ 30 seconds elapsed - auto-rejecting ride request");
+
+          // Auto-reject logic inline to avoid dependency issues
           const currentRequest = useDriverRideStore.getState().incomingRequest;
           if (currentRequest && driver) {
             const rideRef = doc(db, "rides", currentRequest.id);
@@ -137,24 +250,34 @@ function DriverPageContent() {
             updateDoc(rideRef, {
               rejectedBy: arrayUnion(doc(db, "drivers", driver.id)),
               offeredTo: null,
-            }).catch((error) =>
-              console.error("Error auto-rejecting ride:", error)
-            );
+            }).catch((error) => {
+              console.error("Error auto-rejecting ride:", error);
+            });
           }
+
           return 0;
         }
         return prevTime - 1;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [incomingRequest, driver, setIncomingRequest, setRejectedRideIds]);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [
+    incomingRequest,
+    isCountering,
+    driver,
+    setIncomingRequest,
+    setRejectedRideIds,
+  ]);
 
   // MASTER useEffect for driver's active ride
   useEffect(() => {
     if (!driver) return;
     const driverRef = doc(db, "drivers", driver.id);
 
+    // Listen to both: rides assigned to this driver AND rides offered to this driver that are accepted
     const q1 = query(
       collection(db, "rides"),
       where("driver", "==", driverRef),
@@ -165,7 +288,7 @@ function DriverPageContent() {
       if (!snapshot.empty) {
         const rideDoc = snapshot.docs.find(
           (doc) => doc.data().status !== "completed"
-        );
+        ); // Find the non-completed ride
         if (!rideDoc) {
           if (useDriverRideStore.getState().activeRide !== null) {
             const completedRideDoc = snapshot.docs.find(
@@ -178,7 +301,7 @@ function DriverPageContent() {
                 id: completedRideDoc.id,
                 ...completedRideDoc.data(),
               } as Ride;
-              const passengerSnap = await getDoc(rideData.passenger as DocumentReference);
+              const passengerSnap = await getDoc(rideData.passenger);
               if (passengerSnap.exists() && driver) {
                 setCompletedRideForRating({
                   ...rideData,
@@ -187,33 +310,76 @@ function DriverPageContent() {
                 });
               }
             }
+            stopSimulation();
             setActiveRide(null);
           }
           return;
         }
 
         const rideData = { id: rideDoc.id, ...rideDoc.data() } as Ride;
+
         if (rideData.passenger && driver) {
-          const passengerSnap = await getDoc(rideData.passenger as DocumentReference);
+          const passengerSnap = await getDoc(rideData.passenger);
           if (passengerSnap.exists()) {
             const passengerData = passengerSnap.data() as User;
+            // Create a driver-specific ride object without the DocumentReference fields
+            const {
+              driver: driverRef,
+              passenger: passengerRef,
+              ...rideDataWithoutRefs
+            } = rideData;
             const rideWithPassenger = {
-              ...rideData,
+              ...rideDataWithoutRefs,
               driver,
               passenger: passengerData,
             };
             setActiveRide(rideWithPassenger);
+
+            const pickup = {
+              lat: -12.05,
+              lng: -77.05,
+              address: rideData.pickup,
+            };
+            const dropoff = {
+              lat: -12.1,
+              lng: -77.0,
+              address: rideData.dropoff,
+            };
+
+            if (
+              rideData.status === "accepted" ||
+              rideData.status === "arrived"
+            ) {
+              const driverInitialPos = driver.location || {
+                lat: -12.045,
+                lng: -77.03,
+              };
+              startSimulation(driverInitialPos, pickup);
+            } else if (rideData.status === "in-progress") {
+              startSimulation(pickup, dropoff);
+            }
           }
         }
       } else {
         if (useDriverRideStore.getState().activeRide !== null) {
+          stopSimulation();
           setActiveRide(null);
         }
       }
     });
 
-    return () => unsubscribe1();
-  }, [driver, setActiveRide, setIncomingRequest, toast]);
+    return () => {
+      unsubscribe1();
+    };
+  }, [
+    driver,
+    activeRide,
+    setActiveRide,
+    setIncomingRequest,
+    startSimulation,
+    stopSimulation,
+    toast,
+  ]);
 
   // MASTER useEffect for new ride requests
   useEffect(() => {
@@ -229,7 +395,7 @@ function DriverPageContent() {
         useDriverRideStore.getState().activeRide ||
         useDriverRideStore.getState().incomingRequest
       ) {
-        return;
+        return; // Don't process new requests if already busy
       }
 
       const potentialRides = snapshot.docs
@@ -248,6 +414,7 @@ function DriverPageContent() {
       const rideRef = doc(db, "rides", rideToOffer.id);
 
       try {
+        // Attempt to "claim" this ride offer
         await runTransaction(db, async (transaction) => {
           const freshRideDoc = await transaction.get(rideRef);
           if (
@@ -262,9 +429,11 @@ function DriverPageContent() {
           });
         });
 
-        const passengerSnap = await getDoc(rideToOffer.passenger as DocumentReference);
+        // If transaction succeeds, show the request to this driver
+        const passengerSnap = await getDoc(rideToOffer.passenger);
         if (passengerSnap.exists()) {
           const passengerData = passengerSnap.data() as User;
+          // Create IncomingRequest without the passenger DocumentReference
           const { passenger: passengerRef, ...rideWithoutPassengerRef } =
             rideToOffer;
           setIncomingRequest({
@@ -273,6 +442,7 @@ function DriverPageContent() {
           });
         }
       } catch (error) {
+        // This error is expected if another driver was faster. We just log it and do nothing.
         console.log("Could not secure ride offer:", (error as Error).message);
       }
     });
@@ -303,7 +473,10 @@ function DriverPageContent() {
     });
 
     return () => unsubscribe();
-  }, [activeRide]);
+  }, [activeRide, setChatMessages]);
+
+  // Note: Counter-offer acceptance is now handled by the useCounterOffer hook
+  // This listener has been removed to avoid duplication and toast issues
 
   // Load ride history for the driver
   useEffect(() => {
@@ -316,7 +489,7 @@ function DriverPageContent() {
           collection(db, "rides"),
           where("driver", "==", driverRef),
           orderBy("date", "desc"),
-          limit(25)
+          limit(25) // Load last 25 rides
         );
 
         const querySnapshot = await getDocs(q);
@@ -325,11 +498,15 @@ function DriverPageContent() {
             const rideData = rideDoc.data() as Ride;
 
             if (!(rideData.passenger instanceof DocumentReference)) {
+              console.warn(
+                `Ride ${rideDoc.id} has an invalid passenger reference.`
+              );
               return null;
             }
 
             const passengerDoc = await getDoc(rideData.passenger);
             if (!passengerDoc.exists()) {
+              console.warn(`Passenger for ride ${rideDoc.id} not found.`);
               return null;
             }
 
@@ -364,6 +541,7 @@ function DriverPageContent() {
 
   const handleAvailabilityChange = async (available: boolean) => {
     if (!driver) return;
+
     setIsUpdatingStatus(true);
     const newStatus = available ? "available" : "unavailable";
     const driverRef = doc(db, "drivers", driver.id);
@@ -372,10 +550,14 @@ function DriverPageContent() {
       await updateDoc(driverRef, { status: newStatus });
       setDriver({ ...driver, status: newStatus });
       setAvailability(available);
+
       toast({
         title: `Estado actualizado: ${
           available ? "Disponible" : "No Disponible"
         }`,
+        description: available
+          ? "Ahora recibirás solicitudes de viaje."
+          : "Has dejado de recibir solicitudes.",
       });
     } catch (error) {
       console.error("Error updating availability:", error);
@@ -392,8 +574,10 @@ function DriverPageContent() {
   const handleRideRequestResponse = useCallback(
     async (accepted: boolean) => {
       if (!incomingRequest || !driver) return;
+
       const rideId = incomingRequest.id;
       const rideRef = doc(db, "rides", rideId);
+
       setIncomingRequest(null);
 
       if (accepted) {
@@ -406,18 +590,20 @@ function DriverPageContent() {
             ) {
               throw new Error("El viaje ya no está disponible.");
             }
+
             transaction.update(rideRef, {
               status: "accepted",
               driver: doc(db, "drivers", driver.id),
-              vehicle: driver.vehicle ? doc(db, "vehicles", driver.vehicle.id) : null,
               offeredTo: null,
             });
             transaction.update(doc(db, "drivers", driver.id), {
               status: "on-ride",
             });
           });
+
           setAvailability(false);
         } catch (e: any) {
+          console.error("Error accepting ride:", e);
           toast({
             variant: "destructive",
             title: "Error",
@@ -425,6 +611,7 @@ function DriverPageContent() {
           });
         }
       } else {
+        // Driver rejected, add them to the rejectedBy list and free up the offer
         setRejectedRideIds((prev) => [...prev, rideId]);
         await updateDoc(rideRef, {
           rejectedBy: arrayUnion(doc(db, "drivers", driver.id)),
@@ -461,6 +648,7 @@ function DriverPageContent() {
       setIncomingRequest(null);
       setIsCountering(false);
     } catch (e) {
+      console.error("Error submitting counter offer:", e);
       toast({
         variant: "destructive",
         title: "Error",
@@ -474,6 +662,7 @@ function DriverPageContent() {
   ) => {
     if (!activeRide) return;
     setIsCompletingRide(true);
+
     const rideRef = doc(db, "rides", activeRide.id);
     const driverRef = doc(db, "drivers", activeRide.driver.id);
 
@@ -486,15 +675,19 @@ function DriverPageContent() {
           totalRides: increment(1),
         });
         await batch.commit();
+
         toast({
           title: "¡Viaje Finalizado!",
           description: "Ahora califica al pasajero.",
         });
+
+        stopSimulation();
         setAvailability(true);
       } else {
         await updateDoc(rideRef, { status: newStatus });
       }
     } catch (error) {
+      console.error("Error updating ride status:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -507,8 +700,11 @@ function DriverPageContent() {
 
   const handleSosConfirm = async () => {
     if (!activeRide || !user || !driver) return;
+
     try {
+      const newSosAlertRef = doc(collection(db, "sosAlerts"));
       await addDoc(collection(db, "sosAlerts"), {
+        id: newSosAlertRef.id,
         rideId: activeRide.id,
         passenger: doc(db, "users", activeRide.passenger.id),
         driver: doc(db, "drivers", driver.id),
@@ -522,6 +718,7 @@ function DriverPageContent() {
         description: "Se ha notificado a la central de seguridad.",
       });
     } catch (error) {
+      console.error("Error creating SOS alert:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -550,6 +747,7 @@ function DriverPageContent() {
       });
       setCompletedRideForRating(null);
     } catch (error) {
+      console.error("Error submitting passenger rating:", error);
       toast({
         variant: "destructive",
         title: "Error al Calificar",
@@ -562,6 +760,7 @@ function DriverPageContent() {
 
   const handleSendMessage = async (text: string) => {
     if (!user || !activeRide) return;
+
     const chatMessagesRef = collection(
       db,
       "rides",
@@ -575,8 +774,13 @@ function DriverPageContent() {
     });
   };
 
-  const handleSavePaymentPlan = async (paymentModel: PaymentModel) => {
-    if (!driver) return;
+  const handleSavePaymentPlan = async () => {
+    if (
+      !driver ||
+      !selectedPaymentModel ||
+      selectedPaymentModel === driver.paymentModel
+    )
+      return;
     setIsSavingPlan(true);
 
     const driverRef = doc(db, "drivers", driver.id);
@@ -584,11 +788,11 @@ function DriverPageContent() {
       paymentModel: PaymentModel;
       membershipExpiryDate?: string;
     } = {
-      paymentModel: paymentModel,
+      paymentModel: selectedPaymentModel,
     };
 
     if (
-      paymentModel === "membership" &&
+      selectedPaymentModel === "membership" &&
       driver.paymentModel !== "membership"
     ) {
       updates.membershipExpiryDate = new Date(
@@ -602,10 +806,11 @@ function DriverPageContent() {
       toast({
         title: "Plan de Pago Actualizado",
         description: `Tu modelo de pago ahora es: ${
-          paymentModel === "membership" ? "Membresía" : "Comisión"
+          selectedPaymentModel === "membership" ? "Membresía" : "Comisión"
         }.`,
       });
     } catch (error) {
+      console.error("Error updating payment model:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -625,6 +830,7 @@ function DriverPageContent() {
   }
 
   const isApproved = driver.documentsStatus === "approved";
+  const membershipStatus = getMembershipStatus(driver.membershipExpiryDate);
 
   const renderDashboardContent = () => {
     if (incomingRequest) {
@@ -663,6 +869,7 @@ function DriverPageContent() {
         />
       );
     }
+
     if (completedRideForRating) {
       return (
         <RatingForm
@@ -703,32 +910,108 @@ function DriverPageContent() {
     <div className="flex flex-col min-h-screen bg-background">
       <main className="flex-1 p-4 lg:p-8">
         <Tabs defaultValue="dashboard">
-          <TabsList className="grid w-full grid-cols-4 max-w-xl mx-auto">
-            <TabsTrigger value="dashboard">Panel</TabsTrigger>
-            <TabsTrigger value="history">Historial</TabsTrigger>
-            <TabsTrigger value="documents">Documentos</TabsTrigger>
-            <TabsTrigger value="profile">Perfil</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl mx-auto">
+            <TabsTrigger value="dashboard">
+              <UserCog className="mr-2 h-4 w-4" />
+              Panel
+            </TabsTrigger>
+            <TabsTrigger value="history">
+              <History className="mr-2 h-4 w-4" />
+              Historial
+            </TabsTrigger>
+            <TabsTrigger value="documents">
+              <FileText className="mr-2 h-4 w-4" />
+              Documentos
+            </TabsTrigger>
+            <TabsTrigger value="vehicle">
+              <Car className="mr-2 h-4 w-4" />
+              Mi Vehículo
+            </TabsTrigger>
+            <TabsTrigger value="profile">
+              <Wallet className="mr-2 h-4 w-4" />
+              Perfil
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2">
-                <DriverMapView
-                  driverLocation={driver.location || null}
+              <div className="lg:col-span-2 flex flex-col min-h-[60vh] rounded-xl overflow-hidden shadow-lg relative">
+                <MapView
+                  driverLocation={driverLocation}
                   pickupLocation={
-                    activeRide?.pickupLocation ? activeRide.pickupLocation : null
+                    activeRide?.pickupLocation
+                      ? activeRide.pickupLocation
+                      : null
                   }
                   dropoffLocation={
                     activeRide?.dropoffLocation
                       ? activeRide.dropoffLocation
                       : null
                   }
-                  hasActiveRide={!!activeRide}
-                  passengerName={activeRide?.passenger.name}
-                  chatMessages={chatMessages}
-                  onSosConfirm={handleSosConfirm}
-                  onSendMessage={handleSendMessage}
+                  interactive={false}
                 />
+                {activeRide && (
+                  <>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-4 right-4 h-16 w-16 rounded-full shadow-2xl animate-pulse"
+                        >
+                          <Siren className="h-8 w-8" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            ¿Estás seguro de que quieres activar la alerta de
+                            pánico?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta acción notificará inmediatamente a nuestra
+                            central de seguridad. Úsalo solo en caso de una
+                            emergencia real.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive hover:bg-destructive/90"
+                            onClick={handleSosConfirm}
+                          >
+                            Sí, Activar Alerta
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    <Sheet
+                      open={isDriverChatOpen}
+                      onOpenChange={setIsDriverChatOpen}
+                    >
+                      <SheetTrigger asChild>
+                        <Button
+                          size="icon"
+                          className="absolute bottom-4 left-4 h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90"
+                        >
+                          <MessageCircle className="h-7 w-7" />
+                        </Button>
+                      </SheetTrigger>
+                      <SheetContent side="left" className="w-full max-w-sm p-0">
+                        <SheetHeader className="p-4 border-b text-left">
+                          <SheetTitle className="flex items-center gap-2">
+                            <MessageCircle className="h-5 w-5" />
+                            <span>Chat con {activeRide?.passenger.name}</span>
+                          </SheetTitle>
+                        </SheetHeader>
+                        <Chat
+                          messages={chatMessages}
+                          onSendMessage={handleSendMessage}
+                        />
+                      </SheetContent>
+                    </Sheet>
+                  </>
+                )}
               </div>
               <div className="flex flex-col gap-8">
                 <Card>
@@ -784,8 +1067,13 @@ function DriverPageContent() {
           </TabsContent>
 
           <TabsContent value="documents">
-            <div className="mb-4 space-y-4 w-full max-w-5xl mx-auto">
+            <div className="mb-4 space-x-4 w-full max-w-5xl mx-auto">
               <DriverDocuments driver={driver} onUpdate={setDriver} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="vehicle">
+            <div className="mb-4 space-x-4 w-full max-w-5xl mx-auto">
               <DriverVehicle driver={driver} onUpdate={setDriver} />
             </div>
           </TabsContent>
@@ -796,8 +1084,7 @@ function DriverPageContent() {
                 <CardHeader>
                   <CardTitle>Historial de Viajes</CardTitle>
                   <CardDescription>
-                    Últimos 25 viajes realizados. Usa la búsqueda para filtrar
-                    por nombre de pasajero.
+                    Últimos 25 viajes realizados. Usa la búsqueda para filtrar por nombre de pasajero.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -813,19 +1100,160 @@ function DriverPageContent() {
           </TabsContent>
 
           <TabsContent value="profile">
-            <div className="mb-4 space-y-4 w-full max-w-5xl mx-auto">
+            <div className="mb-4 space-x-4 w-full max-w-5xl mx-auto">
               <div className="grid md:grid-cols-2 gap-8">
-                <DriverProfileCard
-                  driver={driver}
-                  completedRidesCount={
-                    allRides.filter((r) => r.status === "completed").length
-                  }
-                />
-                <PaymentPlanSelector
-                  driver={driver}
-                  onSave={handleSavePaymentPlan}
-                  isSaving={isSavingPlan}
-                />
+                <Card className="md:col-span-2">
+                  <CardHeader>
+                    <CardTitle>Mi Perfil y Estadísticas</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-lg">
+                        Información del Conductor
+                      </h3>
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-20 w-20">
+                          <AvatarImage
+                            src={driver.avatarUrl}
+                            alt={driver.name}
+                          />
+                          <AvatarFallback>
+                            {driver.name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="text-2xl font-bold">{driver.name}</p>
+                          <p className="text-muted-foreground capitalize">
+                            {driver.vehicle.serviceType}
+                          </p>
+                        </div>
+                      </div>
+                      <h3 className="font-semibold text-lg mt-6">Vehículo</h3>
+                      <p>
+                        {driver.vehicle.brand} {driver.vehicle.model}
+                      </p>
+                      <p className="font-mono bg-muted p-2 rounded-md inline-block">
+                        {driver.vehicle.licensePlate}
+                      </p>
+                    </div>
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-lg">Estadísticas</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-muted rounded-lg text-center">
+                          <p className="text-4xl font-bold">
+                            {
+                              allRides.filter((r) => r.status === "completed")
+                                .length
+                            }
+                          </p>
+                          <p className="text-muted-foreground">
+                            Viajes Completados
+                          </p>
+                        </div>
+                        <div className="p-4 bg-muted rounded-lg text-center">
+                          <p className="text-4xl font-bold flex items-center justify-center gap-1">
+                            <Star className="h-8 w-8 text-yellow-400 fill-yellow-400" />
+                            {(driver.rating || 0).toFixed(1)}
+                          </p>
+                          <p className="text-muted-foreground">
+                            Tu Calificación
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="md:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <CreditCard />
+                      Mi Plan de Pago
+                    </CardTitle>
+                    <CardDescription>
+                      Elige cómo quieres ganar dinero con Hello Taxi.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <RadioGroup
+                      value={selectedPaymentModel}
+                      onValueChange={(value) =>
+                        setSelectedPaymentModel(value as PaymentModel)
+                      }
+                    >
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <Label
+                          htmlFor="payment-commission"
+                          className="flex flex-col p-4 border rounded-lg cursor-pointer hover:bg-accent/50 has-[:checked]:bg-primary/10 has-[:checked]:border-primary"
+                        >
+                          <RadioGroupItem
+                            value="commission"
+                            id="payment-commission"
+                            className="sr-only"
+                          />
+                          <span className="font-semibold text-lg">
+                            Comisión por Viaje
+                          </span>
+                          <span className="text-sm text-muted-foreground mt-1">
+                            Gana un porcentaje de cada viaje. Ideal para
+                            conductores a tiempo parcial.
+                          </span>
+                        </Label>
+                        <Label
+                          htmlFor="payment-membership"
+                          className="flex flex-col p-4 border rounded-lg cursor-pointer hover:bg-accent/50 has-[:checked]:bg-primary/10 has-[:checked]:border-primary"
+                        >
+                          <RadioGroupItem
+                            value="membership"
+                            id="payment-membership"
+                            className="sr-only"
+                          />
+                          <span className="font-semibold text-lg">
+                            Membresía Mensual
+                          </span>
+                          <span className="text-sm text-muted-foreground mt-1">
+                            Paga una cuota fija y quédate con casi toda la
+                            tarifa. Ideal para conductores a tiempo completo.
+                          </span>
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                    {selectedPaymentModel === "membership" && (
+                      <div className="mt-4 p-4 border rounded-lg bg-secondary/50">
+                        <h4 className="font-semibold flex items-center gap-2">
+                          <CalendarCheck /> Estado de tu Membresía
+                        </h4>
+                        <div className="mt-2 flex justify-between items-center">
+                          <Badge variant={membershipStatus.variant}>
+                            {membershipStatus.label}
+                          </Badge>
+                          {driver.membershipExpiryDate && (
+                            <span className="text-sm text-muted-foreground">
+                              Vence el:{" "}
+                              {format(
+                                new Date(driver.membershipExpiryDate),
+                                "dd 'de' MMMM, yyyy"
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                  <CardFooter>
+                    <Button
+                      onClick={handleSavePaymentPlan}
+                      disabled={
+                        isSavingPlan ||
+                        selectedPaymentModel === driver.paymentModel
+                      }
+                    >
+                      {isSavingPlan && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      <Save className="mr-2" /> Guardar Cambios
+                    </Button>
+                  </CardFooter>
+                </Card>
               </div>
             </div>
           </TabsContent>
