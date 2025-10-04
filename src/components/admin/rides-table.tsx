@@ -126,7 +126,7 @@ export default function RidesTable() {
           <DataTable 
             columns={tableColumns} 
             data={rides}
-            searchKey="passenger.name"
+            searchKey="passenger"
             searchPlaceholder="Buscar por nombre de pasajero..."
           />
         )}

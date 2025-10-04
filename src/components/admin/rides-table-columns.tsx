@@ -28,7 +28,9 @@ const statusConfig: Record<Ride["status"], { label: string; variant: "secondary"
 export const columns: ColumnDef<EnrichedRide>[] = [
   {
     accessorKey: "passenger",
+    id: "passenger",
     header: "Pasajero",
+    accessorFn: (row) => row.passenger?.name || "Sin asignar",
     cell: ({ row }) => {
       const passenger = row.original.passenger;
       if (!passenger) return <span className="text-muted-foreground text-xs">No asignado</span>;
