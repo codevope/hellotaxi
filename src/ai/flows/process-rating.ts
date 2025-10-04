@@ -20,11 +20,18 @@ import { doc, runTransaction, collection, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { z } from 'zod';
 
-const sentimentAnalysisPrompt = ai.definePrompt({
-    name: 'sentimentAnalysisPrompt',
+const analyzeAndCorrectCommentPrompt = ai.definePrompt({
+    name: 'analyzeAndCorrectCommentPrompt',
     input: { schema: z.object({ comment: z.string() }) },
-    output: { schema: z.object({ sentiment: z.enum(['positive', 'negative', 'neutral']) }) },
-    prompt: `Analiza el sentimiento del siguiente comentario y clasifícalo como 'positive', 'negative', o 'neutral'. Comentario: "{{comment}}"`,
+    output: { schema: z.object({ 
+        sentiment: z.enum(['positive', 'negative', 'neutral']),
+        correctedComment: z.string().describe("El comentario original con la ortografía y gramática corregidas.") 
+    }) },
+    prompt: `Analiza el sentimiento del siguiente comentario y clasifícalo como 'positive', 'negative', o 'neutral'. Además, corrige cualquier error de ortografía o gramática en el comentario, pero manteniendo el tono y la intención original del usuario.
+    
+    Comentario original: "{{comment}}"
+    
+    Devuelve tanto el sentimiento como el comentario corregido.`,
 });
 
 
@@ -46,6 +53,8 @@ const processRatingFlow = ai.defineFlow(
     const userDocRef = doc(db, collectionName, ratedUserId);
     
     let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
+    let finalComment = comment;
+
     const reviewData: {
         rating: number;
         comment?: string;
@@ -53,18 +62,24 @@ const processRatingFlow = ai.defineFlow(
         createdAt: string;
     } = {
         rating,
-        sentiment,
+        sentiment: 'neutral', // Default sentiment
         createdAt: new Date().toISOString(),
     };
     
     if (comment && comment.trim().length > 0) {
-        // Analizar sentimiento solo si hay comentario
-        const sentimentResult = await sentimentAnalysisPrompt({ comment });
-        if(sentimentResult.output) {
-            reviewData.sentiment = sentimentResult.output.sentiment;
+        // Analizar sentimiento y corregir comentario solo si existe
+        const analysisResult = await analyzeAndCorrectCommentPrompt({ comment });
+        if (analysisResult.output) {
+            reviewData.sentiment = analysisResult.output.sentiment;
+            // Usar el comentario corregido por la IA
+            finalComment = analysisResult.output.correctedComment;
         }
-        reviewData.comment = comment;
     }
+
+    if (finalComment && finalComment.trim().length > 0) {
+        reviewData.comment = finalComment;
+    }
+
 
     // Guardar siempre la calificación en la subcolección, con o sin comentario
     const reviewsColRef = collection(userDocRef, 'reviews');
