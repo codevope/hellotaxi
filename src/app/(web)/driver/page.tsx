@@ -123,7 +123,6 @@ import { IncomingRideRequest } from "@/components/driver/incoming-ride-request";
 import { ActiveRideCard } from "@/components/driver/active-ride-card";
 import { DriverMapView } from "@/components/driver/driver-map-view";
 import { DriverProfileCard } from "@/components/driver/driver-profile-card";
-import { PaymentPlanSelector } from "@/components/driver/payment-plan-selector";
 
 const statusConfig: Record<
   Driver["status"],
